@@ -24,7 +24,7 @@ public sealed class ModifierStack : IEnumerable<Modifier>
         {
             if (_dirty)
             {
-                _total = Resolve(null);
+                _total = Resolve(null, filter: null);
                 _dirty = false;
             }
 
@@ -63,20 +63,38 @@ public sealed class ModifierStack : IEnumerable<Modifier>
         _dirty = true;
     }
 
-    /// <summary>The same total as <see cref="Total"/>, with the reasoning attached.</summary>
-    public ModifierBreakdown Explain()
+    /// <summary>
+    /// Total over only the modifiers <paramref name="filter"/> accepts. The filter runs
+    /// before the stacking rules, so an excluded modifier cannot suppress an included one:
+    /// a touch attack that ignores your +6 armour still sees your +4 mage armour.
+    /// </summary>
+    public int TotalWhere(Func<Modifier, bool> filter)
     {
-        var entries = new List<ModifierEntry>(_modifiers.Count);
-        return new ModifierBreakdown(entries, Resolve(entries));
+        ArgumentNullException.ThrowIfNull(filter);
+        return Resolve(null, filter);
     }
 
-    private int Resolve(List<ModifierEntry>? entries)
+    /// <summary>The same total as <see cref="Total"/>, with the reasoning attached.</summary>
+    /// <param name="filter">Optional; excluded modifiers are left out of the breakdown entirely,
+    /// because "does not apply here" is a different statement from "lost to a bigger bonus".</param>
+    public ModifierBreakdown Explain(Func<Modifier, bool>? filter = null)
+    {
+        var entries = new List<ModifierEntry>(_modifiers.Count);
+        return new ModifierBreakdown(entries, Resolve(entries, filter));
+    }
+
+    private int Resolve(List<ModifierEntry>? entries, Func<Modifier, bool>? filter)
     {
         var total = 0;
         for (var i = 0; i < _modifiers.Count; i++)
         {
             var modifier = _modifiers[i];
-            var winner = FindSuppressor(i, modifier);
+            if (filter is not null && !filter(modifier))
+            {
+                continue;
+            }
+
+            var winner = FindSuppressor(i, modifier, filter);
             if (winner is null)
             {
                 total += modifier.Value;
@@ -95,7 +113,7 @@ public sealed class ModifierStack : IEnumerable<Modifier>
     /// Index of the modifier that crowds <paramref name="modifier"/> out, or null if it applies.
     /// Equal values tie-break on insertion order so exactly one of them counts.
     /// </summary>
-    private int? FindSuppressor(int index, Modifier modifier)
+    private int? FindSuppressor(int index, Modifier modifier, Func<Modifier, bool>? filter)
     {
         // Penalties are outside the stacking rules entirely: they all apply.
         if (modifier.IsPenalty)
@@ -118,6 +136,11 @@ public sealed class ModifierStack : IEnumerable<Modifier>
 
             var other = _modifiers[i];
             if (other.Type != modifier.Type || other.IsPenalty)
+            {
+                continue;
+            }
+
+            if (filter is not null && !filter(other))
             {
                 continue;
             }
