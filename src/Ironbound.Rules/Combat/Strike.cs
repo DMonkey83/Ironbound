@@ -101,6 +101,7 @@ public static class Strike
             NonlethalDealt = nonlethal,
             StateBefore = before,
             StateAfter = target.HitPoints.State,
+            TargetAfter = target.HitPoints.ToString(),
         };
     }
 

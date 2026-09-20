@@ -93,6 +93,22 @@ public class FullAttackTests
     }
 
     [Fact]
+    public void EachSwingReportsTheHitPointsAsTheyStoodWhenItLanded()
+    {
+        var (turn, _, dummy) = Duel(baseAttack: 6);
+
+        var result = Assert.IsType<FullAttackResult>(turn.Take(new FullAttackAction(dummy)));
+        var landed = result.Strikes.Where(strike => strike.Attack.IsHit).ToList();
+
+        Assert.Equal(2, landed.Count);
+
+        // Read live, both swings reported the creature's final total and the second looked as
+        // though it had done nothing at all.
+        Assert.NotEqual(landed[0].TargetAfter, landed[1].TargetAfter);
+        Assert.Contains(landed[0].TargetAfter, landed[0].ToString());
+    }
+
+    [Fact]
     public void FiveBaseAttackSwingsOnceAndSaysSo()
     {
         var (turn, _, dummy) = Duel(baseAttack: 5);

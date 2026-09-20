@@ -35,6 +35,16 @@ public static class CreatureSizes
     };
 
     /// <summary>
+    /// The size modifier used by combat maneuvers, which runs the other way.
+    /// </summary>
+    /// <remarks>
+    /// Not a mistake, and worth stating plainly because the sign trips everyone up: being small
+    /// makes you harder to <em>hit</em> and easier to <em>shove</em>. A goblin gets +1 to armour
+    /// class and -1 to keeping its feet, and an ogre the reverse.
+    /// </remarks>
+    public static int ManeuverModifier(CreatureSize size) => -Modifier(size);
+
+    /// <summary>
     /// Natural reach in feet. Tiny and smaller have <b>none</b>: they have to be in your square
     /// to do anything to you, which is the rule as written rather than a rounding to five.
     /// </summary>

@@ -250,6 +250,11 @@ public sealed class Battle
             lines.AddRange(stood.Opportunities.Select(strike => $"  {strike}"));
         }
 
+        if (result is ManeuverActionResult { Opportunities.Count: > 0 } grappled)
+        {
+            lines.AddRange(grappled.Opportunities.Select(strike => $"  {strike}"));
+        }
+
         if (result is AttackActionResult { Opportunities.Count: > 0 } swung)
         {
             lines.AddRange(swung.Opportunities.Select(strike => $"  {strike}"));

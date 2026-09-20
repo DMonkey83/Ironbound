@@ -156,6 +156,19 @@ public sealed class HeuristicActionSource : IActionSource
             return reposition;
         }
 
+        // Worth stealing a round from anything that swings more than once: the four points of
+        // armour class are incidental, the move action it must spend getting up is the prize.
+        // Only when the odds are better than even, since failing badly puts you on the floor.
+        if (playsWell
+            && turn.Budget.HasStandard
+            && !target.IsProne
+            && target.AttacksPerFullAttack > 1
+            && Maneuvers.Bonus(actor).Total + 11 >= Maneuvers.Defense(target)
+            && turn.CanTake(new TripAction(target)))
+        {
+            return new TripAction(target);
+        }
+
         // A wizard out of spells has nothing useful left, and that is a legitimate answer.
         return InClose(actor) is { } weapon ? Swing(turn, weapon, target) : null;
     }

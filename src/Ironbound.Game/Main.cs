@@ -45,9 +45,16 @@ public partial class Main : Node3D
 
 		/// <summary>Everything you have, at the cost of going anywhere.</summary>
 		Full,
+
+		/// <summary>Put them on the floor and make them spend a round getting up.</summary>
+		Trip,
+
+		/// <summary>Drive them backwards, out of position and out of your way.</summary>
+		Shove,
 	}
 
-	private static readonly Mode[] ModeOrder = [Mode.Move, Mode.Attack, Mode.Full, Mode.Cast];
+	private static readonly Mode[] ModeOrder =
+		[Mode.Move, Mode.Attack, Mode.Full, Mode.Trip, Mode.Shove, Mode.Cast];
 
 	private readonly Dictionary<Creature, Node3D> _figures = new();
 
@@ -273,6 +280,22 @@ public partial class Main : Node3D
 
 		switch (_mode)
 		{
+			case Mode.Trip:
+			case Mode.Shove:
+				if (occupant is null || !actor.IsEnemyOf(occupant))
+				{
+					return "There is nobody there to lay hands on.";
+				}
+
+				if (_mode == Mode.Trip && occupant.IsProne)
+				{
+					return $"{occupant.Name} is already on the floor.";
+				}
+
+				return field.DistanceInFeet(actor, occupant) is { } gap
+					? $"{actor.Name} cannot reach {occupant.Name}, {gap} ft away."
+					: $"{actor.Name} cannot reach {occupant.Name}.";
+
 			case Mode.Attack:
 			case Mode.Full:
 				if (occupant is null)
@@ -337,6 +360,16 @@ public partial class Main : Node3D
 					&& WeaponFor(field, actor, occupant) is { } everything
 						? new FullAttackAction(occupant, everything)
 						: null;
+
+			case Mode.Trip:
+				return occupant is not null && actor.IsEnemyOf(occupant)
+					? new TripAction(occupant)
+					: null;
+
+			case Mode.Shove:
+				return occupant is not null && actor.IsEnemyOf(occupant)
+					? new BullRushAction(occupant)
+					: null;
 
 			case Mode.Cast:
 				if (SelectedSpell() is not { } spell)
@@ -775,6 +808,8 @@ public partial class Main : Node3D
 		// clicking and being told no is the interface making the player do its remembering.
 		_modes[Mode.Attack].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Full].Disabled = turn is null || !turn.Budget.CanAfford(ActionCost.FullRound);
+		_modes[Mode.Trip].Disabled = turn is null || !turn.Budget.HasStandard;
+		_modes[Mode.Shove].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Cast].Disabled = turn is null || !turn.Budget.HasStandard || _spells.ItemCount == 0;
 		_modes[Mode.Move].Disabled = turn is null || !CanStillMove(turn);
 

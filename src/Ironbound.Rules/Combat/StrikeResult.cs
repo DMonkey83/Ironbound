@@ -34,6 +34,16 @@ public sealed record StrikeResult
 
     public required HitPointState StateAfter { get; init; }
 
+    /// <summary>
+    /// The target's hit points as they stood the moment this strike landed.
+    /// </summary>
+    /// <remarks>
+    /// Captured rather than read back from the creature, because a full attack resolves several
+    /// strikes before anything renders them: reading live made both swings of a two-attack round
+    /// report the same total, which read as though the second had done nothing.
+    /// </remarks>
+    public required string TargetAfter { get; init; }
+
     public bool IsHit => Attack.IsHit;
 
     public bool IsCritical => Attack.IsCritical;
@@ -74,6 +84,6 @@ public sealed record StrikeResult
             text += $"; {NonlethalDealt} of it nonlethal";
         }
 
-        return $"{text}; {Target.Name} {Target.HitPoints}";
+        return $"{text}; {Target.Name} {TargetAfter}";
     }
 }
