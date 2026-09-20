@@ -80,6 +80,9 @@ public sealed class Creature
     /// <summary>What the creature brings to damage: Inspire Courage, Weapon Specialization.</summary>
     public ModifierStack DamageModifiers { get; } = new();
 
+    /// <summary>Improved Initiative and anything else that decides who moves first.</summary>
+    public ModifierStack InitiativeModifiers { get; } = new();
+
     /// <summary>Buffs, conditions and anything else running on a clock.</summary>
     public EffectCollection Effects { get; }
 
