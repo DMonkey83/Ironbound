@@ -23,33 +23,37 @@ public static class Scenarios
     public static Battle GoblinAmbush(ulong seed = 20260920, RuleOptions? rules = null)
     {
         var valeria = Warrior("Valeria", new AbilityScores(18, 14, 14, 10, 12, 10), 32, 5, 5, 6, rules);
+        valeria.Attacks.Add(WeaponAttack.Melee(
+            "longsword", "1d8", DamageType.Slashing, new CriticalProfile(19, 2)));
+
         var karn = Warrior("Karn", new AbilityScores(16, 12, 16, 8, 13, 8), 40, 5, 5, 7, rules);
+        karn.Attacks.Add(WeaponAttack.Melee(
+            "greataxe", "1d12", DamageType.Slashing, new CriticalProfile(20, 3),
+            AbilityDamageScale.OneAndAHalf));
 
-        var party = new[]
-        {
-            new Loadout(valeria, WeaponAttack.Melee(
-                "longsword", "1d8", DamageType.Slashing, new CriticalProfile(19, 2))),
-            new Loadout(karn, WeaponAttack.Melee(
-                "greataxe", "1d12", DamageType.Slashing, new CriticalProfile(20, 3),
-                AbilityDamageScale.OneAndAHalf)),
-        };
-
-        var foes = Enumerable.Range(1, 3)
-            .Select(index => new Loadout(
-                Warrior($"Goblin {index}", new AbilityScores(11, 15, 12, 10, 9, 6), 9, 2, 1, 3, rules),
-                WeaponAttack.Melee("scimitar", "1d6", DamageType.Slashing, new CriticalProfile(18, 2))))
+        var goblins = Enumerable.Range(1, 3)
+            .Select(index =>
+            {
+                var goblin = Warrior(
+                    $"Goblin {index}", new AbilityScores(11, 15, 12, 10, 9, 6), 9, 2, 1, 3, rules);
+                goblin.Size = CreatureSize.Small;
+                goblin.Speed = 20;
+                goblin.Attacks.Add(WeaponAttack.Melee(
+                    "scimitar", "1d6", DamageType.Slashing, new CriticalProfile(18, 2)));
+                return goblin;
+            })
             .ToArray();
 
         // Two ranks facing each other across thirty-odd feet, so the first round is spent closing.
         var field = new Battlefield(16, 12);
         field.Place(valeria, 3, 4);
         field.Place(karn, 3, 6);
-        for (var index = 0; index < foes.Length; index++)
+        for (var index = 0; index < goblins.Length; index++)
         {
-            field.Place(foes[index].Creature, 10, 3 + (index * 2));
+            field.Place(goblins[index], 10, 3 + (index * 2));
         }
 
-        return new Battle(party, foes, new PcgRandom(seed, DiceStream), rules, field);
+        return new Battle([valeria, karn], goblins, new PcgRandom(seed, DiceStream), rules, field);
     }
 
     /// <summary>An AI to drive a battle, thinking on its own stream.</summary>

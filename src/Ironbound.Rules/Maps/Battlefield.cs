@@ -6,10 +6,9 @@ namespace Ironbound.Rules.Maps;
 /// Where the fight happens: the ground, what blocks it, and who is standing where.
 /// </summary>
 /// <remarks>
-/// A creature may be moved <em>through</em> an occupied square but never stop on one. Strictly
-/// the rules only allow passing through an ally, but nothing at this layer knows about sides —
-/// and making every occupied square solid turns a corridor into a permanent traffic jam. The
-/// distinction returns when factions reach this layer.
+/// A creature may squeeze <em>through</em> an ally's square but never stop on one, and never
+/// pass through an enemy at all. Routes found without naming a mover treat every occupied square
+/// as walkable, which is how this behaved before creatures knew whose side they were on.
 /// </remarks>
 public sealed class Battlefield
 {
@@ -126,6 +125,97 @@ public sealed class Battlefield
     }
 
     /// <summary>
+    /// Whether <paramref name="creature"/> could make a melee attack into
+    /// <paramref name="square"/>. Its own square does not count, and a creature that cannot act
+    /// threatens nothing at all.
+    /// </summary>
+    public bool Threatens(Creature creature, GridSquare square)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        if (!creature.IsConscious || creature.Reach <= 0 || SquareOf(creature) is not { } standing)
+        {
+            return false;
+        }
+
+        return standing != square && Distance.Between(standing, square) <= creature.Reach;
+    }
+
+    /// <summary>Every square a creature could strike into.</summary>
+    public IEnumerable<GridSquare> ThreatenedBy(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        if (SquareOf(creature) is not { } standing || creature.Reach <= 0 || !creature.IsConscious)
+        {
+            yield break;
+        }
+
+        var ring = creature.Reach / Distance.FeetPerSquare;
+        for (var dx = -ring; dx <= ring; dx++)
+        {
+            for (var dy = -ring; dy <= ring; dy++)
+            {
+                var square = new GridSquare(standing.X + dx, standing.Y + dy);
+                if (Contains(square) && Threatens(creature, square))
+                {
+                    yield return square;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether two allies have <paramref name="target"/> between them.
+    /// </summary>
+    /// <remarks>
+    /// "Directly opposite" is one line of arithmetic: the two flankers' squares have to average
+    /// to the target's. That holds for reach weapons too — (3,5) and (7,5) flank a target at
+    /// (5,5) exactly as (4,5) and (6,5) do.
+    /// </remarks>
+    public bool AreFlanking(Creature a, Creature b, Creature target)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (!a.IsAllyOf(b) || !a.IsEnemyOf(target) || !b.IsEnemyOf(target))
+        {
+            return false;
+        }
+
+        if (SquareOf(a) is not { } first || SquareOf(b) is not { } second
+            || SquareOf(target) is not { } middle)
+        {
+            return false;
+        }
+
+        if (!Threatens(a, middle) || !Threatens(b, middle))
+        {
+            return false;
+        }
+
+        return first.X + second.X == 2 * middle.X && first.Y + second.Y == 2 * middle.Y;
+    }
+
+    /// <summary>An ally positioned opposite <paramref name="attacker"/>, if there is one.</summary>
+    public Creature? FindFlankingPartner(Creature attacker, Creature target)
+    {
+        ArgumentNullException.ThrowIfNull(attacker);
+        ArgumentNullException.ThrowIfNull(target);
+
+        foreach (var other in _squares.Keys)
+        {
+            if (AreFlanking(attacker, other, target))
+            {
+                return other;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Cost in feet of walking a path, where the path starts at the square already occupied.
     /// A single step's price is not a property of that step: a diagonal costs 5 or 10 depending
     /// on how many diagonals the path has already spent, which is why the count is carried along
@@ -164,8 +254,9 @@ public sealed class Battlefield
     }
 
     /// <summary>The cheapest route, starting at <paramref name="from"/>. Empty when there is none.</summary>
-    public IReadOnlyList<GridSquare> FindPath(GridSquare from, GridSquare to) =>
-        PathFinder.Find(this, from, to);
+    /// <param name="mover">Optional. Given one, enemies block the way and allies do not.</param>
+    public IReadOnlyList<GridSquare> FindPath(GridSquare from, GridSquare to, Creature? mover = null) =>
+        PathFinder.Find(this, from, to, mover);
 
     /// <summary>
     /// As much of the route towards <paramref name="target"/> as <paramref name="feetAvailable"/>
@@ -204,7 +295,7 @@ public sealed class Battlefield
                     continue;
                 }
 
-                var route = PathFinder.Find(this, from, candidate);
+                var route = PathFinder.Find(this, from, candidate, mover);
                 if (route.Count < 2)
                 {
                     continue;

@@ -37,7 +37,14 @@ public sealed class AttackAction : GameAction
         new AttackActionResult(
             this,
             context.Actor,
-            Strike.Resolve(context.Actor, Weapon, Target, context.Random, DefenderState, context.Rules));
+            Strike.Resolve(
+                context.Actor,
+                Weapon,
+                Target,
+                context.Random,
+                DefenderState,
+                context.Rules,
+                context.Encounter.Battlefield));
 }
 
 /// <summary>An attack's outcome, carrying the strike itself rather than only a log line.</summary>

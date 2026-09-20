@@ -84,9 +84,9 @@ public partial class Main : Node3D
 		RefreshFigures();
 	}
 
-	private void Spawn(IReadOnlyList<Loadout> loadouts, Color colour)
+	private void Spawn(IReadOnlyList<Creature> creatures, Color colour)
 	{
-		foreach (var loadout in loadouts)
+		foreach (var creature in creatures)
 		{
 			var figure = new MeshInstance3D
 			{
@@ -98,7 +98,7 @@ public partial class Main : Node3D
 
 			var nameplate = new Label3D
 			{
-				Text = loadout.Creature.Name,
+				Text = creature.Name,
 				Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
 				FontSize = 48,
 				PixelSize = 0.005f,
@@ -106,7 +106,7 @@ public partial class Main : Node3D
 			};
 
 			figure.AddChild(nameplate);
-			_figures[loadout.Creature] = figure;
+			_figures[creature] = figure;
 		}
 	}
 

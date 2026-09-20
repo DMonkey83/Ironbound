@@ -4,6 +4,7 @@ using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Encounters.Actions;
+using Ironbound.Rules.Maps;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Simulation;
 
@@ -22,8 +23,12 @@ public class BattleTests
         return creature;
     }
 
-    private static Loadout Armed(Creature creature) =>
-        new(creature, WeaponAttack.Create("sword", 5, "1d6", DamageType.Slashing));
+    /// <summary>Hands the creature a weapon and returns it, so a test can build one inline.</summary>
+    private static Creature Armed(Creature creature)
+    {
+        creature.Attacks.Add(WeaponAttack.Create("sword", 5, "1d6", DamageType.Slashing));
+        return creature;
+    }
 
     /// <summary>One hero against two foes, with initiative scripted so the hero acts first.</summary>
     private static Battle Skirmish(Creature hero, Creature first, Creature second, params int[] extra) =>
@@ -165,8 +170,12 @@ public class HeuristicActionSourceTests
     private static Creature Warrior(string name, int hitPoints) =>
         new(name, AbilityScores.All(10), hitPoints, 1);
 
-    private static Loadout Armed(Creature creature) =>
-        new(creature, WeaponAttack.Create("sword", 5, "1d6", DamageType.Slashing));
+    /// <summary>Hands the creature a weapon and returns it, so a test can build one inline.</summary>
+    private static Creature Armed(Creature creature)
+    {
+        creature.Attacks.Add(WeaponAttack.Create("sword", 5, "1d6", DamageType.Slashing));
+        return creature;
+    }
 
     /// <summary>Initiative 20 for the hero, so the first turn is always theirs.</summary>
     private static Battle Skirmish(Creature hero, Creature healthy, Creature wounded, params int[] extra) =>
@@ -313,5 +322,69 @@ public class ScenarioTests
         Assert.Equal(
             clever.Encounter.Order.Select(c => (c.Creature.Name, c.Initiative)),
             foolish.Encounter.Order.Select(c => (c.Creature.Name, c.Initiative)));
+    }
+}
+
+public class TacticalHeuristicTests
+{
+    private static Creature Fighter(string name)
+    {
+        var creature = new Creature(name, new AbilityScores(18, 10, 14, 10, 10, 10), 40, 6);
+        creature.Attacks.Add(WeaponAttack.Create("sword", 10, "1d6", DamageType.Slashing));
+        return creature;
+    }
+
+    [Fact]
+    public void ACompetentCreatureStepsRoundToFlankBeforeSwinging()
+    {
+        var field = new Battlefield(12, 6);
+        var actor = Fighter("Actor");
+        var ally = Fighter("Ally");
+        var target = Fighter("Target");
+
+        // Actor is already in reach, but on the same side as its ally.
+        field.Place(actor, 5, 1);
+        field.Place(ally, 4, 2);
+        field.Place(target, 5, 2);
+
+        var battle = new Battle(
+            [actor, ally], [target], new SequenceRandom(20, 10, 1), rules: null, battlefield: field);
+        var source = new HeuristicActionSource(battle, new SequenceRandom(true, 1));
+
+        var turn = battle.Encounter.BeginNextTurn()!;
+        Assert.Same(actor, turn.Actor);
+
+        var step = source.NextAction(turn);
+
+        // Stepping to (6,2) puts the target between the two of them.
+        var moved = Assert.IsType<FiveFootStepAction>(step);
+        Assert.Equal(new GridSquare(6, 2), moved.Destination);
+
+        turn.Take(moved);
+        Assert.Same(ally, field.FindFlankingPartner(actor, target));
+
+        // And the step was free, so the swing still happens this turn.
+        Assert.IsType<AttackAction>(source.NextAction(turn));
+    }
+
+    [Fact]
+    public void ItDoesNotShuffleAboutWhenItIsAlreadyFlanking()
+    {
+        var field = new Battlefield(12, 6);
+        var actor = Fighter("Actor");
+        var ally = Fighter("Ally");
+        var target = Fighter("Target");
+
+        field.Place(actor, 4, 2);
+        field.Place(ally, 6, 2);
+        field.Place(target, 5, 2);
+
+        var battle = new Battle(
+            [actor, ally], [target], new SequenceRandom(20, 10, 1), rules: null, battlefield: field);
+        var source = new HeuristicActionSource(battle, new SequenceRandom(true, 1));
+
+        var turn = battle.Encounter.BeginNextTurn()!;
+
+        Assert.IsType<AttackAction>(source.NextAction(turn));
     }
 }

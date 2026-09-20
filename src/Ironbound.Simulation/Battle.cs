@@ -1,8 +1,8 @@
 using Ironbound.Rules;
-using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
+using Ironbound.Rules.Encounters.Actions;
 using Ironbound.Rules.Maps;
 
 namespace Ironbound.Simulation;
@@ -23,9 +23,6 @@ public enum BattleOutcome
     Draw,
 }
 
-/// <summary>A creature and what it is swinging.</summary>
-public sealed record Loadout(Creature Creature, WeaponAttack Weapon);
-
 /// <summary>What one turn produced, ready for a log panel.</summary>
 public sealed record BattleTurn(Turn Turn, IReadOnlyList<string> Lines)
 {
@@ -35,23 +32,28 @@ public sealed record BattleTurn(Turn Turn, IReadOnlyList<string> Lines)
 }
 
 /// <summary>
-/// An encounter with sides, weapons and someone to decide what each creature does — the glue
-/// between the rules and whatever is drawing them.
+/// An encounter with sides and someone to decide what each creature does — the glue between the
+/// rules and whatever is drawing them.
 /// </summary>
 /// <remarks>
-/// This lives above <c>Ironbound.Rules</c> and below the Godot project on purpose. The rules know
-/// nothing about factions or who is fighting whom, and the presentation layer should not have to
-/// drive a turn loop. Everything here is still engine-free and still unit-testable.
+/// This lives above <c>Ironbound.Rules</c> and below the Godot project on purpose: the
+/// presentation layer should not have to drive a turn loop. Everything here is still engine-free
+/// and still unit-testable.
+/// <para>
+/// Sides are recorded on the creatures themselves rather than in a private dictionary, because
+/// the rules need them too — flanking, and every other rule that says "ally".
+/// </para>
 /// </remarks>
 public sealed class Battle
 {
-    private readonly Dictionary<Creature, Loadout> _loadouts = [];
-    private readonly Dictionary<Creature, Side> _sides = [];
+    public const int PartyAllegiance = 1;
+    public const int FoeAllegiance = 2;
+
     private readonly List<string> _log = [];
 
     public Battle(
-        IEnumerable<Loadout> party,
-        IEnumerable<Loadout> foes,
+        IEnumerable<Creature> party,
+        IEnumerable<Creature> foes,
         IRandomSource random,
         RuleOptions? rules = null,
         Battlefield? battlefield = null)
@@ -63,28 +65,24 @@ public sealed class Battle
         Party = [.. party];
         Foes = [.. foes];
 
-        foreach (var loadout in Party)
+        foreach (var creature in Party)
         {
-            _loadouts[loadout.Creature] = loadout;
-            _sides[loadout.Creature] = Side.Party;
+            creature.Allegiance = PartyAllegiance;
         }
 
-        foreach (var loadout in Foes)
+        foreach (var creature in Foes)
         {
-            _loadouts[loadout.Creature] = loadout;
-            _sides[loadout.Creature] = Side.Foes;
+            creature.Allegiance = FoeAllegiance;
         }
 
-        // Explicitly party-then-foes rather than the dictionary's key order, which is not a
-        // guaranteed sequence — initiative would then be rolled in an unspecified order and a
-        // replay from the same seed could diverge.
-        Encounter = new Encounter(
-            Party.Concat(Foes).Select(loadout => loadout.Creature), random, rules, battlefield);
+        // Explicitly party-then-foes rather than any incidental ordering: initiative is rolled in
+        // this sequence, and a replay from the same seed has to see the same one.
+        Encounter = new Encounter(Party.Concat(Foes), random, rules, battlefield);
     }
 
-    public IReadOnlyList<Loadout> Party { get; }
+    public IReadOnlyList<Creature> Party { get; }
 
-    public IReadOnlyList<Loadout> Foes { get; }
+    public IReadOnlyList<Creature> Foes { get; }
 
     public Encounter Encounter { get; }
 
@@ -96,21 +94,24 @@ public sealed class Battle
 
     public int Round => Encounter.Round;
 
-    public Side SideOf(Creature creature) => _sides[creature];
-
-    public WeaponAttack WeaponOf(Creature creature) => _loadouts[creature].Weapon;
+    public Side SideOf(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        return creature.Allegiance == PartyAllegiance ? Side.Party : Side.Foes;
+    }
 
     /// <summary>Everyone still standing on the other side from this creature.</summary>
     public IReadOnlyList<Creature> EnemiesOf(Creature creature)
     {
-        var side = SideOf(creature);
+        ArgumentNullException.ThrowIfNull(creature);
+
         return [.. Encounter.ActiveCombatants
             .Select(combatant => combatant.Creature)
-            .Where(other => _sides[other] != side)];
+            .Where(creature.IsEnemyOf)];
     }
 
     public bool AnyStanding(Side side) =>
-        Encounter.ActiveCombatants.Any(combatant => _sides[combatant.Creature] == side);
+        Encounter.ActiveCombatants.Any(combatant => SideOf(combatant.Creature) == side);
 
     public BattleOutcome Outcome => (AnyStanding(Side.Party), AnyStanding(Side.Foes)) switch
     {
@@ -149,6 +150,13 @@ public sealed class Battle
             }
 
             lines.Add(result.Description);
+
+            // An opportunity is taken inside somebody else's action, so it has to be unpacked
+            // here or it never reaches the log at all.
+            if (result is MoveActionResult { Opportunities.Count: > 0 } moved)
+            {
+                lines.AddRange(moved.Opportunities.Select(strike => $"  {strike}"));
+            }
         }
 
         turn.End();

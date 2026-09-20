@@ -35,5 +35,29 @@ public sealed class Combatant
     /// <summary>Unconscious and dead combatants are skipped, but their effects keep running.</summary>
     public bool IsActive => Creature.IsConscious;
 
+    /// <summary>Opportunities spent since this creature's last turn.</summary>
+    public int OpportunitiesUsed { get; internal set; }
+
+    public bool CanTakeOpportunity =>
+        IsActive && OpportunitiesUsed < Creature.AttacksOfOpportunityPerRound;
+
+    /// <summary>Set by ordinary movement. Bars a five-foot step for the rest of the turn.</summary>
+    public bool HasMoved { get; internal set; }
+
+    /// <summary>Set by a five-foot step. Bars ordinary movement for the rest of the turn.</summary>
+    public bool HasTakenFiveFootStep { get; internal set; }
+
+    /// <summary>
+    /// Everything that refreshes at the start of a creature's own turn — which is exactly when
+    /// the rules say the opportunity allotment comes back.
+    /// </summary>
+    internal void BeginTurn()
+    {
+        Budget.Reset();
+        OpportunitiesUsed = 0;
+        HasMoved = false;
+        HasTakenFiveFootStep = false;
+    }
+
     public override string ToString() => $"{Creature.Name} (initiative {Initiative})";
 }

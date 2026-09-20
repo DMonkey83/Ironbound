@@ -1,6 +1,7 @@
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Dice;
+using Ironbound.Rules.Maps;
 using Ironbound.Rules.Modifiers;
 
 namespace Ironbound.Rules.Combat;
@@ -15,6 +16,9 @@ namespace Ironbound.Rules.Combat;
 /// </remarks>
 public static class Strike
 {
+    /// <summary>What having an ally on the far side is worth.</summary>
+    public const int FlankingBonus = 2;
+
     /// <param name="defenderState">What is true of the target — flat-footed, surprised,
     /// immobilised. Position-dependent conditions will be derived here once a map exists.</param>
     /// <param name="rules">Defaults to the attacker's own options.</param>
@@ -24,7 +28,8 @@ public static class Strike
         Creature target,
         IRandomSource random,
         DefenseOptions defenderState = DefenseOptions.None,
-        RuleOptions? rules = null)
+        RuleOptions? rules = null,
+        Battlefield? field = null)
     {
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
@@ -34,7 +39,7 @@ public static class Strike
 
         var before = target.HitPoints.State;
         var attack = weapon.Attack.Resolve(
-            target.ArmorClass, random, AttackBonus(attacker, weapon), defenderState, rules);
+            target.ArmorClass, random, AttackBonus(attacker, weapon, target, field), defenderState, rules);
 
         DamageRoll? damage = null;
         DamageTaken? taken = null;
@@ -66,11 +71,15 @@ public static class Strike
     }
 
     /// <summary>
-    /// The wielder's modifiers and the weapon's, resolved together in one pass. Adding two
-    /// separate totals would let a Magic Weapon spell and a +1 sword stack their enhancement
-    /// bonuses, which the rules forbid.
+    /// The wielder's modifiers and the weapon's, resolved together in one pass, plus flanking
+    /// when the ground says so. Adding two separate totals would let a Magic Weapon spell and a
+    /// +1 sword stack their enhancement bonuses, which the rules forbid.
     /// </summary>
-    public static ModifierBreakdown AttackBonus(Creature attacker, WeaponAttack weapon)
+    public static ModifierBreakdown AttackBonus(
+        Creature attacker,
+        WeaponAttack weapon,
+        Creature? target = null,
+        Battlefield? field = null)
     {
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
@@ -79,7 +88,24 @@ public static class Strike
             attacker.AttackModifiers,
             weapon.Attack.Modifiers,
             SizeOf(attacker),
+            Flanking(attacker, target, field),
             Derived(attacker, weapon.AttackAbility, modifier => modifier));
+    }
+
+    /// <summary>
+    /// Two allies on opposite sides are worth +2 each. Worked out at the moment of the swing,
+    /// because it depends on where everyone is standing right now.
+    /// </summary>
+    private static ModifierStack Flanking(Creature attacker, Creature? target, Battlefield? field)
+    {
+        var stack = new ModifierStack();
+
+        if (target is not null && field?.FindFlankingPartner(attacker, target) is { } partner)
+        {
+            stack.Add(FlankingBonus, BonusType.Untyped, $"Flanking with {partner.Name}");
+        }
+
+        return stack;
     }
 
     /// <summary>

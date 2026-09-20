@@ -1,6 +1,8 @@
+using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Encounters.Actions;
+using Ironbound.Rules.Maps;
 
 namespace Ironbound.Simulation;
 
@@ -9,10 +11,10 @@ namespace Ironbound.Simulation;
 /// board, which is the deliberate ceiling chosen for this project.
 /// </summary>
 /// <remarks>
-/// <see cref="Competence"/> is the difficulty lever: at 100 it focuses the weakest target and
-/// covers up when badly hurt; at 0 it flails at whoever it happens to notice and never guards.
-/// Difficulty is expressed as the opponent playing worse rather than as fudged numbers, so the
-/// rules stay honest at every setting.
+/// <see cref="Competence"/> is the difficulty lever: at 100 it focuses the weakest target, steps
+/// rather than walks when a step will do, and covers up when badly hurt; at 0 it flails at
+/// whoever it happens to notice. Difficulty is expressed as the opponent playing worse rather
+/// than as fudged numbers, so the rules stay honest at every setting.
 /// </remarks>
 public sealed class HeuristicActionSource : IActionSource
 {
@@ -44,7 +46,7 @@ public sealed class HeuristicActionSource : IActionSource
 
         var actor = turn.Actor;
         var enemies = _battle.EnemiesOf(actor);
-        if (enemies.Count == 0)
+        if (enemies.Count == 0 || actor.PrimaryAttack is not { } weapon)
         {
             return null;
         }
@@ -60,20 +62,105 @@ public sealed class HeuristicActionSource : IActionSource
             ? enemies.MinBy(enemy => enemy.HitPoints.Current)!
             : enemies[_random.Next(0, enemies.Count)];
 
-        // Too far to swing: walk. A second move can be paid for with the standard action, which
-        // is how a creature crosses a room in one turn without attacking.
         if (turn.Encounter.Battlefield is { } field && !field.IsWithinReach(actor, target))
         {
+            // One square short: a five-foot step closes it for free and keeps the swing. Walking
+            // would spend the move action and, worse, hand anyone nearby a free attack.
+            if (playsWell && Step(field, actor, target, mustFlank: false) is { } step)
+            {
+                return step;
+            }
+
             return turn.Budget.CanAfford(ActionCost.Move)
                 ? MoveAction.Towards(field, actor, target)
                 : null;
         }
 
-        return turn.Budget.HasStandard
-            ? new AttackAction(_battle.WeaponOf(actor), target)
-            : null;
+        // Already in reach, but standing in the wrong place. A five-foot step costs nothing and
+        // arriving on the far side is worth two on this swing and every one after it.
+        if (playsWell
+            && turn.Encounter.Battlefield is { } ground
+            && !turn.Combatant.HasMoved
+            && !turn.Combatant.HasTakenFiveFootStep
+            && ground.FindFlankingPartner(actor, target) is null
+            && Step(ground, actor, target, mustFlank: true) is { } reposition)
+        {
+            return reposition;
+        }
+
+        return turn.Budget.HasStandard ? new AttackAction(weapon, target) : null;
     }
 
-    private static bool IsBadlyHurt(Rules.Creatures.Creature creature) =>
+    /// <summary>
+    /// A single free square next door that keeps the target in reach. Prefers one that puts an
+    /// ally directly opposite; with <paramref name="mustFlank"/> it will accept nothing else.
+    /// </summary>
+    private static FiveFootStepAction? Step(
+        Battlefield field,
+        Creature actor,
+        Creature target,
+        bool mustFlank)
+    {
+        if (field.SquareOf(actor) is not { } from || field.SquareOf(target) is not { } to)
+        {
+            return null;
+        }
+
+        GridSquare? plain = null;
+
+        for (var dx = -1; dx <= 1; dx++)
+        {
+            for (var dy = -1; dy <= 1; dy++)
+            {
+                if (dx == 0 && dy == 0)
+                {
+                    continue;
+                }
+
+                var candidate = new GridSquare(from.X + dx, from.Y + dy);
+                if (!field.IsFree(candidate)
+                    || field.IsDifficult(candidate)
+                    || Distance.Between(candidate, to) > actor.Reach)
+                {
+                    continue;
+                }
+
+                if (WouldFlank(field, actor, target, candidate, to))
+                {
+                    return FiveFootStepAction.To(from, candidate);
+                }
+
+                if (!mustFlank)
+                {
+                    plain ??= candidate;
+                }
+            }
+        }
+
+        return plain is { } fallback ? FiveFootStepAction.To(from, fallback) : null;
+    }
+
+    /// <summary>
+    /// Whether standing in <paramref name="candidate"/> would put an ally on the far side of the
+    /// target. Worked out from the geometry rather than by moving anybody to find out.
+    /// </summary>
+    private static bool WouldFlank(
+        Battlefield field,
+        Creature actor,
+        Creature target,
+        GridSquare candidate,
+        GridSquare targetSquare)
+    {
+        var opposite = new GridSquare(
+            (2 * targetSquare.X) - candidate.X,
+            (2 * targetSquare.Y) - candidate.Y);
+
+        return field.OccupantOf(opposite) is { } ally
+            && ally.IsAllyOf(actor)
+            && ally.IsEnemyOf(target)
+            && field.Threatens(ally, targetSquare);
+    }
+
+    private static bool IsBadlyHurt(Creature creature) =>
         creature.HitPoints.Current * 100 <= creature.HitPoints.Maximum * GuardBelowPercent;
 }

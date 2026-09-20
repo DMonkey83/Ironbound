@@ -65,6 +65,9 @@ public sealed class Encounter
 
     public Turn? Current { get; private set; }
 
+    public Combatant? CombatantFor(Creature creature) =>
+        _combatants.FirstOrDefault(combatant => ReferenceEquals(combatant.Creature, creature));
+
     /// <summary>
     /// Brings a summoned or arriving creature into the fight, queued for the next tick. Anyone
     /// already waiting on that tick keeps their place — an arrival joins the back of the queue
@@ -102,7 +105,7 @@ public sealed class Encounter
 
             if (next.IsActive)
             {
-                next.Budget.Reset();
+                next.BeginTurn();
                 Current = new Turn(this, next, pending);
                 return Current;
             }

@@ -1,3 +1,5 @@
+using Ironbound.Rules.Creatures;
+
 namespace Ironbound.Rules.Maps;
 
 /// <summary>
@@ -14,7 +16,11 @@ internal static class PathFinder
 {
     private readonly record struct Node(GridSquare Square, int Parity);
 
-    public static IReadOnlyList<GridSquare> Find(Battlefield field, GridSquare from, GridSquare to)
+    public static IReadOnlyList<GridSquare> Find(
+        Battlefield field,
+        GridSquare from,
+        GridSquare to,
+        Creature? mover = null)
     {
         ArgumentNullException.ThrowIfNull(field);
 
@@ -43,12 +49,12 @@ internal static class PathFinder
 
             foreach (var neighbour in Neighbours(current.Square))
             {
-                if (!field.IsPassable(neighbour))
+                if (!CanEnter(field, neighbour, mover))
                 {
                     continue;
                 }
 
-                // Occupied squares can be walked through but not rested on.
+                // An ally's square can be walked through, but nobody rests on anyone.
                 if (neighbour == to && !field.IsFree(neighbour))
                 {
                     continue;
@@ -71,6 +77,25 @@ internal static class PathFinder
         }
 
         return [];
+    }
+
+    /// <summary>
+    /// You can squeeze past a friend but not through an enemy. With no mover given, anyone's
+    /// square is walkable — which is how the battlefield behaved before it knew about sides.
+    /// </summary>
+    private static bool CanEnter(Battlefield field, GridSquare square, Creature? mover)
+    {
+        if (!field.IsPassable(square))
+        {
+            return false;
+        }
+
+        if (mover is null || field.OccupantOf(square) is not { } occupant)
+        {
+            return true;
+        }
+
+        return !mover.IsEnemyOf(occupant);
     }
 
     private static IEnumerable<GridSquare> Neighbours(GridSquare square)

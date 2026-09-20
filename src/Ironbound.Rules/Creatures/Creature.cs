@@ -1,4 +1,5 @@
 using Ironbound.Rules.Abilities;
+using Ironbound.Rules.Combat;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Effects;
 using Ironbound.Rules.Modifiers;
@@ -13,9 +14,9 @@ namespace Ironbound.Rules.Creatures;
 /// <see cref="AbilityScore"/> — the rules that act on a creature live outside it.
 /// </summary>
 /// <remarks>
-/// Size is not computed here. A creature's size modifier is an ordinary
-/// <see cref="Modifiers.BonusType.Size"/> modifier added by whatever builds the creature, which
-/// keeps this class from growing a second, parallel way to change a number.
+/// Anything derived from what the creature <em>is</em> — its size modifier, its reach, its
+/// speed — is computed on demand rather than stored as a modifier, so that changing the creature
+/// changes everything downstream at once and nothing has to be refreshed by hand.
 /// </remarks>
 public sealed class Creature
 {
@@ -84,6 +85,41 @@ public sealed class Creature
 
     /// <summary>How far it can touch, in feet. Tiny and smaller cannot reach out of their square.</summary>
     public int Reach => CreatureSizes.Reach(_size);
+
+    /// <summary>
+    /// Which side it is on. Creatures sharing a non-zero allegiance are allies; zero means it
+    /// belongs to nobody and is allied with nobody, which keeps unassigned creatures from
+    /// accidentally flanking together.
+    /// </summary>
+    /// <remarks>
+    /// This layer used to know nothing about factions. It has to: the rules say "ally" constantly
+    /// — flanking, aid another, harmless spells, channel energy, most area effects — and an
+    /// engine that cannot express it pays a toll at every one.
+    /// </remarks>
+    public int Allegiance { get; set; }
+
+    public bool IsAllyOf(Creature other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return Allegiance != 0 && Allegiance == other.Allegiance && !ReferenceEquals(this, other);
+    }
+
+    public bool IsEnemyOf(Creature other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return !ReferenceEquals(this, other) && (Allegiance == 0 || Allegiance != other.Allegiance);
+    }
+
+    /// <summary>What it can hit things with. The first is used when something must be chosen for it.</summary>
+    public IList<WeaponAttack> Attacks { get; } = [];
+
+    public WeaponAttack? PrimaryAttack => Attacks.Count > 0 ? Attacks[0] : null;
+
+    /// <summary>
+    /// How many attacks of opportunity it gets between its turns. One, unless Combat Reflexes
+    /// raises it to one plus the Dexterity modifier.
+    /// </summary>
+    public int AttacksOfOpportunityPerRound { get; set; } = 1;
 
     /// <summary>Base movement in feet per round, before anything hurries or hinders it.</summary>
     public int Speed { get; set; } = 30;
