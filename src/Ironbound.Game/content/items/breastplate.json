@@ -1,0 +1,5 @@
+{
+  "kind": "item", "id": "breastplate", "name": "breastplate",
+  "slot": "Armour",
+  "grants": [ { "target": "armourClass", "value": 6, "type": "Armor" } ]
+}

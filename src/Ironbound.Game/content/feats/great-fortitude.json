@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "great-fortitude",
+  "name": "Great Fortitude",
+  "description": "+2 on Fortitude saves.",
+  "grants": [
+    { "target": "save.Fortitude", "value": 2, "type": "Untyped" }
+  ]
+}

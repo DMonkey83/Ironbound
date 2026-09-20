@@ -110,7 +110,9 @@ public static class GameSave
         creature.Size,
         creature.Speed,
         creature.BaseAttackBonus,
-        creature.AttacksOfOpportunityPerRound,
+        creature.BaseAttacksOfOpportunity,
+        [.. creature.Feats.Select(feat => feat.Id)],
+        [.. creature.Equipment.Worn.Select(entry => new SavedItem(entry.Item.Id, entry.Slot))],
         [.. AbilityInfo.All.Select(a => CaptureAbility(creature.Abilities[a]))],
         new SavedHitPoints(
             creature.HitPoints.Base,
@@ -264,7 +266,7 @@ public static class GameSave
             Size = saved.Size,
             Speed = saved.Speed,
             BaseAttackBonus = saved.BaseAttackBonus,
-            AttacksOfOpportunityPerRound = saved.AttacksOfOpportunityPerRound,
+            BaseAttacksOfOpportunity = saved.BaseAttacksOfOpportunity,
         };
 
         for (var i = 0; i < AbilityInfo.All.Count; i++)
@@ -287,12 +289,37 @@ public static class GameSave
         creature.HitPoints.Restore(
             saved.HitPoints.Damage, saved.HitPoints.Temporary, saved.HitPoints.Nonlethal);
 
+        // Feats come back by identity only. Their static bonuses were captured with the
+        // modifier stacks above, like any other modifier, so applying them again here would
+        // quietly double every one of them. What the list is needed for is the handful of
+        // feats the rules ask about by name.
+        foreach (var id in saved.Feats)
+        {
+            creature.Feats.Add(library.GetFeat(id) ?? throw new InvalidDataException(
+                $"The save has a feat '{id}', which no content file defines."));
+        }
+
         RestoreDefenses(creature.Defenses, saved.Defenses);
         RestoreSpells(creature.Spells, saved.Spells, library);
 
         foreach (var weapon in saved.Weapons)
         {
             creature.Attacks.Add(Restore(weapon));
+        }
+
+        // Equipment, like feats, comes back by identity only: its bonuses were captured with
+        // the modifier stacks and its weapon with the attack list. A weapon item is paired back
+        // up with its attack by name, so that taking the thing off later removes the right one.
+        foreach (var carried in saved.Items)
+        {
+            var item = library.GetItem(carried.Id) ?? throw new InvalidDataException(
+                $"The save has an item '{carried.Id}', which no content file defines.");
+
+            creature.Equipment.Reattach(
+                item,
+                creature.Attacks.FirstOrDefault(
+                    attack => string.Equals(attack.Name, item.Name, StringComparison.Ordinal)),
+                carried.Slot);
         }
 
         foreach (var effect in saved.Effects)

@@ -1,0 +1,6 @@
+{
+  "kind": "item", "id": "chain-shirt", "name": "chain shirt",
+  "description": "Light mail worn under the clothes.",
+  "slot": "Armour",
+  "grants": [ { "target": "armourClass", "value": 4, "type": "Armor" } ]
+}

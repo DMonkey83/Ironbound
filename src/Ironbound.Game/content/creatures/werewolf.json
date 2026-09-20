@@ -1,0 +1,19 @@
+// The reason silver exists. Ten points off every ordinary blow means Valeria's longsword — 1d8+4,
+// averaging eight and a half — does nothing at all to it, however well she rolls. The silvered
+// one in the same hand does full damage. That is a gate, not a difficulty curve, and it is
+// exactly the kind of wall the game is meant to have.
+{
+  "kind": "creature",
+  "id": "werewolf",
+  "name": "Werewolf",
+  "abilities": [19, 15, 17, 10, 12, 10],
+  "classes": [ { "class": "warrior", "level": 5 } ],
+  "speed": 30,
+  "naturalArmour": 4,
+  "goodSave": "Fortitude",
+  "feats": ["combat-reflexes", "improved-trip"],
+  "items": ["bite"],
+  "reduction": [
+    { "amount": 10, "bypassedBy": ["Silver"], "mode": "Any" }
+  ]
+}

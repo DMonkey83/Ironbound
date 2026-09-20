@@ -9,11 +9,11 @@
   "classes": [ { "class": "wizard", "level": 5 } ],
 
   "speed": 30,
-  "armour": 0,
 
   // Crossbow first, staff second: the same order the goblin archer uses, and the reason a
   // click on a distant enemy offers the bolt while a click on an adjacent one offers the staff.
-  "weapons": ["light-crossbow", "quarterstaff"],
+  "feats": ["iron-will", "improved-initiative"],
+  "items": ["light-crossbow", "quarterstaff"],
 
   // Slots are still written out by hand. A per-class table is a layer of its own.
   "slots": [

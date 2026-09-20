@@ -1,0 +1,8 @@
+// Two better at it, and — the part that matters — reaching in no longer costs you a free swing.
+{
+  "kind": "feat",
+  "id": "improved-trip",
+  "name": "Improved Trip",
+  "description": "Tripping does not provoke, and the check is +2.",
+  "effect": "ImprovedTrip"
+}

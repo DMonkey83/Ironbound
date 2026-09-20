@@ -5,6 +5,6 @@
   "abilities": [16, 12, 16, 8, 13, 8],
   "classes": [ { "class": "barbarian", "level": 6 } ],
   "speed": 30,
-  "armour": 7,
-  "weapons": ["greataxe"]
+  "feats": ["improved-initiative", "great-fortitude", "improved-bull-rush"],
+  "items": ["breastplate", "light-shield", "greataxe"]
 }

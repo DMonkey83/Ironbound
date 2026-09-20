@@ -278,7 +278,7 @@ public class OpportunityTests
     public void CombatReflexesBuysMoreOfThem()
     {
         var (encounter, _, _, guard) = Watched(4, 1, 15, 3, 16, 2);
-        guard.AttacksOfOpportunityPerRound = 3;
+        guard.BaseAttacksOfOpportunity = 3;
         var turn = encounter.BeginNextTurn()!;
 
         var moved = Assert.IsType<MoveActionResult>(

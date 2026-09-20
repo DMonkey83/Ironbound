@@ -30,7 +30,7 @@ public sealed record SavedGame(
     SavedCreature[] Creatures,
     SavedCombatant[] Order)
 {
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 6;
 }
 
 public sealed record SavedBattlefield(
@@ -88,6 +88,9 @@ public sealed record SavedSpellcasting(
 
 public sealed record SavedDamageComponent(string Amount, DamageType Type, bool MultipliedOnCritical);
 
+/// <summary>An equipped item: which one, and where it actually ended up.</summary>
+public sealed record SavedItem(string Id, Items.EquipmentSlot Slot);
+
 public sealed record SavedWeapon(
     string Name,
     int ThreatsOn,
@@ -134,7 +137,9 @@ public sealed record SavedCreature(
     CreatureSize Size,
     int Speed,
     int BaseAttackBonus,
-    int AttacksOfOpportunityPerRound,
+    int BaseAttacksOfOpportunity,
+    string[] Feats,
+    SavedItem[] Items,
     SavedAbility[] Abilities,
     SavedHitPoints HitPoints,
     SavedSave[] Saves,

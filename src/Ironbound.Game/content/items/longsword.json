@@ -1,0 +1,6 @@
+// Names the weapon rather than restating its dice, so this and a silvered one cannot
+// disagree about what a longsword does.
+{
+  "kind": "item", "id": "longsword", "name": "longsword",
+  "slot": "MainHand", "weapon": "longsword"
+}

@@ -1,0 +1,15 @@
+// The fight the party loses if they came with the wrong weapons.
+{
+  "kind": "encounter",
+  "id": "moonlit-clearing",
+  "name": "Moonlit Clearing",
+  "width": 14,
+  "height": 10,
+  "blocked": [ { "x": 5, "y": 3 }, { "x": 8, "y": 6 } ],
+  "placements": [
+    { "creature": "valeria", "x": 2, "y": 4, "party": true },
+    { "creature": "karn",    "x": 2, "y": 6, "party": true },
+    { "creature": "merrin",  "x": 1, "y": 5, "party": true },
+    { "creature": "werewolf", "x": 10, "y": 5, "name": "Grey Fang" }
+  ]
+}

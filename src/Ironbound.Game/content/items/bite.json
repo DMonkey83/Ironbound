@@ -1,0 +1,2 @@
+// A natural weapon, which is why it is carried rather than held: you cannot put your teeth down.
+{ "kind": "item", "id": "bite", "name": "bite", "slot": "Carried", "weapon": "bite" }

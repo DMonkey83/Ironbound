@@ -237,7 +237,7 @@ public class ContentDiagnosticsTests
     public void AnUnknownKindIsReportedRatherThanSkippedQuietly()
     {
         var library = ContentLibrary.Load([
-            ("feat.json", """{ "kind": "feat", "id": "power-attack" }"""),
+            ("deity.json", """{ "kind": "deity", "id": "iomedae" }"""),
         ]);
 
         Assert.Equal("kind", Assert.Single(library.Problems).Field);
@@ -408,7 +408,9 @@ public class ShippedContentTests
         Assert.Equal(2, valeria.AttacksPerFullAttack);   // the step at +6
         Assert.Equal(5, valeria.Saves[Ironbound.Rules.Saves.Save.Fortitude].Base);
         Assert.Equal(2, valeria.Saves[Ironbound.Rules.Saves.Save.Will].Base);
-        Assert.Equal(18, valeria.ArmorClass.Total);    // 10 + 6 armour + 2 Dexterity
+        Assert.Equal(19, valeria.ArmorClass.Total);    // 10 + 6 armour + 2 Dexterity + 1 Dodge
+        Assert.Equal(3, valeria.AttacksOfOpportunityPerRound);   // one, plus Combat Reflexes
+        Assert.True(valeria.HasFeat("improved-trip"));
         Assert.Equal("longsword", valeria.PrimaryAttack!.Name);
         Assert.Equal(19, valeria.PrimaryAttack.Attack.Critical.ThreatsOn);
     }

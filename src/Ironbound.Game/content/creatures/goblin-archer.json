@@ -7,9 +7,8 @@
   "classes": [ { "class": "warrior", "level": 1 } ],
   "size": "Small",
   "speed": 20,
-  "armour": 3,
 
   // Order matters. The bow is what it reaches for by default; the scimitar is what it is left
   // with once something closes, since firing in someone's face provokes and costs four besides.
-  "weapons": ["shortbow", "scimitar"]
+  "items": ["studded-leather", "shortbow", "scimitar"]
 }

@@ -53,10 +53,21 @@ public abstract class ManeuverAction : GameAction
     /// <summary>What happens once the check is known. Returns a phrase for the log, or empty.</summary>
     protected abstract string Apply(ActionContext context, ManeuverResult check);
 
-    private IReadOnlyList<StrikeResult> Provoke(ActionContext context) =>
-        context.Encounter.Battlefield?.SquareOf(context.Actor) is { } standing
+    /// <summary>
+    /// The free swing reaching in costs you — unless you have practised this particular
+    /// maneuver, which is most of why those feats are worth taking.
+    /// </summary>
+    private IReadOnlyList<StrikeResult> Provoke(ActionContext context)
+    {
+        if (context.Actor.HasFeat(Maneuvers.ImprovedBy(Kind)))
+        {
+            return [];
+        }
+
+        return context.Encounter.Battlefield?.SquareOf(context.Actor) is { } standing
             ? Opportunities.Provoke(context.Encounter, context.Actor, standing)
             : [];
+    }
 }
 
 /// <summary>

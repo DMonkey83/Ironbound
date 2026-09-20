@@ -2,6 +2,8 @@ using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
+using Ironbound.Rules.Defense;
+using Ironbound.Rules.Items;
 using Ironbound.Rules.Magic;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
@@ -45,11 +47,12 @@ public sealed record WeaponDefinition
 
     public int MaximumIncrements { get; init; } = WeaponAttack.ProjectileIncrements;
 
-    public WeaponAttack Build()
+    public WeaponAttack Build(string? name = null)
     {
+        name ??= Name;
         var weapon = RangeIncrement > 0
             ? WeaponAttack.Ranged(
-                Name,
+                name,
                 Damage,
                 DamageType,
                 RangeIncrement,
@@ -59,7 +62,7 @@ public sealed record WeaponDefinition
                 AttackAbility,
                 DamageAbility)
             : WeaponAttack.Melee(
-                Name,
+                name,
                 Damage,
                 DamageType,
                 new CriticalProfile(ThreatsOn, Multiplier),
@@ -69,13 +72,23 @@ public sealed record WeaponDefinition
 
         if (Enhancement != 0)
         {
-            weapon.Attack.Modifiers.Add(Enhancement, BonusType.Enhancement, Name);
-            weapon.DamageModifiers.Add(Enhancement, BonusType.Enhancement, Name);
+            weapon.Attack.Modifiers.Add(Enhancement, BonusType.Enhancement, name);
+            weapon.DamageModifiers.Add(Enhancement, BonusType.Enhancement, name);
         }
 
         return weapon;
     }
 }
+
+/// <summary>
+/// Damage reduction as written down: "DR 10/silver" is ten, bypassed by silver.
+/// </summary>
+/// <remarks>
+/// The defence layer has understood this since it was written. Until items existed it was a
+/// wall with no door — a creature could be immune to the party's weapons with no way for them
+/// ever to acquire the right one.
+/// </remarks>
+public readonly record struct ReductionDefinition(int Amount, DamageBypass BypassedBy, BypassMode Mode);
 
 /// <summary>So many levels of a class, named by id until the library can resolve it.</summary>
 public readonly record struct ClassLevelDefinition(string ClassId, int Level);
@@ -116,6 +129,15 @@ public sealed record CreatureDefinition
     public Save? GoodSave { get; init; }
 
     public IReadOnlyList<string> Weapons { get; init; } = [];
+
+    /// <summary>Feats it has taken, by id.</summary>
+    public IReadOnlyList<string> Feats { get; init; } = [];
+
+    /// <summary>Items it is wearing and holding, by id. Equipped in the order written.</summary>
+    public IReadOnlyList<string> Items { get; init; } = [];
+
+    /// <summary>What it shrugs off, and what gets through anyway.</summary>
+    public IReadOnlyList<ReductionDefinition> Reductions { get; init; } = [];
 
     public Ability? CastingAbility { get; init; }
 
@@ -173,6 +195,30 @@ public sealed record CreatureDefinition
                 : save == GoodSave
                     ? SaveProgression.Good(level)
                     : SaveProgression.Poor(level);
+        }
+
+        // Before the weapons, because a feat that changes what a weapon does should already be
+        // in place by the time one is handed over.
+        foreach (var feat in Feats)
+        {
+            if (library.GetFeat(feat) is { } taken)
+            {
+                creature.Feats.Add(taken);
+                taken.ApplyTo(creature);
+            }
+        }
+
+        foreach (var reduction in Reductions)
+        {
+            creature.Defenses.Reduce(reduction.Amount, reduction.BypassedBy, reduction.Mode);
+        }
+
+        foreach (var id in Items)
+        {
+            if (library.GetItem(id) is { } item)
+            {
+                creature.Equipment.Equip(item, library.BuildItemWeapon(item));
+            }
         }
 
         foreach (var weapon in Weapons)

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "lightning-reflexes",
+  "name": "Lightning Reflexes",
+  "description": "+2 on Reflex saves.",
+  "grants": [
+    { "target": "save.Reflex", "value": 2, "type": "Untyped" }
+  ]
+}

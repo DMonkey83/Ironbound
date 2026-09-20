@@ -9,6 +9,9 @@
   "classes": [ { "class": "fighter", "level": 6 } ],
 
   "speed": 30,
-  "armour": 6,
-  "weapons": ["longsword"]
+  // A fighter's feats: quick on her feet, punishes anyone who walks past her, and knows
+  // how to put somebody on the floor without opening her guard.
+  "feats": ["dodge", "combat-reflexes", "improved-trip", "weapon-specialization"],
+  // Worn and held, rather than a bare "+6 armour" that says nothing about why.
+  "items": ["chain-shirt", "heavy-shield", "longsword"]
 }

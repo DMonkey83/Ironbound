@@ -2,6 +2,7 @@ using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Dice;
+using Ironbound.Rules.Feats;
 using Ironbound.Rules.Modifiers;
 
 namespace Ironbound.Rules.Combat;
@@ -25,6 +26,17 @@ public static class Maneuvers
     /// <summary>Failing by this much turns the maneuver back on whoever tried it.</summary>
     public const int BacklashMargin = 10;
 
+    /// <summary>What practising one maneuver in particular is worth.</summary>
+    public const int ImprovedBonus = 2;
+
+    /// <summary>Which feat makes this maneuver safer and surer, if any does.</summary>
+    public static FeatEffect ImprovedBy(ManeuverKind kind) => kind switch
+    {
+        ManeuverKind.Trip => FeatEffect.ImprovedTrip,
+        ManeuverKind.BullRush => FeatEffect.ImprovedBullRush,
+        _ => FeatEffect.None,
+    };
+
     /// <summary>
     /// The bonus to a maneuver check: skill at arms, strength, and how much of you there is.
     /// </summary>
@@ -34,11 +46,22 @@ public static class Maneuvers
     /// tripping people, and Bless makes you better — both of which are what anyone would expect,
     /// and the alternative is a second parallel stack that every buff has to remember to feed.
     /// </remarks>
-    public static ModifierBreakdown Bonus(Creature creature)
+    public static ModifierBreakdown Bonus(Creature creature) => Bonus(creature, null);
+
+    /// <summary>
+    /// The bonus for one particular maneuver, which is two better if the creature has practised
+    /// this one specifically.
+    /// </summary>
+    public static ModifierBreakdown Bonus(Creature creature, ManeuverKind? kind)
     {
         ArgumentNullException.ThrowIfNull(creature);
 
         var innate = new ModifierStack();
+
+        if (kind is { } attempting && creature.HasFeat(ImprovedBy(attempting)) )
+        {
+            innate.Add(ImprovedBonus, BonusType.Untyped, $"Improved {attempting}");
+        }
 
         if (creature.BaseAttackBonus != 0)
         {
@@ -120,7 +143,7 @@ public static class Maneuvers
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(random);
 
-        var bonus = Bonus(attacker);
+        var bonus = Bonus(attacker, kind);
         var defense = Defense(target);
         var natural = random.NextDie(Attack.DieSides);
 

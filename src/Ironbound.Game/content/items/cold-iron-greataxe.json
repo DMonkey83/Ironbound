@@ -1,0 +1,4 @@
+{
+  "kind": "item", "id": "cold-iron-greataxe", "name": "cold iron greataxe",
+  "slot": "MainHand", "weapon": "greataxe", "qualities": ["ColdIron"]
+}

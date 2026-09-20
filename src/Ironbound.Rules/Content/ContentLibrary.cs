@@ -3,7 +3,10 @@ using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
+using Ironbound.Rules.Defense;
 using Ironbound.Rules.Effects;
+using Ironbound.Rules.Feats;
+using Ironbound.Rules.Items;
 using Ironbound.Rules.Magic;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
@@ -27,6 +30,8 @@ public sealed class ContentLibrary
 {
     private readonly Dictionary<string, Spell> _spells = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ClassDefinition> _classes = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, FeatDefinition> _feats = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ItemDefinition> _items = new(StringComparer.Ordinal);
     private readonly Dictionary<string, WeaponDefinition> _weapons = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CreatureDefinition> _creatures = new(StringComparer.Ordinal);
     private readonly Dictionary<string, EncounterDefinition> _encounters = new(StringComparer.Ordinal);
@@ -67,6 +72,10 @@ public sealed class ContentLibrary
 
     public IReadOnlyCollection<string> ClassIds => _classes.Keys;
 
+    public IReadOnlyCollection<string> FeatIds => _feats.Keys;
+
+    public IReadOnlyCollection<string> ItemIds => _items.Keys;
+
     public IReadOnlyCollection<string> WeaponIds => _weapons.Keys;
 
     public IReadOnlyCollection<string> CreatureIds => _creatures.Keys;
@@ -81,7 +90,25 @@ public sealed class ContentLibrary
 
     public ClassDefinition? GetClass(string id) => _classes.GetValueOrDefault(id);
 
-    public WeaponAttack? BuildWeapon(string id) => _weapons.GetValueOrDefault(id)?.Build();
+    public FeatDefinition? GetFeat(string id) => _feats.GetValueOrDefault(id);
+
+    public ItemDefinition? GetItem(string id) => _items.GetValueOrDefault(id);
+
+    public WeaponAttack? BuildWeapon(string id, string? name = null) =>
+        _weapons.GetValueOrDefault(id)?.Build(name);
+
+    /// <summary>
+    /// The attack a weapon item makes, named for the item rather than the kind of weapon — so a
+    /// silvered longsword says so in the log every time it swings.
+    /// </summary>
+    public WeaponAttack? BuildItemWeapon(ItemDefinition item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        return item.Weapon is { } weapon && BuildWeapon(weapon, item.Name) is { } built
+            ? item.Dress(built)
+            : null;
+    }
 
     public Creature? BuildCreature(string id, RuleOptions? rules = null, string? name = null) =>
         _creatures.GetValueOrDefault(id)?.Build(this, rules, name);
@@ -116,6 +143,14 @@ public sealed class ContentLibrary
 
                 case "class":
                     Keep(_classes, reader, ReadClass(reader), taken => taken.Id, "class");
+                    break;
+
+                case "feat":
+                    Keep(_feats, reader, ReadFeat(reader), feat => feat.Id, "feat");
+                    break;
+
+                case "item":
+                    Keep(_items, reader, ReadItem(reader), item => item.Id, "item");
                     break;
 
                 case "weapon":
@@ -157,10 +192,31 @@ public sealed class ContentLibrary
                     $"creature '{creature.Id}'", "classes", $"no class called '{taken.ClassId}'."));
             }
 
+            foreach (var item in creature.Items.Where(id => !_items.ContainsKey(id)))
+            {
+                _problems.Add(new ContentProblem(
+                    $"creature '{creature.Id}'", "items", $"no item called '{item}'."));
+            }
+
+            foreach (var feat in creature.Feats.Where(id => !_feats.ContainsKey(id)))
+            {
+                _problems.Add(new ContentProblem(
+                    $"creature '{creature.Id}'", "feats", $"no feat called '{feat}'."));
+            }
+
             foreach (var spell in creature.Spells.Where(id => !_spells.ContainsKey(id)))
             {
                 _problems.Add(new ContentProblem(
                     $"creature '{creature.Id}'", "spells", $"no spell called '{spell}'."));
+            }
+        }
+
+        foreach (var item in _items.Values)
+        {
+            if (item.Weapon is { } weapon && !_weapons.ContainsKey(weapon))
+            {
+                _problems.Add(new ContentProblem(
+                    $"item '{item.Id}'", "weapon", $"no weapon called '{weapon}'."));
             }
         }
 
@@ -379,6 +435,74 @@ public sealed class ContentLibrary
         };
     }
 
+    private FeatDefinition? ReadFeat(Reader reader)
+    {
+        var id = reader.String("id");
+        if (id.Length == 0)
+        {
+            return null;
+        }
+
+        var grants = new List<ModifierGrant>();
+        foreach (var entry in reader.Array("grants"))
+        {
+            var grant = new Reader(entry, reader.Source, _problems);
+            grants.Add(new ModifierGrant(
+                ReadTarget(grant), grant.Int("value"), grant.Enum("type", BonusType.Untyped)));
+        }
+
+        return new FeatDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            Description = reader.StringOr("description", string.Empty),
+            Grants = grants,
+            Effect = reader.Enum("effect", FeatEffect.None),
+        };
+    }
+
+    private ItemDefinition? ReadItem(Reader reader)
+    {
+        var id = reader.String("id");
+        if (id.Length == 0)
+        {
+            return null;
+        }
+
+        var grants = new List<ModifierGrant>();
+        foreach (var entry in reader.Array("grants"))
+        {
+            var grant = new Reader(entry, reader.Source, _problems);
+            grants.Add(new ModifierGrant(
+                ReadTarget(grant), grant.Int("value"), grant.Enum("type", BonusType.Untyped)));
+        }
+
+        var qualities = DamageBypass.None;
+        foreach (var entry in reader.Array("qualities"))
+        {
+            if (System.Enum.TryParse<DamageBypass>(entry.GetString(), true, out var quality))
+            {
+                qualities |= quality;
+            }
+            else
+            {
+                reader.Problem("qualities", $"'{entry.GetString()}' is not a material or alignment.");
+            }
+        }
+
+        return new ItemDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            Description = reader.StringOr("description", string.Empty),
+            Slot = reader.Enum("slot", EquipmentSlot.Carried),
+            Grants = grants,
+            Weapon = reader.Has("weapon") ? reader.StringOr("weapon", string.Empty) : null,
+            Enhancement = reader.Int("enhancement"),
+            Qualities = qualities,
+        };
+    }
+
     private WeaponDefinition? ReadWeapon(Reader reader)
     {
         var id = reader.String("id");
@@ -421,6 +545,28 @@ public sealed class ContentLibrary
             slots.Add(new SlotDefinition(slot.Int("level"), slot.Int("count")));
         }
 
+        var reductions = new List<ReductionDefinition>();
+        foreach (var entry in reader.Array("reduction"))
+        {
+            var written = new Reader(entry, reader.Source, _problems);
+            var bypass = DamageBypass.None;
+
+            foreach (var quality in written.Array("bypassedBy"))
+            {
+                if (System.Enum.TryParse<DamageBypass>(quality.GetString(), true, out var flag))
+                {
+                    bypass |= flag;
+                }
+                else
+                {
+                    written.Problem("bypassedBy", $"'{quality.GetString()}' gets past nothing.");
+                }
+            }
+
+            reductions.Add(new ReductionDefinition(
+                written.Int("amount"), bypass, written.Enum("mode", BypassMode.Any)));
+        }
+
         var classes = new List<ClassLevelDefinition>();
         foreach (var entry in reader.Array("classes"))
         {
@@ -444,6 +590,9 @@ public sealed class ContentLibrary
             NaturalArmour = reader.Int("naturalArmour"),
             GoodSave = reader.Has("goodSave") ? reader.Enum("goodSave", Save.Fortitude) : null,
             Weapons = [.. reader.Array("weapons").Select(e => e.GetString() ?? string.Empty)],
+            Feats = [.. reader.Array("feats").Select(e => e.GetString() ?? string.Empty)],
+            Items = [.. reader.Array("items").Select(e => e.GetString() ?? string.Empty)],
+            Reductions = reductions,
             CastingAbility = reader.Has("castingAbility")
                 ? reader.Enum("castingAbility", Ability.Intelligence)
                 : null,

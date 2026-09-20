@@ -3,6 +3,8 @@ using Ironbound.Rules.Combat;
 using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Effects;
+using Ironbound.Rules.Feats;
+using Ironbound.Rules.Items;
 using Ironbound.Rules.Magic;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
@@ -42,6 +44,7 @@ public sealed class Creature
         Effects = new EffectCollection(this);
         Saves = new SavingThrows(abilities);
         Spells = new Spellcasting(this);
+        Equipment = new Equipment(this);
         HitPoints = new HitPoints(baseHitPoints, hitDice, abilities.Constitution, Rules);
     }
 
@@ -113,6 +116,9 @@ public sealed class Creature
         return !ReferenceEquals(this, other) && (Allegiance == 0 || Allegiance != other.Allegiance);
     }
 
+    /// <summary>What it is wearing and holding.</summary>
+    public Equipment Equipment { get; }
+
     /// <summary>What it can hit things with. The first is used when something must be chosen for it.</summary>
     public IList<WeaponAttack> Attacks { get; } = [];
 
@@ -145,10 +151,33 @@ public sealed class Creature
     public int AttacksPerFullAttack => Iteratives.Count(BaseAttackBonus);
 
     /// <summary>
-    /// How many attacks of opportunity it gets between its turns. One, unless Combat Reflexes
-    /// raises it to one plus the Dexterity modifier.
+    /// What it has learnt to do. Feats hand out their static bonuses once, when the creature is
+    /// built; the few that change how a rule behaves are recognised by
+    /// <see cref="FeatDefinition.Effect"/> wherever that rule lives.
     /// </summary>
-    public int AttacksOfOpportunityPerRound { get; set; } = 1;
+    public IList<FeatDefinition> Feats { get; } = [];
+
+    public bool HasFeat(string id) =>
+        Feats.Any(feat => string.Equals(feat.Id, id, StringComparison.Ordinal));
+
+    public bool HasFeat(FeatEffect effect) =>
+        effect != FeatEffect.None && Feats.Any(feat => feat.Effect == effect);
+
+    /// <summary>How many attacks of opportunity it gets before feats. One, for almost everything.</summary>
+    public int BaseAttacksOfOpportunity { get; set; } = 1;
+
+    /// <summary>
+    /// How many it actually gets between its turns.
+    /// </summary>
+    /// <remarks>
+    /// Derived rather than stored, so Combat Reflexes keeps up with a Dexterity that changes —
+    /// a Cat's Grace really should buy the extra swing it promises, and a poison that drains
+    /// Dexterity really should take it away again.
+    /// </remarks>
+    public int AttacksOfOpportunityPerRound => BaseAttacksOfOpportunity
+        + (HasFeat(FeatEffect.CombatReflexes)
+            ? Math.Max(0, Abilities[Ability.Dexterity].Modifier)
+            : 0);
 
     /// <summary>Base movement in feet per round, before anything hurries or hinders it.</summary>
     public int Speed { get; set; } = 30;

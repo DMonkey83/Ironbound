@@ -1,0 +1,9 @@
+// The first feat here that needs the engine to know its name: "an extra attack of opportunity
+// per point of Dexterity bonus" is not a number you can add to a stack.
+{
+  "kind": "feat",
+  "id": "combat-reflexes",
+  "name": "Combat Reflexes",
+  "description": "Additional attacks of opportunity equal to your Dexterity bonus.",
+  "effect": "CombatReflexes"
+}

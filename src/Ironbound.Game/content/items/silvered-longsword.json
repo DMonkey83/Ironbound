@@ -1,0 +1,11 @@
+// The door in the wall. Damage reduction has been able to say "DR 10/silver" since the defence
+// layer was written; this is the first thing in the game that can answer it.
+{
+  "kind": "item",
+  "id": "silvered-longsword",
+  "name": "silvered longsword",
+  "description": "An alchemically silvered blade. Nothing special against anything ordinary.",
+  "slot": "MainHand",
+  "weapon": "longsword",
+  "qualities": ["Silver"]
+}

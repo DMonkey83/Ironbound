@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "iron-will",
+  "name": "Iron Will",
+  "description": "+2 on Will saves.",
+  "grants": [
+    { "target": "save.Will", "value": 2, "type": "Untyped" }
+  ]
+}

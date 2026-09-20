@@ -1,0 +1,11 @@
+// Pure numbers, and therefore pure data: this feat needs no C# whatsoever.
+{
+  "kind": "feat",
+  "id": "dodge",
+  "name": "Dodge",
+  "description": "+1 dodge bonus to armour class.",
+  "grants": [
+    // Dodge bonuses are the ones that stack with each other, which is why the type matters.
+    { "target": "armourClass", "value": 1, "type": "Dodge" }
+  ]
+}

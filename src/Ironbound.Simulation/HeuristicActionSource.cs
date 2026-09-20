@@ -163,7 +163,7 @@ public sealed class HeuristicActionSource : IActionSource
             && turn.Budget.HasStandard
             && !target.IsProne
             && target.AttacksPerFullAttack > 1
-            && Maneuvers.Bonus(actor).Total + 11 >= Maneuvers.Defense(target)
+            && Maneuvers.Bonus(actor, ManeuverKind.Trip).Total + 11 >= Maneuvers.Defense(target)
             && turn.CanTake(new TripAction(target)))
         {
             return new TripAction(target);

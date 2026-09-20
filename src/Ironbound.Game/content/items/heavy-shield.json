@@ -1,0 +1,6 @@
+// A shield bonus, not an armour one — different types, so the two stack.
+{
+  "kind": "item", "id": "heavy-shield", "name": "heavy shield",
+  "slot": "Shield",
+  "grants": [ { "target": "armourClass", "value": 2, "type": "Shield" } ]
+}

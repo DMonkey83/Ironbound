@@ -41,7 +41,7 @@ public class GameSaveTests
             Allegiance = 2,
             Size = CreatureSize.Large,
             Speed = 40,
-            AttacksOfOpportunityPerRound = 2,
+            BaseAttacksOfOpportunity = 2,
         };
 
         ogre.Defenses.Reduce(5, DamageBypass.Magic).Resist(DamageType.Fire, 10)

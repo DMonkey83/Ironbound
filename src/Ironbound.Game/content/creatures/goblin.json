@@ -6,6 +6,5 @@
   "classes": [ { "class": "warrior", "level": 1 } ],
   "size": "Small",
   "speed": 20,
-  "armour": 3,
-  "weapons": ["scimitar"]
+  "items": ["studded-leather", "scimitar"]
 }

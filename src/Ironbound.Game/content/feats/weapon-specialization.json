@@ -1,0 +1,11 @@
+// A fighter's signature: more damage with everything they carry. The real feat is weapon by
+// weapon; per-weapon targeting is a layer of its own, so this applies across the board.
+{
+  "kind": "feat",
+  "id": "weapon-specialization",
+  "name": "Weapon Specialization",
+  "description": "+2 on weapon damage.",
+  "grants": [
+    { "target": "damage", "value": 2, "type": "Untyped" }
+  ]
+}

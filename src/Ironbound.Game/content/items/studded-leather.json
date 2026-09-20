@@ -1,0 +1,5 @@
+{
+  "kind": "item", "id": "studded-leather", "name": "studded leather",
+  "slot": "Armour",
+  "grants": [ { "target": "armourClass", "value": 3, "type": "Armor" } ]
+}
