@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Ironbound.Rules.Creatures;
+using Ironbound.Rules.Maps;
 using Ironbound.Simulation;
 
 /// <summary>
@@ -47,62 +48,65 @@ public partial class Main : Node3D
 
 	private void BuildWorld()
 	{
+		var field = _battle.Battlefield;
+		var width = field?.Width ?? 12;
+		var height = field?.Height ?? 12;
+
+		// One Godot unit is one five-foot square, so rules coordinates need no conversion.
+		var centre = new Vector3(width / 2f, 0, height / 2f);
+
 		var camera = new Camera3D
 		{
 			Projection = Camera3D.ProjectionType.Orthogonal,
-			Size = 12,
+			Size = Mathf.Max(width, height) * 1.3f,
 		};
 
 		AddChild(camera);
-		camera.Position = new Vector3(9, 9, 9);
-		camera.LookAt(new Vector3(0, 0.6f, 0));
+		camera.Position = centre + new Vector3(12, 13, 12);
+		camera.LookAt(centre);
 
 		var light = new DirectionalLight3D { ShadowEnabled = true };
 		AddChild(light);
-		light.Position = new Vector3(5, 9, 3);
-		light.LookAt(Vector3.Zero);
+		light.Position = centre + new Vector3(5, 10, 3);
+		light.LookAt(centre);
 
 		var ground = new MeshInstance3D
 		{
-			Mesh = new PlaneMesh { Size = new Vector2(24, 24) },
+			Mesh = new PlaneMesh { Size = new Vector2(width, height) },
 			MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.20f, 0.22f, 0.20f) },
 		};
 
 		AddChild(ground);
+		ground.Position = centre;
 
-		PlaceRow(_battle.Party, PartyColour, z: -2.0f);
-		PlaceRow(_battle.Foes, FoeColour, z: 2.0f);
+		Spawn(_battle.Party, PartyColour);
+		Spawn(_battle.Foes, FoeColour);
+		RefreshFigures();
 	}
 
-	private void PlaceRow(IReadOnlyList<Loadout> loadouts, Color colour, float z)
+	private void Spawn(IReadOnlyList<Loadout> loadouts, Color colour)
 	{
-		var spread = 1.8f;
-		var start = -(loadouts.Count - 1) * spread / 2f;
-
-		for (var index = 0; index < loadouts.Count; index++)
+		foreach (var loadout in loadouts)
 		{
-			var creature = loadouts[index].Creature;
-
 			var figure = new MeshInstance3D
 			{
-				Mesh = new CapsuleMesh { Radius = 0.35f, Height = 1.6f },
+				Mesh = new CapsuleMesh { Radius = 0.3f, Height = 1.4f },
 				MaterialOverride = new StandardMaterial3D { AlbedoColor = colour },
 			};
 
 			AddChild(figure);
-			figure.Position = new Vector3(start + (index * spread), 0.8f, z);
 
 			var nameplate = new Label3D
 			{
-				Text = creature.Name,
+				Text = loadout.Creature.Name,
 				Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
 				FontSize = 48,
-				PixelSize = 0.006f,
-				Position = new Vector3(0, 1.3f, 0),
+				PixelSize = 0.005f,
+				Position = new Vector3(0, 1.2f, 0),
 			};
 
 			figure.AddChild(nameplate);
-			_figures[creature] = figure;
+			_figures[loadout.Creature] = figure;
 		}
 	}
 
@@ -178,14 +182,20 @@ public partial class Main : Node3D
 
 	private void RefreshFigures()
 	{
+		var field = _battle.Battlefield;
+
 		foreach (var (creature, figure) in _figures)
 		{
+			if (field?.SquareOf(creature) is { } square)
+			{
+				figure.Position = new Vector3(
+					square.X + 0.5f,
+					creature.IsConscious ? 0.7f : 0.3f,
+					square.Y + 0.5f);
+			}
+
 			// Anyone out of the fight lies down. Cheap, and it reads at a glance.
 			figure.Rotation = creature.IsConscious ? Vector3.Zero : new Vector3(Mathf.Pi / 2f, 0, 0);
-			figure.Position = new Vector3(
-				figure.Position.X,
-				creature.IsConscious ? 0.8f : 0.35f,
-				figure.Position.Z);
 		}
 	}
 

@@ -3,6 +3,7 @@ using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
+using Ironbound.Rules.Maps;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
 
@@ -39,7 +40,16 @@ public static class Scenarios
                 WeaponAttack.Melee("scimitar", "1d6", DamageType.Slashing, new CriticalProfile(18, 2))))
             .ToArray();
 
-        return new Battle(party, foes, new PcgRandom(seed, DiceStream), rules);
+        // Two ranks facing each other across thirty-odd feet, so the first round is spent closing.
+        var field = new Battlefield(16, 12);
+        field.Place(valeria, 3, 4);
+        field.Place(karn, 3, 6);
+        for (var index = 0; index < foes.Length; index++)
+        {
+            field.Place(foes[index].Creature, 10, 3 + (index * 2));
+        }
+
+        return new Battle(party, foes, new PcgRandom(seed, DiceStream), rules, field);
     }
 
     /// <summary>An AI to drive a battle, thinking on its own stream.</summary>

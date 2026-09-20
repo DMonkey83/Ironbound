@@ -3,6 +3,7 @@ using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
+using Ironbound.Rules.Maps;
 
 namespace Ironbound.Simulation;
 
@@ -52,7 +53,8 @@ public sealed class Battle
         IEnumerable<Loadout> party,
         IEnumerable<Loadout> foes,
         IRandomSource random,
-        RuleOptions? rules = null)
+        RuleOptions? rules = null,
+        Battlefield? battlefield = null)
     {
         ArgumentNullException.ThrowIfNull(party);
         ArgumentNullException.ThrowIfNull(foes);
@@ -77,7 +79,7 @@ public sealed class Battle
         // guaranteed sequence — initiative would then be rolled in an unspecified order and a
         // replay from the same seed could diverge.
         Encounter = new Encounter(
-            Party.Concat(Foes).Select(loadout => loadout.Creature), random, rules);
+            Party.Concat(Foes).Select(loadout => loadout.Creature), random, rules, battlefield);
     }
 
     public IReadOnlyList<Loadout> Party { get; }
@@ -85,6 +87,9 @@ public sealed class Battle
     public IReadOnlyList<Loadout> Foes { get; }
 
     public Encounter Encounter { get; }
+
+    /// <summary>The ground, when the fight is happening somewhere in particular.</summary>
+    public Battlefield? Battlefield => Encounter.Battlefield;
 
     /// <summary>Every line produced so far, oldest first.</summary>
     public IReadOnlyList<string> Log => _log;

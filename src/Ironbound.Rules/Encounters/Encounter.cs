@@ -1,6 +1,7 @@
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Effects;
+using Ironbound.Rules.Maps;
 
 namespace Ironbound.Rules.Encounters;
 
@@ -21,13 +22,20 @@ public sealed class Encounter
 {
     private readonly List<Combatant> _combatants;
 
-    public Encounter(IEnumerable<Creature> creatures, IRandomSource random, RuleOptions? rules = null)
+    /// <param name="battlefield">Optional. Without one there is no distance, so nothing is ever
+    /// out of reach — which is exactly how every encounter behaved before the map existed.</param>
+    public Encounter(
+        IEnumerable<Creature> creatures,
+        IRandomSource random,
+        RuleOptions? rules = null,
+        Battlefield? battlefield = null)
     {
         ArgumentNullException.ThrowIfNull(creatures);
         ArgumentNullException.ThrowIfNull(random);
 
         Random = random;
         Rules = rules ?? RuleOptions.Pathfinder;
+        Battlefield = battlefield;
         _combatants = Initiative.Roll(creatures, random);
 
         // One tick apart, so everyone's first turn falls inside round one and the order, once
@@ -41,6 +49,9 @@ public sealed class Encounter
     public IRandomSource Random { get; }
 
     public RuleOptions Rules { get; }
+
+    /// <summary>The ground they are fighting over, or null when position does not matter.</summary>
+    public Battlefield? Battlefield { get; }
 
     /// <summary>Absolute tick. A round is <see cref="Duration.TicksPerRound"/> of them.</summary>
     public long Tick { get; private set; }

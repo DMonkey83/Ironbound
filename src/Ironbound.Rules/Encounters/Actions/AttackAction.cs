@@ -28,7 +28,10 @@ public sealed class AttackAction : GameAction
     public override ActionCost Cost => ActionCost.Standard;
 
     public override bool CanPerform(ActionContext context) =>
-        Target.IsAlive && !ReferenceEquals(Target, context.Actor);
+        Target.IsAlive
+        && !ReferenceEquals(Target, context.Actor)
+        && (context.Encounter.Battlefield is not { } field
+            || field.IsWithinReach(context.Actor, Target));
 
     public override ActionResult Perform(ActionContext context) =>
         new AttackActionResult(

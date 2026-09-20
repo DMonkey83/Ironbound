@@ -22,8 +22,16 @@ public sealed class ArmorClass(AbilityScore dexterity)
 
     public AbilityScore Dexterity { get; } = dexterity ?? throw new ArgumentNullException(nameof(dexterity));
 
-    /// <summary>Armour, shield, natural armour, deflection, dodge, size, and anything else.</summary>
+    /// <summary>Armour, shield, natural armour, deflection, dodge, and anything else.</summary>
     public ModifierStack Modifiers { get; } = new();
+
+    /// <summary>
+    /// The creature's size modifier, kept apart from <see cref="Modifiers"/> on purpose. Size is
+    /// not a bonus granted by a source that could expire; it is what the creature <em>is</em>, so
+    /// it is derived rather than stored — which also means nothing has to reach into the stack to
+    /// refresh it when Enlarge Person lands.
+    /// </summary>
+    public int SizeModifier { get; set; }
 
     /// <summary>
     /// Lowest Dexterity bonus any worn item allows, or null when nothing caps it. Caps are
@@ -51,7 +59,8 @@ public sealed class ArmorClass(AbilityScore dexterity)
     public int FlatFooted => Value(DefenseOptions.DexterityDenied);
 
     public int Value(DefenseOptions options = DefenseOptions.None) =>
-        BaseValue + DexterityContribution(options) + Modifiers.TotalWhere(m => Applies(m, options));
+        BaseValue + SizeModifier + DexterityContribution(options)
+        + Modifiers.TotalWhere(m => Applies(m, options));
 
     /// <summary>
     /// The full sum with the base and Dexterity written in as entries, so the log line
@@ -61,6 +70,11 @@ public sealed class ArmorClass(AbilityScore dexterity)
     {
         var stack = new ModifierStack();
         stack.Add(Modifier.Untyped(BaseValue, "Base"));
+
+        if (SizeModifier != 0)
+        {
+            stack.Add(new Modifier(SizeModifier, BonusType.Size, "Size"));
+        }
 
         var dexterity = DexterityContribution(options);
         if (dexterity != 0)

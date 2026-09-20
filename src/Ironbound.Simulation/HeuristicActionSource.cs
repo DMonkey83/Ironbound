@@ -42,12 +42,6 @@ public sealed class HeuristicActionSource : IActionSource
     {
         ArgumentNullException.ThrowIfNull(turn);
 
-        // One standard action a turn, and nothing else worth doing yet.
-        if (!turn.Budget.HasStandard)
-        {
-            return null;
-        }
-
         var actor = turn.Actor;
         var enemies = _battle.EnemiesOf(actor);
         if (enemies.Count == 0)
@@ -57,7 +51,7 @@ public sealed class HeuristicActionSource : IActionSource
 
         var playsWell = Competence == 100 || _random.Next(0, 100) < Competence;
 
-        if (playsWell && IsBadlyHurt(actor))
+        if (playsWell && IsBadlyHurt(actor) && turn.Budget.HasStandard)
         {
             return new TotalDefenseAction();
         }
@@ -66,7 +60,18 @@ public sealed class HeuristicActionSource : IActionSource
             ? enemies.MinBy(enemy => enemy.HitPoints.Current)!
             : enemies[_random.Next(0, enemies.Count)];
 
-        return new AttackAction(_battle.WeaponOf(actor), target);
+        // Too far to swing: walk. A second move can be paid for with the standard action, which
+        // is how a creature crosses a room in one turn without attacking.
+        if (turn.Encounter.Battlefield is { } field && !field.IsWithinReach(actor, target))
+        {
+            return turn.Budget.CanAfford(ActionCost.Move)
+                ? MoveAction.Towards(field, actor, target)
+                : null;
+        }
+
+        return turn.Budget.HasStandard
+            ? new AttackAction(_battle.WeaponOf(actor), target)
+            : null;
     }
 
     private static bool IsBadlyHurt(Rules.Creatures.Creature creature) =>

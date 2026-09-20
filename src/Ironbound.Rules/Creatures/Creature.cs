@@ -19,6 +19,8 @@ namespace Ironbound.Rules.Creatures;
 /// </remarks>
 public sealed class Creature
 {
+    private CreatureSize _size = CreatureSize.Medium;
+
     public Creature(
         string name,
         AbilityScores abilities,
@@ -64,6 +66,32 @@ public sealed class Creature
     public AbilityScores Abilities { get; }
 
     public ArmorClass ArmorClass { get; }
+
+    /// <summary>
+    /// How big it is. Setting this immediately moves its armour class and attack bonus, because
+    /// size is a property of the creature rather than a bonus from some source — Enlarge Person
+    /// changes what you are, and everything derived from it has to follow.
+    /// </summary>
+    public CreatureSize Size
+    {
+        get => _size;
+        set
+        {
+            _size = value;
+            ArmorClass.SizeModifier = CreatureSizes.Modifier(value);
+        }
+    }
+
+    /// <summary>How far it can touch, in feet. Tiny and smaller cannot reach out of their square.</summary>
+    public int Reach => CreatureSizes.Reach(_size);
+
+    /// <summary>Base movement in feet per round, before anything hurries or hinders it.</summary>
+    public int Speed { get; set; } = 30;
+
+    /// <summary>Haste, a monk's fast movement, heavy armour, difficult circumstances.</summary>
+    public ModifierStack SpeedModifiers { get; } = new();
+
+    public int CurrentSpeed => Math.Max(0, Speed + SpeedModifiers.Total);
 
     /// <summary>What stands between a damage roll and <see cref="HitPoints"/>.</summary>
     public DamageDefenses Defenses { get; }

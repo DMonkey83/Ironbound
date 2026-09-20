@@ -78,7 +78,25 @@ public static class Strike
         return ModifierStack.Combine(
             attacker.AttackModifiers,
             weapon.Attack.Modifiers,
+            SizeOf(attacker),
             Derived(attacker, weapon.AttackAbility, modifier => modifier));
+    }
+
+    /// <summary>
+    /// Size cuts both ways: the same number that makes a small creature harder to hit makes it
+    /// better at hitting. Derived live, so growing or shrinking takes effect at once.
+    /// </summary>
+    private static ModifierStack SizeOf(Creature attacker)
+    {
+        var stack = new ModifierStack();
+        var modifier = CreatureSizes.Modifier(attacker.Size);
+
+        if (modifier != 0)
+        {
+            stack.Add(modifier, BonusType.Size, "Size");
+        }
+
+        return stack;
     }
 
     /// <summary>The flat bonus added to the weapon's damage, from the same two sources.</summary>
