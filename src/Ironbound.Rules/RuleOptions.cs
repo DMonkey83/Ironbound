@@ -73,4 +73,17 @@ public sealed record RuleOptions
     /// the player's floor while keeping the ceiling.
     /// </summary>
     public bool NaturalOneAlwaysMisses { get; init; } = true;
+
+    /// <summary>
+    /// The most of a single hit that damage reduction may remove, as a percentage. 100 is the
+    /// rules as written: DR 10 against a 5-damage shortsword leaves nothing, and a party
+    /// without the right weapon genuinely cannot hurt the thing.
+    /// </summary>
+    /// <remarks>
+    /// Lowering it only ever affects small hits — against DR 10 a 14-damage greatsword still
+    /// deals 4 either way — so it is a targeted fix for the many-small-attacks build rather than
+    /// a general softening. The loot fantasy survives: the right weapon still restores full
+    /// damage.
+    /// </remarks>
+    public int MaximumReductionPercent { get; init; } = 100;
 }

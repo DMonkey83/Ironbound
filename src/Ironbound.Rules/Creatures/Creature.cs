@@ -30,6 +30,7 @@ public sealed class Creature
         Abilities = abilities;
         Rules = rules ?? RuleOptions.Pathfinder;
         ArmorClass = new ArmorClass(abilities.Dexterity);
+        Defenses = new DamageDefenses();
         HitPoints = new HitPoints(baseHitPoints, hitDice, abilities.Constitution, Rules);
     }
 
@@ -58,6 +59,9 @@ public sealed class Creature
     public AbilityScores Abilities { get; }
 
     public ArmorClass ArmorClass { get; }
+
+    /// <summary>What stands between a damage roll and <see cref="HitPoints"/>.</summary>
+    public DamageDefenses Defenses { get; }
 
     public HitPoints HitPoints { get; }
 

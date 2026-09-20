@@ -36,6 +36,7 @@ public static class Strike
         var attack = weapon.Attack.Resolve(target.ArmorClass, random, defenderState, rules);
 
         DamageRoll? damage = null;
+        DamageTaken? taken = null;
         DamageApplication? applied = null;
 
         if (attack.IsHit)
@@ -43,7 +44,8 @@ public static class Strike
             // Damage dice are only rolled on a hit, so a miss leaves the random stream
             // exactly where a replay expects to find it.
             damage = weapon.Damage.Roll(random, attack.CriticalMultiplier);
-            applied = target.HitPoints.Take(damage.Total);
+            taken = target.Defenses.Apply(damage, weapon.Qualities, rules);
+            applied = target.HitPoints.Take(taken.Total);
         }
 
         return new StrikeResult
@@ -53,6 +55,7 @@ public static class Strike
             Weapon = weapon,
             Attack = attack,
             Damage = damage,
+            Taken = taken,
             Applied = applied,
             StateBefore = before,
             StateAfter = target.HitPoints.State,

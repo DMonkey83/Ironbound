@@ -1,3 +1,4 @@
+using Ironbound.Rules.Defense;
 using Ironbound.Rules.Modifiers;
 
 namespace Ironbound.Rules.Combat;
@@ -50,6 +51,13 @@ public sealed class WeaponAttack
     public Attack Attack { get; }
 
     public DamagePacket Damage { get; }
+
+    /// <summary>
+    /// What the weapon is made of and aligned with, for getting past damage reduction. The
+    /// physical damage types it deals are added automatically when damage is mitigated, so only
+    /// the extras — silver, cold iron, magic, an alignment — belong here.
+    /// </summary>
+    public DamageBypass Qualities { get; set; } = DamageBypass.None;
 
     public override string ToString() =>
         $"{Name} {Attack.Modifiers.Total:+0;-0;+0} ({Damage}, {Attack.Critical})";

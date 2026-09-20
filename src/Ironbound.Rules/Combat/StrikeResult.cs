@@ -1,4 +1,5 @@
 using Ironbound.Rules.Creatures;
+using Ironbound.Rules.Defense;
 
 namespace Ironbound.Rules.Combat;
 
@@ -19,6 +20,9 @@ public sealed record StrikeResult
 
     /// <summary>Null on a miss — no damage dice are rolled at all.</summary>
     public DamageRoll? Damage { get; init; }
+
+    /// <summary>What the target's defences left of <see cref="Damage"/>. Null on a miss.</summary>
+    public DamageTaken? Taken { get; init; }
 
     /// <summary>How the damage split between temporary and real hit points. Null on a miss.</summary>
     public DamageApplication? Applied { get; init; }
@@ -51,6 +55,11 @@ public sealed record StrikeResult
         }
 
         text += $"; {Damage}";
+
+        if (Taken is { WasMitigated: true } mitigated)
+        {
+            text += $"; {mitigated}";
+        }
 
         if (Applied is { ToTemporary: > 0 } applied)
         {
