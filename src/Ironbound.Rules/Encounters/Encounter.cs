@@ -46,6 +46,21 @@ public sealed class Encounter
         }
     }
 
+    /// <summary>Rebuilds an encounter from a save, with the order and the clock already decided.</summary>
+    internal Encounter(
+        IRandomSource random,
+        RuleOptions rules,
+        Battlefield? battlefield,
+        List<Combatant> order,
+        long tick)
+    {
+        Random = random;
+        Rules = rules;
+        Battlefield = battlefield;
+        _combatants = order;
+        Tick = tick;
+    }
+
     public IRandomSource Random { get; }
 
     public RuleOptions Rules { get; }

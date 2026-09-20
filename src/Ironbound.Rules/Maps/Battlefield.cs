@@ -17,6 +17,11 @@ public sealed class Battlefield
     private readonly Dictionary<Creature, GridSquare> _squares = [];
     private readonly Dictionary<GridSquare, Creature> _occupants = [];
 
+    // Dictionary enumeration order is not a guarantee, and anything that walks the creatures —
+    // who a burst catches, which ally is flanking — would then depend on it. That is exactly the
+    // sort of thing that survives every test and then diverges after a save is reloaded.
+    private readonly List<Creature> _arrivals = [];
+
     public Battlefield(int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(width, 1);
@@ -31,7 +36,8 @@ public sealed class Battlefield
 
     public int Height { get; }
 
-    public IReadOnlyCollection<Creature> Creatures => _squares.Keys;
+    /// <summary>Everyone on the map, in the order they arrived on it.</summary>
+    public IReadOnlyList<Creature> Creatures => _arrivals;
 
     public bool Contains(GridSquare square) =>
         square.X >= 0 && square.Y >= 0 && square.X < Width && square.Y < Height;
@@ -76,6 +82,7 @@ public sealed class Battlefield
         Remove(creature);
         _squares[creature] = square;
         _occupants[square] = creature;
+        _arrivals.Add(creature);
     }
 
     public void Place(Creature creature, int x, int y) => Place(creature, new GridSquare(x, y));
@@ -90,6 +97,7 @@ public sealed class Battlefield
         }
 
         _occupants.Remove(square);
+        _arrivals.Remove(creature);
         return true;
     }
 
@@ -129,9 +137,9 @@ public sealed class Battlefield
     {
         ArgumentOutOfRangeException.ThrowIfNegative(feet);
 
-        return [.. _squares
-            .Where(entry => Distance.Between(entry.Value, centre) <= feet)
-            .Select(entry => entry.Key)];
+        return [.. _arrivals.Where(creature =>
+            _squares.TryGetValue(creature, out var square)
+            && Distance.Between(square, centre) <= feet)];
     }
 
     /// <summary>
@@ -237,7 +245,7 @@ public sealed class Battlefield
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(target);
 
-        foreach (var other in _squares.Keys)
+        foreach (var other in _arrivals)
         {
             if (AreFlanking(attacker, other, target))
             {

@@ -48,6 +48,16 @@ public sealed class EffectCollection
             $"{_owner.Name} gains {effect.Name} ({effect.Duration})");
     }
 
+    /// <summary>
+    /// Puts a restored effect back with its clocks where they were, without re-applying what it
+    /// granted: those modifiers came back with the rest of the creature.
+    /// </summary>
+    internal void Reattach(Effect effect, int ticksRemaining, int ticksUntilPeriod)
+    {
+        _effects.Add(effect);
+        effect.ReattachTo(_owner, ticksRemaining, ticksUntilPeriod);
+    }
+
     /// <summary>Takes an effect away early — dispelled, suppressed, or its source destroyed.</summary>
     public EffectEvent? Remove(string name)
     {

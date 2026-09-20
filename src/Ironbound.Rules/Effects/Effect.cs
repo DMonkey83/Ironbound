@@ -71,6 +71,15 @@ public abstract class Effect
     }
 
     /// <summary>
+    /// Called instead of <see cref="OnApply"/> when an effect is restored from a save. The
+    /// modifiers are already back in their stacks, so the effect must only remember where they
+    /// are — granting them again would double every buff on every load.
+    /// </summary>
+    protected virtual void OnReattach(Creature target)
+    {
+    }
+
+    /// <summary>
     /// Hands out a modifier stamped with this effect's name, and remembers where it went.
     /// The only supported way for an effect to change a number.
     /// </summary>
@@ -79,6 +88,14 @@ public abstract class Effect
         ArgumentNullException.ThrowIfNull(stack);
 
         stack.Add(new Modifier(value, type, Name));
+        Track(stack);
+    }
+
+    /// <summary>Remembers a stack to clean up later without putting anything into it.</summary>
+    protected void Track(ModifierStack stack)
+    {
+        ArgumentNullException.ThrowIfNull(stack);
+
         if (!_touched.Contains(stack))
         {
             _touched.Add(stack);
@@ -89,6 +106,15 @@ public abstract class Effect
     {
         Target = target;
         OnApply(target);
+    }
+
+    /// <summary>Puts a restored effect back on a creature without re-applying what it granted.</summary>
+    internal void ReattachTo(Creature target, int ticksRemaining, int ticksUntilPeriod)
+    {
+        Target = target;
+        TicksRemaining = ticksRemaining;
+        TicksUntilPeriod = ticksUntilPeriod;
+        OnReattach(target);
     }
 
     internal void Tick(EffectContext context) => OnTick(context);

@@ -4,6 +4,7 @@ using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Encounters.Actions;
 using Ironbound.Rules.Maps;
+using Ironbound.Rules.Persistence;
 
 namespace Ironbound.Simulation;
 
@@ -78,6 +79,31 @@ public sealed class Battle
         // Explicitly party-then-foes rather than any incidental ordering: initiative is rolled in
         // this sequence, and a replay from the same seed has to see the same one.
         Encounter = new Encounter(Party.Concat(Foes), random, rules, battlefield);
+    }
+
+    private Battle(Encounter encounter)
+    {
+        Encounter = encounter;
+
+        var creatures = encounter.Order.Select(combatant => combatant.Creature).ToArray();
+        Party = [.. creatures.Where(c => c.Allegiance == PartyAllegiance)];
+        Foes = [.. creatures.Where(c => c.Allegiance != PartyAllegiance)];
+    }
+
+    /// <summary>
+    /// Rebuilds a fight from a save. Sides come back off the creatures themselves, which is one
+    /// of the things moving allegiance into the rules layer bought.
+    /// </summary>
+    /// <remarks>
+    /// One thing does <em>not</em> travel: the action source's own random stream. At full
+    /// competence the heuristic never draws from it, so a reloaded fight plays out identically —
+    /// but a deliberately fallible opponent would diverge, and its state would have to be saved
+    /// alongside everything else.
+    /// </remarks>
+    public static Battle Restore(SavedGame save)
+    {
+        ArgumentNullException.ThrowIfNull(save);
+        return new Battle(GameSave.Restore(save));
     }
 
     public IReadOnlyList<Creature> Party { get; }

@@ -47,7 +47,17 @@ public sealed class Spellcasting
         return this;
     }
 
+    /// <summary>Which spell levels this caster has slots for at all.</summary>
+    public IReadOnlyCollection<int> SlotLevels => _maximum.Keys;
+
     public int SlotsMaximum(int level) => _maximum.GetValueOrDefault(level);
+
+    /// <summary>Puts a level's slots back mid-day, as a save recorded them.</summary>
+    internal void RestoreSlots(int level, int maximum, int remaining)
+    {
+        _maximum[level] = maximum;
+        _remaining[level] = remaining;
+    }
 
     public int SlotsRemaining(int level) => _remaining.GetValueOrDefault(level);
 

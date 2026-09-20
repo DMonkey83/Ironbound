@@ -214,6 +214,14 @@ public sealed class HitPoints
 
     public void RemoveTemporary() => Temporary = 0;
 
+    /// <summary>Puts the pools back exactly as a save recorded them.</summary>
+    internal void Restore(int damage, int temporary, int nonlethal)
+    {
+        Damage = damage;
+        Temporary = temporary;
+        Nonlethal = nonlethal;
+    }
+
     /// <summary>A full night's rest: all damage gone. Temporary hit points are not granted back.</summary>
     public void Restore()
     {

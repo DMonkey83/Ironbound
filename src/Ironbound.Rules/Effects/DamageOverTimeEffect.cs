@@ -21,6 +21,7 @@ public sealed class DamageOverTimeEffect : Effect
         : base(name, duration, period ?? Duration.Rounds(1))
     {
         ArgumentNullException.ThrowIfNull(amount);
+        Amount = amount;
         DamageType = type;
         _packet = DamagePacket.Of(DamageComponent.Weapon(amount, type));
     }
@@ -34,6 +35,9 @@ public sealed class DamageOverTimeEffect : Effect
         : this(name, duration, DiceExpression.Parse(amount), type, period)
     {
     }
+
+    /// <summary>How much it deals each time, kept so the effect can be written to a save.</summary>
+    public DiceExpression Amount { get; }
 
     public DamageType DamageType { get; }
 

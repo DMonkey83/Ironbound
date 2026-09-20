@@ -5,6 +5,7 @@ using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Encounters.Actions;
 using Ironbound.Rules.Maps;
+using Ironbound.Rules.Persistence;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Simulation;
 
@@ -386,5 +387,78 @@ public class TacticalHeuristicTests
         var turn = battle.Encounter.BeginNextTurn()!;
 
         Assert.IsType<AttackAction>(source.NextAction(turn));
+    }
+}
+
+public class SaveAndLoadTests
+{
+    private const ulong Seed = 20260920;
+
+    /// <summary>
+    /// The test the whole persistence layer exists for: stop a fight halfway, write it out, read
+    /// it back, and let both finish. If the reloaded fight diverges by so much as one die, some
+    /// piece of state was not saved.
+    /// </summary>
+    [Fact]
+    public void AFightReloadedHalfwayThroughPlaysOutIdentically()
+    {
+        var original = Scenarios.GoblinAmbush(Seed);
+        var source = Scenarios.AutoPilot(original, Seed);
+
+        for (var turn = 0; turn < 6; turn++)
+        {
+            original.AdvanceTurn(source);
+        }
+
+        var save = GameSave.FromJson(GameSave.ToJson(GameSave.Capture(original.Encounter)));
+        var writtenSoFar = original.Log.Count;
+
+        original.RunToCompletion(source);
+        var uninterrupted = original.Log.Skip(writtenSoFar).ToArray();
+
+        var reloaded = Battle.Restore(save);
+        reloaded.RunToCompletion(Scenarios.AutoPilot(reloaded, Seed));
+
+        Assert.NotEmpty(uninterrupted);
+        Assert.Equal(uninterrupted, reloaded.Log);
+        Assert.Equal(original.Outcome, reloaded.Outcome);
+    }
+
+    [Fact]
+    public void TheStateAtTheMomentOfSavingIsWhatComesBack()
+    {
+        var original = Scenarios.GoblinAmbush(Seed);
+        var source = Scenarios.AutoPilot(original, Seed);
+
+        for (var turn = 0; turn < 8; turn++)
+        {
+            original.AdvanceTurn(source);
+        }
+
+        var reloaded = Battle.Restore(GameSave.Capture(original.Encounter));
+
+        Assert.Equal(original.Round, reloaded.Round);
+        Assert.Equal(original.Encounter.Tick, reloaded.Encounter.Tick);
+        Assert.Equal(original.Party.Count, reloaded.Party.Count);
+        Assert.Equal(original.Foes.Count, reloaded.Foes.Count);
+
+        Assert.Equal(
+            original.Encounter.Order.Select(c =>
+                (c.Creature.Name, c.Creature.HitPoints.Current, c.Initiative)),
+            reloaded.Encounter.Order.Select(c =>
+                (c.Creature.Name, c.Creature.HitPoints.Current, c.Initiative)));
+    }
+
+    [Fact]
+    public void SidesComeBackOffTheCreaturesThemselves()
+    {
+        var original = Scenarios.GoblinAmbush(Seed);
+
+        var reloaded = Battle.Restore(GameSave.Capture(original.Encounter));
+
+        Assert.Equal(
+            original.Party.Select(c => c.Name).Order(),
+            reloaded.Party.Select(c => c.Name).Order());
+        Assert.All(reloaded.Foes, foe => Assert.Equal(Side.Foes, reloaded.SideOf(foe)));
     }
 }

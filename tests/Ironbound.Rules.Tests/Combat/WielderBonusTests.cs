@@ -199,7 +199,7 @@ public class WielderBonusTests
         var sword = Longsword();
 
         fighter.Effects.Apply(new ModifierEffect("Bless", Duration.Minutes(1))
-            .Grants(1, BonusType.Morale, creature => creature.AttackModifiers));
+            .GrantsToAttack(1, BonusType.Morale));
 
         Assert.Equal(11, Strike.AttackBonus(fighter, sword).Total);
         Assert.Equal(4, Strike.DamageBonus(fighter, sword).Total);
@@ -212,8 +212,8 @@ public class WielderBonusTests
         var sword = Longsword();
 
         fighter.Effects.Apply(new ModifierEffect("Inspire Courage", Duration.Rounds(5))
-            .Grants(2, BonusType.Morale, creature => creature.AttackModifiers)
-            .Grants(2, BonusType.Morale, creature => creature.DamageModifiers));
+            .GrantsToAttack(2, BonusType.Morale)
+            .GrantsToDamage(2, BonusType.Morale));
 
         Assert.Equal(12, Strike.AttackBonus(fighter, sword).Total);
         Assert.Equal(6, Strike.DamageBonus(fighter, sword).Total);
@@ -227,7 +227,7 @@ public class WielderBonusTests
         sword.Attack.Modifiers.Add(1, BonusType.Enhancement, "+1 Longsword");
 
         fighter.Effects.Apply(new ModifierEffect("Magic Weapon", Duration.Minutes(1))
-            .Grants(1, BonusType.Enhancement, creature => creature.AttackModifiers));
+            .GrantsToAttack(1, BonusType.Enhancement));
 
         Assert.Equal(11, Strike.AttackBonus(fighter, sword).Total);
     }

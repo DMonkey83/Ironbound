@@ -108,6 +108,14 @@ public sealed class ActionBudget
         return true;
     }
 
+    /// <summary>Puts a budget back exactly as a save recorded it.</summary>
+    internal void Restore(bool standard, bool move, bool swift)
+    {
+        HasStandard = standard;
+        HasMove = move;
+        HasSwift = swift;
+    }
+
     public void Reset()
     {
         HasStandard = true;

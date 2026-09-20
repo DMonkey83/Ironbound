@@ -64,7 +64,7 @@ public static class Spells
         Target = new BurstTarget(RadiusFeet: 50),
         Affects = SpellAffects.Allies,
         Does = [new Bestow("Bless", level => new ModifierEffect("Bless", Duration.Minutes(level))
-            .Grants(1, BonusType.Morale, creature => creature.AttackModifiers))],
+            .GrantsToAttack(1, BonusType.Morale))],
     };
 
     /// <summary>

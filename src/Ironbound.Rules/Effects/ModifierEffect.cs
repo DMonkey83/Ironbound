@@ -9,33 +9,59 @@ namespace Ironbound.Rules.Effects;
 /// Bull's Strength, Haste, Bless, Shaken, ability damage — all of them are this.
 /// </summary>
 /// <remarks>
-/// The stack is chosen by a delegate, which is fine while effects are defined in code. When
-/// effects become content data the selector becomes a path ("ability.strength") and this class
-/// gains a data-driven sibling; the stacking behaviour and cleanup do not change.
+/// The targets are described rather than selected by a delegate, so the whole effect can be
+/// written to a save file and rebuilt. That was the price of being able to save mid-fight with
+/// buffs still running, and it is cheaper than it looks.
 /// </remarks>
 public sealed class ModifierEffect(string name, Duration duration) : Effect(name, duration)
 {
-    private readonly List<(Func<Creature, ModifierStack> Select, int Value, BonusType Type)> _grants = [];
+    private readonly List<ModifierGrant> _grants = [];
 
-    public ModifierEffect Grants(int value, BonusType type, Func<Creature, ModifierStack> stack)
+    /// <summary>What it hands out, and where. Written straight into a save.</summary>
+    public IReadOnlyList<ModifierGrant> GrantedModifiers => _grants;
+
+    public ModifierEffect Grants(int value, BonusType type, ModifierTarget target)
     {
-        ArgumentNullException.ThrowIfNull(stack);
-        _grants.Add((stack, value, type));
+        _grants.Add(new ModifierGrant(target, value, type));
         return this;
     }
 
     /// <summary>Buff or damage an ability score. A negative value is ability damage.</summary>
     public ModifierEffect GrantsToAbility(Ability ability, int value, BonusType type) =>
-        Grants(value, type, creature => creature.Abilities[ability].Modifiers);
+        Grants(value, type, ModifierTarget.Ability(ability));
 
     public ModifierEffect GrantsToArmorClass(int value, BonusType type) =>
-        Grants(value, type, creature => creature.ArmorClass.Modifiers);
+        Grants(value, type, ModifierTarget.ArmorClass);
+
+    public ModifierEffect GrantsToAttack(int value, BonusType type) =>
+        Grants(value, type, ModifierTarget.Attack);
+
+    public ModifierEffect GrantsToDamage(int value, BonusType type) =>
+        Grants(value, type, ModifierTarget.Damage);
+
+    public ModifierEffect GrantsToSpeed(int value, BonusType type) =>
+        Grants(value, type, ModifierTarget.Speed);
+
+    public ModifierEffect GrantsToSave(Saves.Save save, int value, BonusType type) =>
+        Grants(value, type, ModifierTarget.Save(save));
 
     protected override void OnApply(Creature target)
     {
-        foreach (var (select, value, type) in _grants)
+        foreach (var grant in _grants)
         {
-            Grant(select(target), value, type);
+            Grant(grant.Target.On(target), grant.Value, grant.Type);
+        }
+    }
+
+    /// <summary>
+    /// After a load the modifiers are already in their stacks, restored with everything else.
+    /// Re-granting would double them, so the effect only needs to remember where they went.
+    /// </summary>
+    protected override void OnReattach(Creature target)
+    {
+        foreach (var grant in _grants)
+        {
+            Track(grant.Target.On(target));
         }
     }
 }
