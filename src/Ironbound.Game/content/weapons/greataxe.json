@@ -1,0 +1,10 @@
+{
+  "kind": "weapon",
+  "id": "greataxe",
+  "name": "greataxe",
+  "damage": "1d12",
+  "damageType": "Slashing",
+  "threatsOn": 20,
+  "multiplier": 3,
+  "scale": "OneAndAHalf"
+}

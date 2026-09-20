@@ -217,7 +217,7 @@ public static class Casting
                     break;
 
                 case Bestow bestow:
-                    target.Effects.Apply(bestow.Create(level));
+                    target.Effects.Apply(bestow.Effect.Build(level));
                     applied.Add($"gains {bestow.Name}");
                     break;
             }

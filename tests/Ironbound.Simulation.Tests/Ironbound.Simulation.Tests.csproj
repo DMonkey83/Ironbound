@@ -22,4 +22,11 @@
     <ProjectReference Include="..\..\src\Ironbound.Simulation\Ironbound.Simulation.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The tests run against the content the game ships, so a bad file fails the build. -->
+    <None Include="..\..\src\Ironbound.Game\content\**\*.json"
+          Link="content\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,9 @@
+{
+  "kind": "weapon",
+  "id": "scimitar",
+  "name": "scimitar",
+  "damage": "1d6",
+  "damageType": "Slashing",
+  "threatsOn": 18,
+  "multiplier": 2
+}

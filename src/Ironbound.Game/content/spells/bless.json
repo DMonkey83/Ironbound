@@ -1,0 +1,23 @@
+// Heart in the fight: a morale bonus to everyone on your side nearby.
+{
+  "kind": "spell",
+  "id": "bless",
+  "name": "Bless",
+  "level": 1,
+  "school": "Enchantment",
+  "range": "personal",
+  "target": { "burst": 50 },
+  "affects": "Allies",
+  "does": [
+    {
+      "effect": {
+        "name": "Bless",
+        "kind": "Modifier",
+        "minutesPerLevel": 1,
+        "grants": [
+          { "target": "attack", "value": 1, "type": "Morale" }
+        ]
+      }
+    }
+  ]
+}

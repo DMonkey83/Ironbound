@@ -1,0 +1,20 @@
+// The one everybody knows.
+{
+  "kind": "spell",
+  "id": "fireball",
+  "name": "Fireball",
+  "level": 3,
+  "school": "Evocation",
+  "range": "long",
+  "target": { "burst": 20 },
+
+  // Everyone, not Enemies: it does not care whose side you are on, which is the
+  // whole tactical problem with it.
+  "affects": "Everyone",
+
+  "save": "Reflex",
+  "onSave": "Half",
+  "does": [
+    { "damage": { "perLevel": 6, "maxDice": 10 }, "type": "Fire" }
+  ]
+}

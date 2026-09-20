@@ -1,0 +1,22 @@
+{
+  "kind": "creature",
+  "id": "merrin",
+  "name": "Merrin",
+  "abilities": [8, 14, 12, 18, 13, 10],
+  "hitPoints": 18,
+  "hitDice": 5,
+  "level": 5,
+  "speed": 30,
+  "baseAttack": 2,
+  "armour": 0,
+  "goodSave": "Fortitude",
+  "weapons": ["quarterstaff"],
+  "castingAbility": "Intelligence",
+  "casterLevel": 5,
+  "slots": [
+    { "level": 1, "count": 3 },
+    { "level": 2, "count": 2 },
+    { "level": 3, "count": 1 }
+  ],
+  "spells": ["fireball", "scorching-ray", "magic-missile"]
+}

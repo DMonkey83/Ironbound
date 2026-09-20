@@ -64,9 +64,13 @@ public sealed record DealDamage(SpellDice Amount, DamageType Type) : SpellEffect
 
 public sealed record Restore(SpellDice Amount) : SpellEffect;
 
-/// <param name="Create">Built fresh per target — each needs its own copy with its own clock —
-/// and handed the caster level, because most durations are written per level.</param>
-public sealed record Bestow(string Name, Func<int, Effect> Create) : SpellEffect;
+/// <param name="Effect">Described rather than constructed, so the spell can live in a file.
+/// A fresh copy is built per target, at the caster's level, because durations are usually
+/// written per level.</param>
+public sealed record Bestow(EffectDefinition Effect) : SpellEffect
+{
+    public string Name => Effect.Name;
+}
 
 /// <summary>
 /// A spell, written down.
@@ -77,7 +81,9 @@ public sealed record Bestow(string Name, Func<int, Effect> Create) : SpellEffect
 /// deal damage or hang an effect on it. Writing them as data keeps a spell the same size as its
 /// rulebook entry, and turns into a content file later with very little violence.
 /// </remarks>
-public sealed record Spell(string Name, int Level, SpellSchool School)
+/// <param name="Id">Stable and lower-case. Saves refer to this, so it survives the display
+/// name being reworded.</param>
+public sealed record Spell(string Id, string Name, int Level, SpellSchool School)
 {
     public SpellRange Range { get; init; } = SpellRange.Close;
 

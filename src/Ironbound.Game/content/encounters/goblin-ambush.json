@@ -1,0 +1,15 @@
+{
+  "kind": "encounter",
+  "id": "goblin-ambush",
+  "name": "Goblin Ambush",
+  "width": 16,
+  "height": 12,
+  "placements": [
+    { "creature": "valeria", "x": 3, "y": 4, "party": true },
+    { "creature": "karn",    "x": 3, "y": 6, "party": true },
+    { "creature": "merrin",  "x": 2, "y": 5, "party": true },
+    { "creature": "goblin",  "x": 10, "y": 3, "name": "Goblin 1" },
+    { "creature": "goblin",  "x": 10, "y": 5, "name": "Goblin 2" },
+    { "creature": "goblin",  "x": 10, "y": 7, "name": "Goblin 3" }
+  ]
+}

@@ -416,7 +416,7 @@ public class SaveAndLoadTests
         original.RunToCompletion(source);
         var uninterrupted = original.Log.Skip(writtenSoFar).ToArray();
 
-        var reloaded = Battle.Restore(save);
+        var reloaded = Battle.Restore(save, ContentFiles.Default);
         reloaded.RunToCompletion(Scenarios.AutoPilot(reloaded, Seed));
 
         Assert.NotEmpty(uninterrupted);
@@ -435,7 +435,7 @@ public class SaveAndLoadTests
             original.AdvanceTurn(source);
         }
 
-        var reloaded = Battle.Restore(GameSave.Capture(original.Encounter));
+        var reloaded = Battle.Restore(GameSave.Capture(original.Encounter), ContentFiles.Default);
 
         Assert.Equal(original.Round, reloaded.Round);
         Assert.Equal(original.Encounter.Tick, reloaded.Encounter.Tick);
@@ -454,7 +454,7 @@ public class SaveAndLoadTests
     {
         var original = Scenarios.GoblinAmbush(Seed);
 
-        var reloaded = Battle.Restore(GameSave.Capture(original.Encounter));
+        var reloaded = Battle.Restore(GameSave.Capture(original.Encounter), ContentFiles.Default);
 
         Assert.Equal(
             original.Party.Select(c => c.Name).Order(),

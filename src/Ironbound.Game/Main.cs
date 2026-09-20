@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Encounters.Actions;
@@ -42,6 +43,7 @@ public partial class Main : Node3D
 
 	private readonly Dictionary<Creature, Node3D> _figures = new();
 
+	private ContentLibrary _content;
 	private Battle _battle;
 	private IActionSource _enemies;
 	private Node3D _world;
@@ -62,7 +64,8 @@ public partial class Main : Node3D
 
 	public override void _Ready()
 	{
-		Begin(Scenarios.GoblinAmbush());
+		_content = GodotContent.Load();
+		Begin(Scenarios.Build(_content, Scenarios.GoblinAmbushId));
 
 		BuildInterface();
 		RebuildWorld();
@@ -311,7 +314,22 @@ public partial class Main : Node3D
 			return;
 		}
 
-		Begin(Battle.Restore(GameSave.FromJson(json)));
+		Battle restored;
+		try
+		{
+			restored = Battle.Restore(GameSave.FromJson(json), _content);
+		}
+		catch (System.IO.InvalidDataException problem)
+		{
+			// A save written by an older build, or one naming content that has since been renamed.
+			// Refusing it loudly is deliberate; taking the running fight down with it is not, so
+			// the current battle is left exactly as it was.
+			GD.PushError($"Could not load {SavePath}: {problem.Message}");
+			_log.AddText($"— could not load: {problem.Message} —\n");
+			return;
+		}
+
+		Begin(restored);
 
 		// The bodies were built for the fight that is being replaced, so they go with it.
 		RebuildWorld();
@@ -636,7 +654,7 @@ public partial class Main : Node3D
 
 		GD.Print($"--- saved {json.Length} characters to {ProjectSettings.GlobalizePath(SavePath)} ---");
 
-		Begin(Battle.Restore(GameSave.FromJson(Read())));
+		Begin(Battle.Restore(GameSave.FromJson(Read()), _content));
 
 		GD.Print($"--- reloaded at round {_battle.Round}, tick {_battle.Encounter.Tick} ---");
 

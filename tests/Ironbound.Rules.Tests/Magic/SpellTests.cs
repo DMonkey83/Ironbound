@@ -157,7 +157,7 @@ public class SpellcastingTests
     public void AnUnpreparedSpellCannotBeCastAtAll()
     {
         var wizard = Wizard();
-        var unknown = new Spell("Wish", 9, SpellSchool.Conjuration);
+        var unknown = new Spell("wish", "Wish", 9, SpellSchool.Conjuration);
 
         Assert.False(wizard.Spells.Knows(unknown));
         Assert.False(wizard.Spells.CanCast(unknown));

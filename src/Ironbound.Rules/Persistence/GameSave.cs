@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Combat;
+using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Dice;
@@ -141,7 +142,7 @@ public static class GameSave
         spells.CastingAbility,
         spells.CasterLevel,
         [.. spells.SlotLevels.Order().Select(l => new SavedSlot(l, spells.SlotsMaximum(l), spells.SlotsRemaining(l)))],
-        [.. spells.Prepared.Select(s => s.Name)]);
+        [.. spells.Prepared.Select(s => s.Id)]);
 
     private static SavedWeapon Capture(WeaponAttack weapon) => new(
         weapon.Name,
@@ -180,9 +181,13 @@ public static class GameSave
 
     // ---- restore ----
 
-    public static Encounter Restore(SavedGame save)
+    /// <param name="library">Where spells and other content are found again. Passed rather than
+    /// reached for, because a global catalogue is the thing every other part of this codebase has
+    /// been careful not to be.</param>
+    public static Encounter Restore(SavedGame save, ContentLibrary library)
     {
         ArgumentNullException.ThrowIfNull(save);
+        ArgumentNullException.ThrowIfNull(library);
 
         if (save.Version != SavedGame.CurrentVersion)
         {
@@ -193,7 +198,7 @@ public static class GameSave
         var field = Restore(save.Ground);
         var creatures = save.Creatures.ToDictionary(
             saved => saved.Name,
-            saved => Restore(saved, save.Rules, field),
+            saved => Restore(saved, save.Rules, field, library),
             StringComparer.Ordinal);
 
         var order = new List<Combatant>();
@@ -237,7 +242,8 @@ public static class GameSave
         return field;
     }
 
-    private static Creature Restore(SavedCreature saved, RuleOptions rules, Battlefield? field)
+    private static Creature Restore(
+        SavedCreature saved, RuleOptions rules, Battlefield? field, ContentLibrary library)
     {
         var abilities = new AbilityScores(AbilityInfo.All.Select((ability, index) =>
         {
@@ -277,7 +283,7 @@ public static class GameSave
             saved.HitPoints.Damage, saved.HitPoints.Temporary, saved.HitPoints.Nonlethal);
 
         RestoreDefenses(creature.Defenses, saved.Defenses);
-        RestoreSpells(creature.Spells, saved.Spells);
+        RestoreSpells(creature.Spells, saved.Spells, library);
 
         foreach (var weapon in saved.Weapons)
         {
@@ -328,7 +334,8 @@ public static class GameSave
         }
     }
 
-    private static void RestoreSpells(Spellcasting spells, SavedSpellcasting saved)
+    private static void RestoreSpells(
+        Spellcasting spells, SavedSpellcasting saved, ContentLibrary library)
     {
         spells.CastingAbility = saved.CastingAbility;
         spells.CasterLevel = saved.CasterLevel;
@@ -338,15 +345,19 @@ public static class GameSave
             spells.RestoreSlots(slot.Level, slot.Maximum, slot.Remaining);
         }
 
-        // Spells are content, looked up by name. A real content pipeline needs a registry here;
-        // until then anything not in the sample catalogue is quietly forgotten, which is worth
-        // knowing before shipping a save file to anybody.
-        foreach (var name in saved.Prepared)
+        // By identifier, not by display name: renaming "Fireball" must not quietly empty every
+        // wizard's spellbook in every existing save.
+        //
+        // A spell the library has never heard of is fatal, and that is a pre-release choice. Right
+        // now the only saves in existence are ones we made minutes ago, so a missing id means a
+        // content file was renamed or broken and we want to hear about it at the point of failure
+        // — not twenty minutes later while wondering why Merrin will not cast anything. Once there
+        // are saves belonging to people who cannot regenerate them, this flips: losing one spell
+        // is then far better than losing the campaign, and this becomes a skip plus a warning.
+        foreach (var id in saved.Prepared)
         {
-            if (Spells.All.FirstOrDefault(s => s.Name == name) is { } spell)
-            {
-                spells.Prepare(spell);
-            }
+            spells.Prepare(library.GetSpell(id) ?? throw new InvalidDataException(
+                $"The save has a spell '{id}', which no content file defines."));
         }
     }
 

@@ -1,0 +1,16 @@
+// A beam of fire needing a ranged touch attack.
+{
+  "kind": "spell",
+  "id": "scorching-ray",
+  "name": "Scorching Ray",
+  "level": 2,
+  "school": "Evocation",
+  "range": "close",
+  "target": { "shape": "ray" },
+  "affects": "Enemies",
+  "does": [
+    // Simplified: the rules grant a second ray at seventh level and a third at
+    // eleventh, each needing its own attack roll. This fires one.
+    { "damage": { "fixed": "4d6" }, "type": "Fire" }
+  ]
+}

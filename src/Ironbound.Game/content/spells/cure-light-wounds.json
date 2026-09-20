@@ -1,0 +1,17 @@
+// A healing touch.
+{
+  "kind": "spell",
+  "id": "cure-light-wounds",
+  "name": "Cure Light Wounds",
+  "level": 1,
+  "school": "Conjuration",
+  "range": "touch",
+  "target": { "shape": "single" },
+  "affects": "Allies",
+  "does": [
+    // Simplified: the rules scale the flat part with caster level to a maximum of
+    // five, and this simply uses the maximum. Scaling a flat bonus needs another
+    // dial on SpellDice that nothing else wants yet.
+    { "heal": { "fixed": "1d8+5" } }
+  ]
+}

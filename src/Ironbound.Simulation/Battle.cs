@@ -4,6 +4,7 @@ using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Encounters.Actions;
 using Ironbound.Rules.Maps;
+using Ironbound.Rules.Content;
 using Ironbound.Rules.Persistence;
 
 namespace Ironbound.Simulation;
@@ -100,10 +101,10 @@ public sealed class Battle
     /// but a deliberately fallible opponent would diverge, and its state would have to be saved
     /// alongside everything else.
     /// </remarks>
-    public static Battle Restore(SavedGame save)
+    public static Battle Restore(SavedGame save, ContentLibrary library)
     {
         ArgumentNullException.ThrowIfNull(save);
-        return new Battle(GameSave.Restore(save));
+        return new Battle(GameSave.Restore(save, library));
     }
 
     public IReadOnlyList<Creature> Party { get; }

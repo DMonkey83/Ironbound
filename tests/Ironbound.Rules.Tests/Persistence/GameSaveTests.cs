@@ -1,5 +1,6 @@
 using Ironbound.Rules;
 using Ironbound.Rules.Abilities;
+using Ironbound.Rules.Content;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
@@ -66,7 +67,8 @@ public class GameSaveTests
     }
 
     private static Encounter RoundTrip(Encounter encounter) =>
-        GameSave.Restore(GameSave.FromJson(GameSave.ToJson(GameSave.Capture(encounter))));
+        GameSave.Restore(
+            GameSave.FromJson(GameSave.ToJson(GameSave.Capture(encounter))), TestContent.Library);
 
     [Fact]
     public void TheGroundComesBack()
@@ -216,6 +218,38 @@ public class GameSaveTests
     }
 
     [Fact]
+    public void SpellsAreSavedByIdentifierNotByDisplayName()
+    {
+        var encounter = Fight(out _, out var hero, out _);
+        hero.Spells.CasterLevel = 5;
+        hero.Spells.SetSlots(3, 1).Prepare(Spells.Fireball);
+
+        var json = GameSave.ToJson(GameSave.Capture(encounter));
+
+        // Renaming "Fireball" to "Ball of Fire" must not quietly empty every existing spellbook.
+        Assert.Contains("\"fireball\"", json);
+        Assert.DoesNotContain("\"Fireball\"", json);
+    }
+
+    [Fact]
+    public void ASpellTheLibraryNoLongerHasIsLoudRatherThanQuiet()
+    {
+        var encounter = Fight(out _, out var hero, out _);
+        hero.Spells.CasterLevel = 5;
+        hero.Spells.SetSlots(3, 1).Prepare(Spells.Fireball);
+
+        var save = GameSave.FromJson(GameSave.ToJson(GameSave.Capture(encounter)));
+        var thin = ContentLibrary.Load([]);
+
+        // Pre-release, every save in existence is one we can remake in seconds, so a renamed or
+        // broken content file should stop the load and say which id it could not find. After
+        // release this inverts — see the note in RestoreSpells.
+        var error = Assert.Throws<InvalidDataException>(() => GameSave.Restore(save, thin));
+
+        Assert.Contains("fireball", error.Message);
+    }
+
+    [Fact]
     public void ACreatureWithNoConstitutionStaysThatWay()
     {
         var field = new Battlefield(6, 6);
@@ -297,7 +331,7 @@ public class GameSaveTests
         var encounter = Fight(out _, out _, out _);
         var save = GameSave.Capture(encounter) with { Version = SavedGame.CurrentVersion + 1 };
 
-        Assert.Throws<InvalidDataException>(() => GameSave.Restore(save));
+        Assert.Throws<InvalidDataException>(() => GameSave.Restore(save, TestContent.Library));
     }
 
     [Fact]
@@ -317,7 +351,7 @@ public class GameSaveTests
     public void RejectsMissingArguments()
     {
         Assert.Throws<ArgumentNullException>(() => GameSave.Capture(null!));
-        Assert.Throws<ArgumentNullException>(() => GameSave.Restore(null!));
+        Assert.Throws<ArgumentNullException>(() => GameSave.Restore(null!, TestContent.Library));
     }
 
     private static Creature Restored(Encounter encounter, string name) =>

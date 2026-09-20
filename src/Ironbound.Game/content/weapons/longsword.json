@@ -1,0 +1,9 @@
+{
+  "kind": "weapon",
+  "id": "longsword",
+  "name": "longsword",
+  "damage": "1d8",
+  "damageType": "Slashing",
+  "threatsOn": 19,
+  "multiplier": 2
+}

@@ -1,0 +1,15 @@
+// Unerring force. No attack roll and no save: it simply arrives.
+{
+  "kind": "spell",
+  "id": "magic-missile",
+  "name": "Magic Missile",
+  "level": 1,
+  "school": "Evocation",
+  "range": "medium",
+  "target": { "shape": "single" },
+  "affects": "Enemies",
+  "does": [
+    // A missile every other level to a maximum of five, each 1d4+1.
+    { "damage": { "perLevel": 4, "maxDice": 5, "levelsPerDie": 2, "flatPerDie": 1 }, "type": "Force" }
+  ]
+}
