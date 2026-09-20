@@ -2,6 +2,7 @@ using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Effects;
+using Ironbound.Rules.Magic;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
 using Ironbound.Rules.Dice;
@@ -39,6 +40,7 @@ public sealed class Creature
         Defenses = new DamageDefenses();
         Effects = new EffectCollection(this);
         Saves = new SavingThrows(abilities);
+        Spells = new Spellcasting(this);
         HitPoints = new HitPoints(baseHitPoints, hitDice, abilities.Constitution, Rules);
     }
 
@@ -134,6 +136,9 @@ public sealed class Creature
 
     /// <summary>Fortitude, Reflex and Will.</summary>
     public SavingThrows Saves { get; }
+
+    /// <summary>What it can cast and how much of it is left.</summary>
+    public Spellcasting Spells { get; }
 
     /// <summary>
     /// What the creature brings to every attack roll it makes: base attack bonus, size, and

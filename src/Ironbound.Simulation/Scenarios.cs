@@ -3,6 +3,7 @@ using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
+using Ironbound.Rules.Magic;
 using Ironbound.Rules.Maps;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
@@ -31,6 +32,16 @@ public static class Scenarios
             "greataxe", "1d12", DamageType.Slashing, new CriticalProfile(20, 3),
             AbilityDamageScale.OneAndAHalf));
 
+        var merrin = Warrior("Merrin", new AbilityScores(8, 14, 12, 18, 13, 10), 18, 5, 2, 0, rules);
+        merrin.Attacks.Add(WeaponAttack.Melee("quarterstaff", "1d6", DamageType.Bludgeoning));
+        merrin.Spells.CastingAbility = Ability.Intelligence;
+        merrin.Spells.CasterLevel = 5;
+        merrin.Spells.SetSlots(1, 3).SetSlots(2, 2).SetSlots(3, 1);
+        merrin.Spells
+            .Prepare(Spells.Fireball)
+            .Prepare(Spells.ScorchingRay)
+            .Prepare(Spells.MagicMissile);
+
         var goblins = Enumerable.Range(1, 3)
             .Select(index =>
             {
@@ -48,12 +59,14 @@ public static class Scenarios
         var field = new Battlefield(16, 12);
         field.Place(valeria, 3, 4);
         field.Place(karn, 3, 6);
+        field.Place(merrin, 2, 5);
         for (var index = 0; index < goblins.Length; index++)
         {
             field.Place(goblins[index], 10, 3 + (index * 2));
         }
 
-        return new Battle([valeria, karn], goblins, new PcgRandom(seed, DiceStream), rules, field);
+        return new Battle(
+            [valeria, karn, merrin], goblins, new PcgRandom(seed, DiceStream), rules, field);
     }
 
     /// <summary>An AI to drive a battle, thinking on its own stream.</summary>

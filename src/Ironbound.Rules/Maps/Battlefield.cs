@@ -124,6 +124,16 @@ public sealed class Battlefield
         return DistanceInFeet(attacker, target) is not { } feet || feet <= attacker.Reach;
     }
 
+    /// <summary>Everyone standing within <paramref name="feet"/> of a point, in placement order.</summary>
+    public IReadOnlyList<Creature> CreaturesWithin(GridSquare centre, int feet)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(feet);
+
+        return [.. _squares
+            .Where(entry => Distance.Between(entry.Value, centre) <= feet)
+            .Select(entry => entry.Key)];
+    }
+
     /// <summary>
     /// Whether <paramref name="creature"/> could make a melee attack into
     /// <paramref name="square"/>. Its own square does not count, and a creature that cannot act

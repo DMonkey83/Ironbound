@@ -151,11 +151,17 @@ public sealed class Battle
 
             lines.Add(result.Description);
 
-            // An opportunity is taken inside somebody else's action, so it has to be unpacked
-            // here or it never reaches the log at all.
+            // Opportunities happen inside somebody else's action and a spell's effect happens to
+            // several creatures at once; neither reaches the log unless it is unpacked here.
             if (result is MoveActionResult { Opportunities.Count: > 0 } moved)
             {
                 lines.AddRange(moved.Opportunities.Select(strike => $"  {strike}"));
+            }
+
+            if (result is CastSpellResult cast)
+            {
+                lines.AddRange(cast.Opportunities.Select(strike => $"  {strike}"));
+                lines.AddRange(cast.Cast?.Targets.Select(hit => $"  {hit}") ?? []);
             }
         }
 
