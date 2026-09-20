@@ -38,6 +38,12 @@ public sealed record AttackResult
     /// </summary>
     public int Cover { get; init; }
 
+    /// <summary>
+    /// What the defender's posture was worth: -4 against a swing, +4 against a shot. Already
+    /// folded into <see cref="TargetArmorClass"/>, like <see cref="Cover"/>.
+    /// </summary>
+    public int Prone { get; init; }
+
     public required AttackOutcome Outcome { get; init; }
 
     /// <summary>The roll landed in the weapon's threat range and hit, so a confirmation was rolled.</summary>
@@ -81,6 +87,7 @@ public sealed record AttackResult
             20 => "d20 [20] — automatic hit",
             _ => $"d20 [{NaturalRoll}] {bonus} = {Total} vs {label} {TargetArmorClass}"
                  + (Cover > 0 ? $" (+{Cover} cover)" : string.Empty)
+                 + (Prone != 0 ? $" ({Prone:+0;-0} prone)" : string.Empty)
                  + " — " + (IsHit ? "hit" : "miss"),
         };
 

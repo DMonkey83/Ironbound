@@ -45,6 +45,13 @@ public sealed record EffectDefinition
 
     public IReadOnlyList<ModifierGrant> Grants { get; init; } = [];
 
+    /// <summary>
+    /// The named condition this imposes, if any. Set it and the condition's own penalties are
+    /// used, so a spell file says <c>"condition": "Shaken"</c> rather than transcribing the
+    /// rulebook's four separate -2s and getting one of them wrong.
+    /// </summary>
+    public Conditions.Condition? Condition { get; init; }
+
     /// <summary>Dice for the kinds that roll something.</summary>
     public string? Amount { get; init; }
 
@@ -79,6 +86,11 @@ public sealed record EffectDefinition
                     Name, duration, Math.Max(1, Heal), [.. SuspendedBy]);
 
             default:
+                if (Condition is { } condition)
+                {
+                    return Conditions.ConditionInfo.Effect(condition, duration);
+                }
+
                 var effect = new ModifierEffect(Name, duration);
                 foreach (var grant in Grants)
                 {

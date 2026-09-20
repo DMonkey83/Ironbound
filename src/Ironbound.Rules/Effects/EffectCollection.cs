@@ -30,6 +30,36 @@ public sealed class EffectCollection
 
     public bool Has(string name) => Find(name) is not null;
 
+    /// <summary>Whether anything currently running imposes this condition.</summary>
+    public bool Has(Conditions.Condition condition)
+    {
+        foreach (var effect in _effects)
+        {
+            if (effect.Condition == condition)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Every condition currently in force, in the order the effects were applied.</summary>
+    public IEnumerable<Conditions.Condition> Conditions
+    {
+        get
+        {
+            var seen = new HashSet<Conditions.Condition>();
+            foreach (var effect in _effects)
+            {
+                if (effect.Condition is { } condition && seen.Add(condition))
+                {
+                    yield return condition;
+                }
+            }
+        }
+    }
+
     public Effect? Find(string name) =>
         _effects.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
 
@@ -70,6 +100,20 @@ public sealed class EffectCollection
         effect.EndOn(_owner);
 
         return new EffectEvent(EffectEventKind.Removed, effect, $"{_owner.Name} loses {effect.Name}");
+    }
+
+    /// <summary>Ends whatever is imposing a condition — standing up, or shrugging off a daze.</summary>
+    public EffectEvent? Remove(Conditions.Condition condition)
+    {
+        foreach (var effect in _effects)
+        {
+            if (effect.Condition == condition)
+            {
+                return Remove(effect.Name);
+            }
+        }
+
+        return null;
     }
 
     public void Clear()

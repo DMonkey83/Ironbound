@@ -245,6 +245,11 @@ public sealed class Battle
             lines.AddRange(moved.Opportunities.Select(strike => $"  {strike}"));
         }
 
+        if (result is StandUpResult { Opportunities.Count: > 0 } stood)
+        {
+            lines.AddRange(stood.Opportunities.Select(strike => $"  {strike}"));
+        }
+
         if (result is AttackActionResult { Opportunities.Count: > 0 } swung)
         {
             lines.AddRange(swung.Opportunities.Select(strike => $"  {strike}"));

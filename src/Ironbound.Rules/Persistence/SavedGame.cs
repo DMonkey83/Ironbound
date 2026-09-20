@@ -30,7 +30,7 @@ public sealed record SavedGame(
     SavedCreature[] Creatures,
     SavedCombatant[] Order)
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 }
 
 public sealed record SavedBattlefield(
@@ -125,7 +125,8 @@ public sealed record SavedEffect(
     DamageType? DamageType,
     int? Heal,
     DamageType[]? SuspendedBy,
-    bool Suspended);
+    bool Suspended,
+    Conditions.Condition? Condition);
 
 public sealed record SavedCreature(
     string Name,

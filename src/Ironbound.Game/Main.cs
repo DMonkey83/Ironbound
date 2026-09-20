@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Ironbound.Rules.Combat;
+using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Encounters;
@@ -64,6 +65,7 @@ public partial class Main : Node3D
 	private OptionButton _spells;
 	private Button _endTurn;
 	private Button _load;
+	private Button _stand;
 	private readonly Dictionary<Mode, Button> _modes = new();
 
 	private Mode _mode = Mode.Move;
@@ -144,6 +146,22 @@ public partial class Main : Node3D
 		}
 
 		_battle.EndTurn();
+	}
+
+	private void OnStandUp()
+	{
+		var lines = _battle.Act(new StandUpAction());
+		if (lines.Count == 0)
+		{
+			Refuse("Nobody is on the floor.");
+			return;
+		}
+
+		Append(null, lines);
+		RefreshFigures();
+		PromptTurn();
+		RefreshControls();
+		_hovered = null;
 	}
 
 	private void OnEndTurn()
@@ -658,6 +676,10 @@ public partial class Main : Node3D
 		_spells = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		buttons.AddChild(_spells);
 
+		_stand = new Button { Text = "Stand up" };
+		_stand.Pressed += OnStandUp;
+		buttons.AddChild(_stand);
+
 		_endTurn = new Button { Text = "End turn" };
 		_endTurn.Pressed += OnEndTurn;
 		buttons.AddChild(_endTurn);
@@ -757,6 +779,7 @@ public partial class Main : Node3D
 		_modes[Mode.Move].Disabled = turn is null || !CanStillMove(turn);
 
 		_spells.Disabled = turn is null || _spells.ItemCount == 0;
+		_stand.Disabled = turn is null || !turn.CanTake(new StandUpAction());
 
 		// Being left holding a mode that can no longer do anything is its own small trap. Move
 		// first, because a five-foot step outlives everything else.
@@ -824,19 +847,27 @@ public partial class Main : Node3D
 			{
 				figure.Position = new Vector3(
 					square.X + 0.5f,
-					creature.IsConscious ? 0.7f : 0.3f,
+					creature.IsConscious && !creature.IsProne ? 0.7f : 0.3f,
 					square.Y + 0.5f);
 			}
 
-			// Anyone out of the fight lies down. Cheap, and it reads at a glance.
-			figure.Rotation = creature.IsConscious ? Vector3.Zero : new Vector3(Mathf.Pi / 2f, 0, 0);
+			// Anyone off their feet lies down, whether they chose it or not. Cheap, and it
+			// reads at a glance.
+			var down = !creature.IsConscious || creature.IsProne;
+			figure.Rotation = down ? new Vector3(Mathf.Pi / 2f, 0, 0) : Vector3.Zero;
 		}
 	}
 
 	private void UpdateStatus()
 	{
-		var standing = string.Join("   ", _battle.Encounter.Order.Select(
-			combatant => $"{combatant.Creature.Name} {combatant.Creature.HitPoints.Current}/{combatant.Creature.HitPoints.Maximum}"));
+		var standing = string.Join("   ", _battle.Encounter.Order.Select(combatant =>
+		{
+			var creature = combatant.Creature;
+			var wrong = string.Join(", ", creature.Conditions);
+			var note = wrong.Length > 0 ? $" ({wrong})" : string.Empty;
+
+			return $"{creature.Name} {creature.HitPoints.Current}/{creature.HitPoints.Maximum}{note}";
+		}));
 
 		var budget = _battle.Encounter.Current is { IsEnded: false } turn
 			? $"    [{turn.Budget}]"

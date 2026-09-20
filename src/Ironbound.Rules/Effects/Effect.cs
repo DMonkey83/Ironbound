@@ -37,6 +37,16 @@ public abstract class Effect
 
     public string Name { get; }
 
+    /// <summary>
+    /// The named condition this effect imposes, if it is one. Null for an ordinary buff.
+    /// </summary>
+    /// <remarks>
+    /// A tag on the effect rather than a separate collection, so a single poison can be a
+    /// damage-over-time effect <em>and</em> the reason you are sickened, with one clock and one
+    /// thing to dispel.
+    /// </remarks>
+    public Conditions.Condition? Condition { get; init; }
+
     public Duration Duration { get; }
 
     /// <summary>Zero for an effect that only grants modifiers and waits.</summary>

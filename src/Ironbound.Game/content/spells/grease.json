@@ -1,0 +1,23 @@
+// Everyone in the patch, friend and foe. Reflex or you are on the floor — and getting up costs
+// a move action and a free swing from anyone standing over you.
+{
+  "kind": "spell",
+  "id": "grease",
+  "name": "Grease",
+  "level": 1,
+  "school": "Conjuration",
+  "range": "close",
+  "target": { "burst": 10 },
+  "affects": "Everyone",
+  "save": "Reflex",
+  "onSave": "Negates",
+  "does": [
+    {
+      "effect": {
+        "name": "Prone",
+        "condition": "Prone",
+        "roundsPerLevel": 1
+      }
+    }
+  ]
+}

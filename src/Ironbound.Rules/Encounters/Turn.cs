@@ -61,7 +61,10 @@ public sealed class Turn
     {
         ArgumentNullException.ThrowIfNull(action);
 
+        // Dazed or stunned refuses everything, including the free actions: being unable to act
+        // is the absence of a turn rather than a penalty on one.
         return !IsEnded
+            && Actor.CanAct
             && action.CanPerform(new ActionContext(this))
             && Budget.CanAfford(action.Cost);
     }

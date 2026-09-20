@@ -1,4 +1,10 @@
+using Ironbound.Rules.Abilities;
+using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Content;
+using Ironbound.Rules.Dice;
+using Ironbound.Rules.Effects;
+using Ironbound.Rules.Encounters;
+using Ironbound.Rules.Encounters.Actions;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Maps;
 
@@ -72,6 +78,59 @@ public class ScenariosTests
         // full attack is the right call. It went a whole layer without doing so, because it kept
         // walking past whoever was in front of it to reach the weakest enemy on the field.
         Assert.Contains(battle.Log, line => line.Contains("attacks 2 times"));
+    }
+
+    [Fact]
+    public void ACasterInRangeCursesBeforeItStartsThrowingDarts()
+    {
+        var (source, turn) = Duel(cursed: false);
+
+        var action = Assert.IsType<CastSpellAction>(source.NextAction(turn));
+
+        // Before this layer a non-damaging spell was skipped outright, so the caster reached
+        // straight past the curse for the dart.
+        Assert.Equal("cause-fear", action.Spell.Id);
+    }
+
+    [Fact]
+    public void ItDoesNotCurseTheSameTargetTwice()
+    {
+        var (source, turn) = Duel(cursed: true);
+
+        // A second Cause Fear on somebody already shaken buys nothing at all, so the caster
+        // falls through to the spell that does something.
+        var action = Assert.IsType<CastSpellAction>(source.NextAction(turn));
+
+        Assert.Equal("magic-missile", action.Spell.Id);
+    }
+
+    /// <summary>A caster who knows only a curse and a dart, twenty feet from one goblin.</summary>
+    private static (HeuristicActionSource Source, Turn Turn) Duel(bool cursed)
+    {
+        var library = ContentFiles.Default;
+        var field = new Battlefield(10, 6);
+
+        var caster = new Creature("Caster", AbilityScores.All(14), 20, 5) { Allegiance = 1 };
+        caster.Spells.CasterLevel = 5;
+        caster.Spells.SetSlots(1, 4);
+        caster.Spells.Prepare(library.GetSpell("cause-fear")!);
+        caster.Spells.Prepare(library.GetSpell("magic-missile")!);
+
+        var goblin = library.BuildCreature("goblin")!;
+        if (cursed)
+        {
+            goblin.Effects.Apply(ConditionInfo.Effect(Condition.Shaken, Duration.Rounds(5)));
+        }
+
+        field.Place(caster, 0, 0);
+        field.Place(goblin, 4, 0);   // 20 ft: inside Cause Fear's 35
+
+        var battle = new Battle(
+            [caster], [goblin], new SequenceRandom(true, 20, 1), rules: null, battlefield: field);
+
+        return (
+            new HeuristicActionSource(battle, new SequenceRandom(true, 1)),
+            battle.Encounter.BeginNextTurn()!);
     }
 
     [Fact]

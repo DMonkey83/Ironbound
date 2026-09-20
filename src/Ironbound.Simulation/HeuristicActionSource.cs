@@ -1,4 +1,5 @@
 using Ironbound.Rules.Combat;
+using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
@@ -53,7 +54,22 @@ public sealed class HeuristicActionSource : IActionSource
             return null;
         }
 
+        // Dazed or stunned is not a bad turn, it is no turn. Saying so here keeps the scheduler
+        // from asking again and again for an action that can never be legal.
+        if (!actor.CanAct)
+        {
+            return null;
+        }
+
         var playsWell = Competence == 100 || _random.Next(0, 100) < Competence;
+
+        // On the floor. Getting up costs the move action and a free swing from anyone standing
+        // over you; staying down costs -4 to hit and -4 to armour class against all of them,
+        // every round. Standing is almost always the cheaper of the two.
+        if (actor.IsProne && turn.Budget.CanAfford(ActionCost.Move))
+        {
+            return new StandUpAction();
+        }
 
         if (playsWell && IsBadlyHurt(actor) && turn.Budget.HasStandard)
         {
@@ -245,6 +261,19 @@ public sealed class HeuristicActionSource : IActionSource
                 }
 
                 continue;
+            }
+
+            // A curse is worth a slot exactly once per target: a second Cause Fear on somebody
+            // already shaken buys nothing at all, and an AI that cannot see that will spend the
+            // whole fight recasting it.
+            // Single target only. An area curse aimed at an enemy catches whoever is standing
+            // next to them, which in a melee is usually your own front rank.
+            if (spell.Target is not BurstTarget
+                && spell.Does.OfType<Bestow>().FirstOrDefault() is { Effect.Condition: { } condition }
+                && !target.Has(condition)
+                && (field is null || InRange(field, actor, spell, target)))
+            {
+                return CastSpellAction.At(spell, target);
             }
 
             if (!spell.Does.OfType<DealDamage>().Any())

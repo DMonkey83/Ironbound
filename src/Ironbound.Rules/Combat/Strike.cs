@@ -23,6 +23,15 @@ public static class Strike
     public const int CoverBonus = 4;
 
     /// <summary>
+    /// What being on the floor is worth: four easier to stab, four harder to shoot. The same
+    /// posture cuts both ways, which is why knocking somebody down is a tactic rather than
+    /// simply a good thing.
+    /// </summary>
+    public const int ProneAgainstMelee = -4;
+
+    public const int ProneAgainstRanged = 4;
+
+    /// <summary>
     /// The cost of shooting into a melee your own side is part of. Steep on purpose: it is the
     /// rule that stops an archer treating a scrum as a free target, and the reason a bowman wants
     /// an angle rather than a straight line down the middle of the fight.
@@ -49,13 +58,22 @@ public static class Strike
         rules ??= attacker.Rules;
 
         var before = target.HitPoints.State;
+
+        // Stunned or blinded denies Dexterity just as being flat-footed does, and the caller
+        // should not have to remember which conditions do that.
+        if (target.DeniesDexterity)
+        {
+            defenderState |= DefenseOptions.DexterityDenied;
+        }
+
         var attack = weapon.Attack.Resolve(
             target.ArmorClass,
             random,
             AttackBonus(attacker, weapon, target, field, iterativePenalty),
             defenderState,
             rules,
-            CoverFor(attacker, target, field));
+            CoverFor(attacker, target, field),
+            ProneFor(weapon, target));
 
         DamageRoll? damage = null;
         DamageTaken? taken = null;
@@ -136,6 +154,17 @@ public static class Strike
         }
 
         return stack;
+    }
+
+    /// <summary>What lying down is worth against this particular weapon.</summary>
+    public static int ProneFor(WeaponAttack weapon, Creature target)
+    {
+        ArgumentNullException.ThrowIfNull(weapon);
+        ArgumentNullException.ThrowIfNull(target);
+
+        return target.IsProne
+            ? weapon.IsRanged ? ProneAgainstRanged : ProneAgainstMelee
+            : 0;
     }
 
     /// <summary>What the ground gives the defender against this particular attacker.</summary>

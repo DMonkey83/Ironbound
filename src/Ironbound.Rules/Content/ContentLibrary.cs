@@ -302,6 +302,9 @@ public sealed class ContentLibrary
         {
             Name = reader.StringOr("name", "effect"),
             Kind = reader.Enum("kind", EffectKind.Modifier),
+            Condition = reader.Has("condition")
+                ? reader.Enum("condition", Conditions.Condition.Shaken)
+                : null,
             Permanent = reader.Bool("permanent"),
             DurationTicks = reader.Int("rounds") * Duration.TicksPerRound
                 + (reader.Int("minutes") * Duration.TicksPerMinute),

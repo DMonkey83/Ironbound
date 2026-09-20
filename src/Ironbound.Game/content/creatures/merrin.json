@@ -21,5 +21,7 @@
     { "level": 2, "count": 2 },
     { "level": 3, "count": 1 }
   ],
-  "spells": ["fireball", "scorching-ray", "magic-missile"]
+  // Order is priority: the AI works down the list, so Cause Fear gets the first-level slot
+  // ahead of Magic Missile. A debuff that lasts the fight beats 3d4+3 once.
+  "spells": ["fireball", "scorching-ray", "cause-fear", "grease", "magic-missile"]
 }

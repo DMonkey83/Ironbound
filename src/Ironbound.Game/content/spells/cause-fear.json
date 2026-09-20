@@ -1,0 +1,26 @@
+// One round a level of being afraid. The penalty is small; the point is that it lands on
+// everything the target does — every attack and every save — for the whole fight.
+{
+  "kind": "spell",
+  "id": "cause-fear",
+  "name": "Cause Fear",
+  "level": 1,
+  "school": "Necromancy",
+  "range": "close",
+  "target": { "shape": "single" },
+  "affects": "Enemies",
+  "save": "Will",
+  "onSave": "Negates",
+  "does": [
+    {
+      "effect": {
+        "name": "Shaken",
+
+        // Named rather than transcribed: the -2 to attacks and all three saves comes from the
+        // condition itself, so a rules correction lands here without editing any spell.
+        "condition": "Shaken",
+        "roundsPerLevel": 1
+      }
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Combat;
+using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Effects;
 using Ironbound.Rules.Magic;
@@ -155,7 +156,74 @@ public sealed class Creature
     /// <summary>Haste, a monk's fast movement, heavy armour, difficult circumstances.</summary>
     public ModifierStack SpeedModifiers { get; } = new();
 
-    public int CurrentSpeed => Math.Max(0, Speed + SpeedModifiers.Total);
+    /// <summary>
+    /// Speed after modifiers and after whatever is wrong with it. Entangled halves it, and the
+    /// halving is deliberately not a modifier: a percentage that stacked with Haste's flat bonus
+    /// in one pass would give the wrong answer whichever order they landed in.
+    /// </summary>
+    public int CurrentSpeed
+    {
+        get
+        {
+            var speed = Math.Max(0, Speed + SpeedModifiers.Total);
+
+            foreach (var condition in Conditions)
+            {
+                speed = speed * ConditionInfo.Of(condition).SpeedPercent / 100;
+            }
+
+            return speed;
+        }
+    }
+
+    /// <summary>Everything currently wrong with it, by name.</summary>
+    public IEnumerable<Condition> Conditions => Effects.Conditions;
+
+    public bool Has(Condition condition) => Effects.Has(condition);
+
+    public bool IsProne => Has(Condition.Prone);
+
+    /// <summary>
+    /// Whether it can do anything at all this turn. Being dazed or stunned is not a penalty on
+    /// your actions — it is the absence of them.
+    /// </summary>
+    public bool CanAct
+    {
+        get
+        {
+            if (!IsConscious)
+            {
+                return false;
+            }
+
+            foreach (var condition in Conditions)
+            {
+                if (ConditionInfo.Of(condition).DeniesActions)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    /// <summary>Whether it has lost its Dexterity bonus to armour class, as flat-footed does.</summary>
+    public bool DeniesDexterity
+    {
+        get
+        {
+            foreach (var condition in Conditions)
+            {
+                if (ConditionInfo.Of(condition).DeniesDexterity)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 
     /// <summary>What stands between a damage roll and <see cref="HitPoints"/>.</summary>
     public DamageDefenses Defenses { get; }

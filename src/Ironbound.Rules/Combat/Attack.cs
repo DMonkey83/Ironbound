@@ -48,7 +48,8 @@ public sealed class Attack
         ModifierBreakdown bonus,
         DefenseOptions defenderState = DefenseOptions.None,
         RuleOptions? rules = null,
-        int cover = 0)
+        int cover = 0,
+        int prone = 0)
     {
         ArgumentNullException.ThrowIfNull(defense);
         ArgumentNullException.ThrowIfNull(random);
@@ -61,7 +62,7 @@ public sealed class Attack
             options |= DefenseOptions.TouchAttack;
         }
 
-        var armorClass = defense.Value(options) + cover;
+        var armorClass = defense.Value(options) + cover + prone;
 
         var natural = random.NextDie(DieSides);
         var total = natural + bonus.Total;
@@ -99,6 +100,7 @@ public sealed class Attack
             TargetArmorClass = armorClass,
             Options = options,
             Cover = cover,
+            Prone = prone,
             Outcome = outcome,
             Threatened = threatened,
             ConfirmationNatural = confirmationNatural,

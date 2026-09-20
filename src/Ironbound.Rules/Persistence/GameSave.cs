@@ -179,7 +179,8 @@ public static class GameSave
             (effect as DamageOverTimeEffect)?.DamageType,
             (effect as FastHealingEffect)?.Amount ?? (effect as RegenerationEffect)?.Amount,
             (effect as RegenerationEffect)?.SuspendedBy.ToArray(),
-            (effect as RegenerationEffect)?.IsSuspended ?? false);
+            (effect as RegenerationEffect)?.IsSuspended ?? false,
+            effect.Condition);
     }
 
     // ---- restore ----
@@ -405,7 +406,9 @@ public static class GameSave
         switch (saved.Kind)
         {
             case nameof(ModifierEffect):
-                var effect = new ModifierEffect(saved.Name, duration);
+                // The condition tag has to come back too, or a stunned creature reloads as one
+                // merely carrying a -2 and takes its turn as though nothing were wrong.
+                var effect = new ModifierEffect(saved.Name, duration) { Condition = saved.Condition };
                 for (var i = 0; i < (saved.Grants?.Length ?? 0); i++)
                 {
                     effect.Grants(
