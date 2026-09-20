@@ -245,6 +245,17 @@ public sealed class Battle
             lines.AddRange(moved.Opportunities.Select(strike => $"  {strike}"));
         }
 
+        if (result is AttackActionResult { Opportunities.Count: > 0 } swung)
+        {
+            lines.AddRange(swung.Opportunities.Select(strike => $"  {strike}"));
+        }
+
+        if (result is FullAttackResult full)
+        {
+            lines.AddRange(full.Opportunities.Select(strike => $"  {strike}"));
+            lines.AddRange(full.Strikes.Select(strike => $"  {strike}"));
+        }
+
         if (result is CastSpellResult cast)
         {
             lines.AddRange(cast.Opportunities.Select(strike => $"  {strike}"));

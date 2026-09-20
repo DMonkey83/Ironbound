@@ -41,7 +41,12 @@ public partial class Main : Node3D
 		Move,
 		Attack,
 		Cast,
+
+		/// <summary>Everything you have, at the cost of going anywhere.</summary>
+		Full,
 	}
+
+	private static readonly Mode[] ModeOrder = [Mode.Move, Mode.Attack, Mode.Full, Mode.Cast];
 
 	private readonly Dictionary<Creature, Node3D> _figures = new();
 
@@ -113,7 +118,7 @@ public partial class Main : Node3D
 			{
 				_hovered = null;
 				SelectSpellsFor(turn.Actor);
-				Prompt($"{turn.Actor.Name}'s turn.");
+				PromptTurn();
 				RefreshFigures();
 				RefreshControls();
 				return;
@@ -162,7 +167,7 @@ public partial class Main : Node3D
 
 		if (ActionFor(actor, square) is not { } action)
 		{
-			Refuse($"{actor.Name} cannot do that from here.");
+			Refuse(WhyNot(actor, square));
 			return;
 		}
 
@@ -181,7 +186,7 @@ public partial class Main : Node3D
 
 		Append(null, lines);
 		RefreshFigures();
-		Prompt($"{actor.Name}'s turn.");
+		PromptTurn();
 		RefreshControls();
 		_hovered = null;
 	}
@@ -230,6 +235,66 @@ public partial class Main : Node3D
 		return null;
 	}
 
+	/// <summary>
+	/// Why a click achieved nothing, in terms of the fiction rather than the code.
+	/// </summary>
+	/// <remarks>
+	/// "Cannot do that from here" is true of every refusal and useful for none of them. The
+	/// commonest one by far is reaching for a full attack before closing, and a player who is
+	/// told the distance learns the rule; a player told nothing concludes the game is broken.
+	/// </remarks>
+	private string WhyNot(Creature actor, GridSquare square)
+	{
+		var field = _battle.Battlefield;
+		if (field is null)
+		{
+			return $"{actor.Name} cannot do that from here.";
+		}
+
+		var occupant = field.OccupantOf(square);
+
+		switch (_mode)
+		{
+			case Mode.Attack:
+			case Mode.Full:
+				if (occupant is null)
+				{
+					return "There is nobody there to attack.";
+				}
+
+				if (!actor.IsEnemyOf(occupant))
+				{
+					return $"{occupant.Name} is on your own side.";
+				}
+
+				if (actor.Attacks.Count == 0)
+				{
+					return $"{actor.Name} has nothing to attack with.";
+				}
+
+				var feet = field.DistanceInFeet(actor, occupant);
+
+				if (!field.HasLineOfSight(actor, occupant))
+				{
+					return $"{actor.Name} cannot see {occupant.Name}.";
+				}
+
+				return actor.MeleeAttack is { } blade && feet is { } away
+					? $"{actor.Name}'s {blade.Name} does not reach {occupant.Name}, {away} ft away — move closer first."
+					: $"{actor.Name} cannot reach {occupant.Name} from here.";
+
+			case Mode.Cast:
+				return SelectedSpell() is null
+					? $"{actor.Name} has no spell selected."
+					: $"{actor.Name} cannot target that square.";
+
+			default:
+				return field.SquareOf(actor) == square
+					? $"{actor.Name} is already there."
+					: $"{actor.Name} cannot find a way to that square.";
+		}
+	}
+
 	/// <summary>What clicking a square means, given the mode the player has chosen.</summary>
 	private GameAction ActionFor(Creature actor, GridSquare square)
 	{
@@ -247,6 +312,12 @@ public partial class Main : Node3D
 				return occupant is not null && actor.IsEnemyOf(occupant)
 					&& WeaponFor(field, actor, occupant) is { } weapon
 						? new AttackAction(weapon, occupant)
+						: null;
+
+			case Mode.Full:
+				return occupant is not null && actor.IsEnemyOf(occupant)
+					&& WeaponFor(field, actor, occupant) is { } everything
+						? new FullAttackAction(occupant, everything)
 						: null;
 
 			case Mode.Cast:
@@ -570,11 +641,11 @@ public partial class Main : Node3D
 		var buttons = new HBoxContainer();
 		rows.AddChild(buttons);
 
-		foreach (var mode in new[] { Mode.Move, Mode.Attack, Mode.Cast })
+		foreach (var mode in ModeOrder)
 		{
 			var button = new Button
 			{
-				Text = mode.ToString(),
+				Text = mode == Mode.Full ? "Full attack" : mode.ToString(),
 				ToggleMode = true,
 				SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
 			};
@@ -674,14 +745,73 @@ public partial class Main : Node3D
 	private void RefreshControls()
 	{
 		var playing = _battle.IsPartyTurn;
+		var turn = playing && _battle.Encounter.Current is { IsEnded: false } current ? current : null;
 
 		_endTurn.Disabled = !playing;
-		foreach (var button in _modes.Values)
+
+		// Greyed out rather than merely refused. Finding out that the standard action is gone by
+		// clicking and being told no is the interface making the player do its remembering.
+		_modes[Mode.Attack].Disabled = turn is null || !turn.Budget.HasStandard;
+		_modes[Mode.Full].Disabled = turn is null || !turn.Budget.CanAfford(ActionCost.FullRound);
+		_modes[Mode.Cast].Disabled = turn is null || !turn.Budget.HasStandard || _spells.ItemCount == 0;
+		_modes[Mode.Move].Disabled = turn is null || !CanStillMove(turn);
+
+		_spells.Disabled = turn is null || _spells.ItemCount == 0;
+
+		// Being left holding a mode that can no longer do anything is its own small trap. Move
+		// first, because a five-foot step outlives everything else.
+		if (_modes[_mode].Disabled)
 		{
-			button.Disabled = !playing;
+			foreach (var mode in ModeOrder)
+			{
+				if (!_modes[mode].Disabled)
+				{
+					ChooseMode(mode);
+					break;
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// Whether clicking the ground could still achieve anything: a walk needs the move action, but
+	/// a five-foot step is free and survives having spent it.
+	/// </summary>
+	private static bool CanStillMove(Turn turn) =>
+		turn.Budget.HasMove || (!turn.Combatant.HasMoved && !turn.Combatant.HasTakenFiveFootStep);
+
+	/// <summary>Says whose turn it is and, plainly, what they have left to spend on it.</summary>
+	private void PromptTurn()
+	{
+		if (_battle.Encounter.Current is not { IsEnded: false } turn)
+		{
+			return;
 		}
 
-		_spells.Disabled = !playing || _spells.ItemCount == 0;
+		var left = new List<string>();
+		if (turn.Budget.HasStandard)
+		{
+			left.Add("standard");
+		}
+
+		if (CanStillMove(turn))
+		{
+			left.Add(turn.Budget.HasMove ? "move" : "five-foot step");
+		}
+
+		if (turn.Budget.HasSwift)
+		{
+			left.Add("swift");
+		}
+
+		if (left.Count == 0)
+		{
+			Prompt($"{turn.Actor.Name} has nothing left — end the turn.");
+			_log.AddText("— nothing left to spend; end the turn —\n");
+			return;
+		}
+
+		Prompt($"{turn.Actor.Name}'s turn — {string.Join(", ", left)} remaining.");
 	}
 
 	private void RefreshFigures()

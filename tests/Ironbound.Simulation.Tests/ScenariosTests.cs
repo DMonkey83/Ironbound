@@ -16,7 +16,9 @@ public class ScenariosTests
         var battle = Scenarios.GoblinAmbush();
 
         Assert.Equal(["Valeria", "Karn", "Merrin"], battle.Party.Select(c => c.Name));
-        Assert.Equal(["Goblin 1", "Goblin 2", "Goblin Archer"], battle.Foes.Select(c => c.Name));
+        Assert.Equal(
+            ["Goblin 1", "Goblin 2", "Goblin Archer", "Sergeant Grask"],
+            battle.Foes.Select(c => c.Name));
 
         var field = battle.Encounter.Battlefield!;
         Assert.Equal(new GridSquare(3, 4), field.SquareOf(battle.Party[0]));
@@ -58,6 +60,18 @@ public class ScenariosTests
         Assert.True(archer.PrimaryAttack!.IsRanged);
         Assert.Equal(60, archer.PrimaryAttack.RangeIncrement);
         Assert.Equal("scimitar", archer.MeleeAttack!.Name);
+    }
+
+    [Fact]
+    public void AFightAtSixthLevelActuallyProducesSecondSwings()
+    {
+        var battle = Scenarios.GoblinAmbush();
+        battle.RunToCompletion(Scenarios.AutoPilot(battle));
+
+        // Not a unit test of Iteratives — a check that the AI ever reaches the position where a
+        // full attack is the right call. It went a whole layer without doing so, because it kept
+        // walking past whoever was in front of it to reach the weakest enemy on the field.
+        Assert.Contains(battle.Log, line => line.Contains("attacks 2 times"));
     }
 
     [Fact]

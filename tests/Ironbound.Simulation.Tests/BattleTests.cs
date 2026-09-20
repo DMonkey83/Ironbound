@@ -195,7 +195,7 @@ public class HeuristicActionSourceTests
 
         var action = source.NextAction(battle.Encounter.BeginNextTurn()!);
 
-        Assert.Same(wounded, Assert.IsType<AttackAction>(action).Target);
+        Assert.Same(wounded, Assert.IsType<FullAttackAction>(action).Target);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public class HeuristicActionSourceTests
         var action = source.NextAction(battle.Encounter.BeginNextTurn()!);
 
         // Badly hurt and facing a nearly dead foe, and it still picks the healthy one.
-        Assert.Same(healthy, Assert.IsType<AttackAction>(action).Target);
+        Assert.Same(healthy, Assert.IsType<FullAttackAction>(action).Target);
     }
 
     [Fact]
@@ -364,8 +364,9 @@ public class TacticalHeuristicTests
         turn.Take(moved);
         Assert.Same(ally, field.FindFlankingPartner(actor, target));
 
-        // And the step was free, so the swing still happens this turn.
-        Assert.IsType<AttackAction>(source.NextAction(turn));
+        // And the step was free, so the swing still happens this turn — all of it, since a
+        // five-foot step is the one movement a full attack still allows.
+        Assert.IsType<FullAttackAction>(source.NextAction(turn));
     }
 
     [Fact]
@@ -386,7 +387,7 @@ public class TacticalHeuristicTests
 
         var turn = battle.Encounter.BeginNextTurn()!;
 
-        Assert.IsType<AttackAction>(source.NextAction(turn));
+        Assert.IsType<FullAttackAction>(source.NextAction(turn));
     }
 }
 

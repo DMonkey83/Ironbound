@@ -61,7 +61,7 @@ public sealed class HeuristicActionSource : IActionSource
         }
 
         var target = playsWell
-            ? enemies.MinBy(enemy => enemy.HitPoints.Current)!
+            ? Choose(turn, actor, enemies)
             : enemies[_random.Next(0, enemies.Count)];
 
         if (playsWell && turn.Budget.HasStandard && ChooseSpell(turn, actor, target) is { } cast)
@@ -77,7 +77,9 @@ public sealed class HeuristicActionSource : IActionSource
 
         // Nor, having just loosed an arrow, does an archer. Walking into reach would trade a shot
         // it already has for a swing it does not, and hand out a free attack on the way in.
-        if (turn.Taken.Any(taken => taken is AttackActionResult { Strike.Weapon.IsRanged: true }))
+        if (turn.Taken.Any(taken =>
+            taken is AttackActionResult { Strike.Weapon.IsRanged: true }
+                or FullAttackResult { Weapon.IsRanged: true }))
         {
             return null;
         }
@@ -91,7 +93,7 @@ public sealed class HeuristicActionSource : IActionSource
             && !range.IsWithinReach(actor, target)
             && BestShot(range, actor, target) is { } bow)
         {
-            return new AttackAction(bow, target);
+            return Swing(turn, bow, target);
         }
 
         if (turn.Encounter.Battlefield is { } field && !field.IsWithinReach(actor, target))
@@ -139,9 +141,26 @@ public sealed class HeuristicActionSource : IActionSource
         }
 
         // A wizard out of spells has nothing useful left, and that is a legitimate answer.
-        return turn.Budget.HasStandard && InClose(actor) is { } weapon
-            ? new AttackAction(weapon, target)
-            : null;
+        return InClose(actor) is { } weapon ? Swing(turn, weapon, target) : null;
+    }
+
+    /// <summary>
+    /// Everything it has, if it can still spare the whole round for it.
+    /// </summary>
+    /// <remarks>
+    /// Always worth it once the actor is standing where it wants to be: a full attack is never
+    /// fewer swings than a single one, and by this point the movement it costs has either been
+    /// spent or was not wanted. Below a base attack bonus of six the two are identical, which is
+    /// exactly why levelling into a second attack feels like something.
+    /// </remarks>
+    private static GameAction? Swing(Turn turn, WeaponAttack weapon, Creature target)
+    {
+        if (turn.Budget.CanAfford(ActionCost.FullRound))
+        {
+            return new FullAttackAction(target, weapon);
+        }
+
+        return turn.Budget.HasStandard ? new AttackAction(weapon, target) : null;
     }
 
     /// <summary>
@@ -172,6 +191,30 @@ public sealed class HeuristicActionSource : IActionSource
     /// </summary>
     private static WeaponAttack? InClose(Creature actor) =>
         actor.MeleeAttack ?? actor.PrimaryAttack;
+
+    /// <summary>
+    /// Who to go after: the weakest of whoever is already in reach, else the weakest anywhere.
+    /// </summary>
+    /// <remarks>
+    /// The preference for somebody already in front of you is not politeness. Walking off to
+    /// reach a slightly weaker target gives up the whole round's worth of swings a full attack
+    /// would have bought, and hands the one you turned your back on a free hit on the way. A
+    /// fighter who shops around for the softest enemy on the field is a fighter who never lands
+    /// a second attack.
+    /// </remarks>
+    private static Creature Choose(Turn turn, Creature actor, IReadOnlyList<Creature> enemies)
+    {
+        if (turn.Encounter.Battlefield is { } field)
+        {
+            var close = enemies.Where(enemy => field.IsWithinReach(actor, enemy)).ToList();
+            if (close.Count > 0)
+            {
+                return close.MinBy(enemy => enemy.HitPoints.Current)!;
+            }
+        }
+
+        return enemies.MinBy(enemy => enemy.HitPoints.Current)!;
+    }
 
     /// <summary>
     /// Whether there is a spell worth casting right now, and where to point it.

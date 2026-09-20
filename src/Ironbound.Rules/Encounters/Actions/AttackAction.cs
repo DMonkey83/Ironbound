@@ -97,8 +97,21 @@ public sealed record AttackActionResult(
     Creature Actor,
     StrikeResult? Strike,
     IReadOnlyList<StrikeResult> Opportunities)
-    : ActionResult(Action, Actor, Describe(Actor, Action, Strike))
+    : ActionResult(Action, Actor, Describe(Actor, Action, Strike, Opportunities))
 {
-    private static string Describe(Creature actor, GameAction action, StrikeResult? strike) =>
-        strike?.ToString() ?? $"{actor.Name} is cut down drawing {action.Name}";
+    private static string Describe(
+        Creature actor,
+        GameAction action,
+        StrikeResult? strike,
+        IReadOnlyList<StrikeResult> opportunities)
+    {
+        if (strike is null)
+        {
+            return $"{actor.Name} is cut down drawing {action.Name}";
+        }
+
+        return opportunities.Count > 0
+            ? $"{strike}, provoking {opportunities.Count}"
+            : strike.ToString();
+    }
 }

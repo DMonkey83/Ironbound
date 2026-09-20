@@ -39,7 +39,8 @@ public static class Strike
         IRandomSource random,
         DefenseOptions defenderState = DefenseOptions.None,
         RuleOptions? rules = null,
-        Battlefield? field = null)
+        Battlefield? field = null,
+        int iterativePenalty = 0)
     {
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
@@ -51,7 +52,7 @@ public static class Strike
         var attack = weapon.Attack.Resolve(
             target.ArmorClass,
             random,
-            AttackBonus(attacker, weapon, target, field),
+            AttackBonus(attacker, weapon, target, field, iterativePenalty),
             defenderState,
             rules,
             CoverFor(attacker, target, field));
@@ -94,7 +95,8 @@ public static class Strike
         Creature attacker,
         WeaponAttack weapon,
         Creature? target = null,
-        Battlefield? field = null)
+        Battlefield? field = null,
+        int iterativePenalty = 0)
     {
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
@@ -102,10 +104,38 @@ public static class Strike
         return ModifierStack.Combine(
             attacker.AttackModifiers,
             weapon.Attack.Modifiers,
+            BaseAttack(attacker),
             SizeOf(attacker),
             Flanking(attacker, target, field),
             AtRange(attacker, weapon, target, field),
+            Iterative(iterativePenalty),
             Derived(attacker, weapon.AttackAbility, modifier => modifier));
+    }
+
+    /// <summary>The creature's own skill at arms, read live so a class level lands immediately.</summary>
+    private static ModifierStack BaseAttack(Creature attacker)
+    {
+        var stack = new ModifierStack();
+
+        if (attacker.BaseAttackBonus != 0)
+        {
+            stack.Add(attacker.BaseAttackBonus, BonusType.Untyped, "Base Attack Bonus");
+        }
+
+        return stack;
+    }
+
+    /// <summary>What the second and later swings of a full attack give up.</summary>
+    private static ModifierStack Iterative(int penalty)
+    {
+        var stack = new ModifierStack();
+
+        if (penalty != 0)
+        {
+            stack.Add(penalty, BonusType.Untyped, "Iterative attack");
+        }
+
+        return stack;
     }
 
     /// <summary>What the ground gives the defender against this particular attacker.</summary>

@@ -3,11 +3,12 @@
   "id": "valeria",
   "name": "Valeria",
   "abilities": [18, 14, 14, 10, 12, 10],
-  "hitPoints": 32,
-  "hitDice": 5,
-  "level": 5,
+  "hitPoints": 38,
+  "hitDice": 6,
+  "level": 6,
   "speed": 30,
-  "baseAttack": 5,
+  // Six is the step that matters: a full attack now swings twice, at +6/+1.
+  "baseAttack": 6,
   "armour": 6,
   "goodSave": "Fortitude",
   "weapons": ["longsword"]

@@ -30,7 +30,7 @@ public sealed record SavedGame(
     SavedCreature[] Creatures,
     SavedCombatant[] Order)
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 }
 
 public sealed record SavedBattlefield(
@@ -132,6 +132,7 @@ public sealed record SavedCreature(
     int Allegiance,
     CreatureSize Size,
     int Speed,
+    int BaseAttackBonus,
     int AttacksOfOpportunityPerRound,
     SavedAbility[] Abilities,
     SavedHitPoints HitPoints,

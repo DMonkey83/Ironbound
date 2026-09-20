@@ -130,10 +130,7 @@ public sealed record CreatureDefinition
             Speed = Speed,
         };
 
-        if (BaseAttack != 0)
-        {
-            creature.AttackModifiers.Add(BaseAttack, BonusType.Untyped, "Base Attack Bonus");
-        }
+        creature.BaseAttackBonus = BaseAttack;
 
         if (Armour != 0)
         {

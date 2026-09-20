@@ -129,6 +129,21 @@ public sealed class Creature
         Attacks.FirstOrDefault(weapon => !weapon.IsRanged);
 
     /// <summary>
+    /// How practised it is at fighting, before strength, size or anything situational.
+    /// </summary>
+    /// <remarks>
+    /// A statistic rather than a modifier, and deliberately so: it decides <em>how many</em>
+    /// attacks a full attack is worth, not merely how accurate they are. Buried in
+    /// <see cref="AttackModifiers"/> alongside Bless and a magic sword there would be no honest
+    /// way to ask that question. It reaches the attack roll through <see cref="Combat.Strike"/>,
+    /// the same way size does.
+    /// </remarks>
+    public int BaseAttackBonus { get; set; }
+
+    /// <summary>How many times a full attack lets it swing.</summary>
+    public int AttacksPerFullAttack => Iteratives.Count(BaseAttackBonus);
+
+    /// <summary>
     /// How many attacks of opportunity it gets between its turns. One, unless Combat Reflexes
     /// raises it to one plus the Dexterity modifier.
     /// </summary>

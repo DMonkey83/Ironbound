@@ -109,6 +109,7 @@ public static class GameSave
         creature.Allegiance,
         creature.Size,
         creature.Speed,
+        creature.BaseAttackBonus,
         creature.AttacksOfOpportunityPerRound,
         [.. AbilityInfo.All.Select(a => CaptureAbility(creature.Abilities[a]))],
         new SavedHitPoints(
@@ -261,6 +262,7 @@ public static class GameSave
             Allegiance = saved.Allegiance,
             Size = saved.Size,
             Speed = saved.Speed,
+            BaseAttackBonus = saved.BaseAttackBonus,
             AttacksOfOpportunityPerRound = saved.AttacksOfOpportunityPerRound,
         };
 

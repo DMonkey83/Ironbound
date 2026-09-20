@@ -390,9 +390,9 @@ public class ShippedContentTests
 
         Assert.Equal((16, 12), (ambush.Width, ambush.Height));
         Assert.Equal(3, ambush.Placements.Count(placement => placement.Party));
-        Assert.Equal(3, ambush.Placements.Count(placement => !placement.Party));
+        Assert.Equal(4, ambush.Placements.Count(placement => !placement.Party));
         Assert.Equal(
-            ["Goblin 1", "Goblin 2", "Goblin Archer"],
+            ["Goblin 1", "Goblin 2", "Goblin Archer", "Sergeant Grask"],
             ambush.Placements.Where(p => !p.Party).Select(p => p.Name));
         Assert.Equal(2, ambush.Blocked.Count);
     }
@@ -402,7 +402,9 @@ public class ShippedContentTests
     {
         var valeria = TestContent.Library.BuildCreature("valeria")!;
 
-        Assert.Equal(42, valeria.HitPoints.Maximum);   // 32 written down, +2 a die for Con 14
+        Assert.Equal(50, valeria.HitPoints.Maximum);   // 38 written down, +2 a die for Con 14
+        Assert.Equal(6, valeria.BaseAttackBonus);
+        Assert.Equal(2, valeria.AttacksPerFullAttack);   // the step at +6
         Assert.Equal(18, valeria.ArmorClass.Total);    // 10 + 6 armour + 2 Dexterity
         Assert.Equal("longsword", valeria.PrimaryAttack!.Name);
         Assert.Equal(19, valeria.PrimaryAttack.Attack.Critical.ThreatsOn);
