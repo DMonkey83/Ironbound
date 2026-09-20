@@ -75,6 +75,16 @@ public sealed record RuleOptions
     public bool NaturalOneAlwaysMisses { get; init; } = true;
 
     /// <summary>
+    /// True (the rules as written): a natural 20 on a saving throw always succeeds, so no effect
+    /// is ever unavoidable. Kept separate from the attack-roll floors, because a harsher mode
+    /// might want armour class to be absolute while leaving saves their 5%.
+    /// </summary>
+    public bool NaturalTwentyAlwaysSaves { get; init; } = true;
+
+    /// <summary>True (the rules as written): a natural 1 on a saving throw always fails.</summary>
+    public bool NaturalOneAlwaysFailsSaves { get; init; } = true;
+
+    /// <summary>
     /// The most of a single hit that damage reduction may remove, as a percentage. 100 is the
     /// rules as written: DR 10 against a 5-damage shortsword leaves nothing, and a party
     /// without the right weapon genuinely cannot hurt the thing.
