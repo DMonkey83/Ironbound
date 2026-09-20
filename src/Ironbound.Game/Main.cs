@@ -88,9 +88,10 @@ public partial class Main : Node3D
 	{
 		foreach (var creature in creatures)
 		{
+			var scale = ScaleOf(creature.Size);
 			var figure = new MeshInstance3D
 			{
-				Mesh = new CapsuleMesh { Radius = 0.3f, Height = 1.4f },
+				Mesh = new CapsuleMesh { Radius = 0.3f * scale, Height = 1.4f * scale },
 				MaterialOverride = new StandardMaterial3D { AlbedoColor = colour },
 			};
 
@@ -109,6 +110,20 @@ public partial class Main : Node3D
 			_figures[creature] = figure;
 		}
 	}
+
+	/// <summary>
+	/// How big to draw something. Purely presentational: every creature still stands in one
+	/// square, so this changes what you see and nothing the rules read.
+	/// </summary>
+	private static float ScaleOf(CreatureSize size) => size switch
+	{
+		CreatureSize.Tiny or CreatureSize.Diminutive or CreatureSize.Fine => 0.5f,
+		CreatureSize.Small => 0.75f,
+		CreatureSize.Large => 1.5f,
+		CreatureSize.Huge => 2.0f,
+		CreatureSize.Gargantuan or CreatureSize.Colossal => 2.5f,
+		_ => 1.0f,
+	};
 
 	private void BuildInterface()
 	{

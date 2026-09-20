@@ -64,16 +64,34 @@ public sealed class HeuristicActionSource : IActionSource
 
         if (turn.Encounter.Battlefield is { } field && !field.IsWithinReach(actor, target))
         {
-            // One square short: a five-foot step closes it for free and keeps the swing. Walking
-            // would spend the move action and, worse, hand anyone nearby a free attack.
-            if (playsWell && Step(field, actor, target, mustFlank: false) is { } step)
-            {
-                return step;
-            }
-
-            return turn.Budget.CanAfford(ActionCost.Move)
+            var walk = turn.Budget.CanAfford(ActionCost.Move)
                 ? MoveAction.Towards(field, actor, target)
                 : null;
+
+            if (playsWell)
+            {
+                // Closing and flanking at once, for free: nothing beats it.
+                if (Step(field, actor, target, mustFlank: true) is { } flankingStep)
+                {
+                    return flankingStep;
+                }
+
+                // A walk that ends on the far side beats a free step that ends on the near one:
+                // arriving badly placed means never moving again this fight.
+                if (walk?.Destination is { } destination
+                    && field.WouldFlankFrom(destination, actor, target))
+                {
+                    return walk;
+                }
+
+                // Otherwise a free step to close is better value than spending the move action.
+                if (Step(field, actor, target, mustFlank: false) is { } step)
+                {
+                    return step;
+                }
+            }
+
+            return walk;
         }
 
         // Already in reach, but standing in the wrong place. A five-foot step costs nothing and
@@ -125,7 +143,7 @@ public sealed class HeuristicActionSource : IActionSource
                     continue;
                 }
 
-                if (WouldFlank(field, actor, target, candidate, to))
+                if (field.WouldFlankFrom(candidate, actor, target))
                 {
                     return FiveFootStepAction.To(from, candidate);
                 }
@@ -138,27 +156,6 @@ public sealed class HeuristicActionSource : IActionSource
         }
 
         return plain is { } fallback ? FiveFootStepAction.To(from, fallback) : null;
-    }
-
-    /// <summary>
-    /// Whether standing in <paramref name="candidate"/> would put an ally on the far side of the
-    /// target. Worked out from the geometry rather than by moving anybody to find out.
-    /// </summary>
-    private static bool WouldFlank(
-        Battlefield field,
-        Creature actor,
-        Creature target,
-        GridSquare candidate,
-        GridSquare targetSquare)
-    {
-        var opposite = new GridSquare(
-            (2 * targetSquare.X) - candidate.X,
-            (2 * targetSquare.Y) - candidate.Y);
-
-        return field.OccupantOf(opposite) is { } ally
-            && ally.IsAllyOf(actor)
-            && ally.IsEnemyOf(target)
-            && field.Threatens(ally, targetSquare);
     }
 
     private static bool IsBadlyHurt(Creature creature) =>

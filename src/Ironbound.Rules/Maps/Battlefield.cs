@@ -198,6 +198,29 @@ public sealed class Battlefield
         return first.X + second.X == 2 * middle.X && first.Y + second.Y == 2 * middle.Y;
     }
 
+    /// <summary>
+    /// Whether standing in <paramref name="square"/> would put an ally of
+    /// <paramref name="mover"/> directly opposite <paramref name="target"/> — asked of a square
+    /// nobody is standing in yet, so a creature can work out where to go before going there.
+    /// </summary>
+    public bool WouldFlankFrom(GridSquare square, Creature mover, Creature target)
+    {
+        ArgumentNullException.ThrowIfNull(mover);
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (SquareOf(target) is not { } middle || Distance.Between(square, middle) > mover.Reach)
+        {
+            return false;
+        }
+
+        var opposite = new GridSquare((2 * middle.X) - square.X, (2 * middle.Y) - square.Y);
+
+        return OccupantOf(opposite) is { } ally
+            && ally.IsAllyOf(mover)
+            && ally.IsEnemyOf(target)
+            && Threatens(ally, middle);
+    }
+
     /// <summary>An ally positioned opposite <paramref name="attacker"/>, if there is one.</summary>
     public Creature? FindFlankingPartner(Creature attacker, Creature target)
     {
@@ -281,8 +304,11 @@ public sealed class Battlefield
         // Aim beside the target rather than at it: its own square is occupied, so no route can
         // legally end there.
         var ring = Math.Max(1, mover.Reach / Distance.FeetPerSquare);
-        IReadOnlyList<GridSquare> best = [];
-        var bestCost = int.MaxValue;
+
+        IReadOnlyList<GridSquare> nearest = [];
+        var nearestCost = int.MaxValue;
+        IReadOnlyList<GridSquare> flanking = [];
+        var flankingCost = int.MaxValue;
 
         for (var dx = -ring; dx <= ring; dx++)
         {
@@ -302,20 +328,32 @@ public sealed class Battlefield
                 }
 
                 var cost = PathCost(route);
-                if (cost < bestCost)
+                if (cost < nearestCost)
                 {
-                    bestCost = cost;
-                    best = route;
+                    nearestCost = cost;
+                    nearest = route;
+                }
+
+                if (cost < flankingCost && WouldFlankFrom(candidate, mover, target))
+                {
+                    flankingCost = cost;
+                    flanking = route;
                 }
             }
         }
 
-        if (best.Count < 2)
+        // Going round the far side is worth a few extra feet: it is +2 on every swing after.
+        if (flanking.Count > 1 && flankingCost <= feetAvailable)
+        {
+            return flanking;
+        }
+
+        if (nearest.Count < 2)
         {
             return [];
         }
 
-        return bestCost <= feetAvailable ? best : AsFarAs(best, feetAvailable);
+        return nearestCost <= feetAvailable ? nearest : AsFarAs(nearest, feetAvailable);
     }
 
     /// <summary>The longest affordable prefix of a route that still ends somewhere standable.</summary>
