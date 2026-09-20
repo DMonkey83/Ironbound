@@ -1,0 +1,9 @@
+// Tougher than a fighter and worse at everything else. The d12 is the entire character.
+{
+  "kind": "class",
+  "id": "barbarian",
+  "name": "Barbarian",
+  "hitDie": 12,
+  "attack": "Full",
+  "goodSaves": ["Fortitude"]
+}

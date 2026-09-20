@@ -1,0 +1,9 @@
+// The front rank. Full base attack is the whole point: a second swing at sixth level.
+{
+  "kind": "class",
+  "id": "fighter",
+  "name": "Fighter",
+  "hitDie": 10,
+  "attack": "Full",
+  "goodSaves": ["Fortitude"]
+}

@@ -4,14 +4,10 @@
   "id": "goblin-archer",
   "name": "Goblin Archer",
   "abilities": [11, 15, 12, 10, 9, 6],
-  "hitPoints": 9,
-  "hitDice": 2,
-  "level": 2,
+  "classes": [ { "class": "warrior", "level": 1 } ],
   "size": "Small",
   "speed": 20,
-  "baseAttack": 1,
   "armour": 3,
-  "goodSave": "Fortitude",
 
   // Order matters. The bow is what it reaches for by default; the scimitar is what it is left
   // with once something closes, since firing in someone's face provokes and costs four besides.

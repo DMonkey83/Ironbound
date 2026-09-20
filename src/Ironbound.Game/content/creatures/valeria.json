@@ -3,13 +3,12 @@
   "id": "valeria",
   "name": "Valeria",
   "abilities": [18, 14, 14, 10, 12, 10],
-  "hitPoints": 38,
-  "hitDice": 6,
-  "level": 6,
+
+  // One fact instead of four. Hit points, base attack and all three saves now follow from it,
+  // and cannot drift out of step with each other.
+  "classes": [ { "class": "fighter", "level": 6 } ],
+
   "speed": 30,
-  // Six is the step that matters: a full attack now swings twice, at +6/+1.
-  "baseAttack": 6,
   "armour": 6,
-  "goodSave": "Fortitude",
   "weapons": ["longsword"]
 }

@@ -402,9 +402,12 @@ public class ShippedContentTests
     {
         var valeria = TestContent.Library.BuildCreature("valeria")!;
 
-        Assert.Equal(50, valeria.HitPoints.Maximum);   // 38 written down, +2 a die for Con 14
+        // Nothing below is written in her file any more: she is "fighter 6" and the rest follows.
+        Assert.Equal(52, valeria.HitPoints.Maximum);   // d10: 10 + 5x6, +2 a die for Con 14
         Assert.Equal(6, valeria.BaseAttackBonus);
         Assert.Equal(2, valeria.AttacksPerFullAttack);   // the step at +6
+        Assert.Equal(5, valeria.Saves[Ironbound.Rules.Saves.Save.Fortitude].Base);
+        Assert.Equal(2, valeria.Saves[Ironbound.Rules.Saves.Save.Will].Base);
         Assert.Equal(18, valeria.ArmorClass.Total);    // 10 + 6 armour + 2 Dexterity
         Assert.Equal("longsword", valeria.PrimaryAttack!.Name);
         Assert.Equal(19, valeria.PrimaryAttack.Attack.Critical.ThreatsOn);

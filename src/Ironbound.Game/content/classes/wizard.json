@@ -1,0 +1,11 @@
+// Half base attack, a d6, and a good Will save. Fragile on purpose.
+{
+  "kind": "class",
+  "id": "wizard",
+  "name": "Wizard",
+  "hitDie": 6,
+  "attack": "Half",
+  "goodSaves": ["Will"],
+  "casting": "Full",
+  "castingAbility": "Intelligence"
+}

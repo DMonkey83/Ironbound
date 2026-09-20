@@ -5,12 +5,8 @@
   "id": "hobgoblin-sergeant",
   "name": "Hobgoblin Sergeant",
   "abilities": [15, 13, 14, 10, 10, 8],
-  "hitPoints": 45,
-  "hitDice": 6,
-  "level": 6,
+  "classes": [ { "class": "fighter", "level": 6 } ],
   "speed": 30,
-  "baseAttack": 6,
   "armour": 6,
-  "goodSave": "Fortitude",
   "weapons": ["longsword"]
 }

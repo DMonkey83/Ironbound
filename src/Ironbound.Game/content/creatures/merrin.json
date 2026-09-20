@@ -3,18 +3,19 @@
   "id": "merrin",
   "name": "Merrin",
   "abilities": [8, 14, 12, 18, 13, 10],
-  "hitPoints": 18,
-  "hitDice": 5,
-  "level": 5,
+
+  // A wizard, so a good Will save and a poor Fortitude — the opposite of what the old
+  // hand-written numbers said, and the correct way round.
+  "classes": [ { "class": "wizard", "level": 5 } ],
+
   "speed": 30,
-  "baseAttack": 2,
   "armour": 0,
-  "goodSave": "Fortitude",
+
   // Crossbow first, staff second: the same order the goblin archer uses, and the reason a
   // click on a distant enemy offers the bolt while a click on an adjacent one offers the staff.
   "weapons": ["light-crossbow", "quarterstaff"],
-  "castingAbility": "Intelligence",
-  "casterLevel": 5,
+
+  // Slots are still written out by hand. A per-class table is a layer of its own.
   "slots": [
     { "level": 1, "count": 3 },
     { "level": 2, "count": 2 },

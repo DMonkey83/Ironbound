@@ -3,13 +3,8 @@
   "id": "karn",
   "name": "Karn",
   "abilities": [16, 12, 16, 8, 13, 8],
-  "hitPoints": 47,
-  "hitDice": 6,
-  "level": 6,
+  "classes": [ { "class": "barbarian", "level": 6 } ],
   "speed": 30,
-  // Six is the step that matters: a full attack now swings twice, at +6/+1.
-  "baseAttack": 6,
   "armour": 7,
-  "goodSave": "Fortitude",
   "weapons": ["greataxe"]
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Ironbound.Rules.Abilities;
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Effects;
@@ -25,6 +26,7 @@ namespace Ironbound.Rules.Content;
 public sealed class ContentLibrary
 {
     private readonly Dictionary<string, Spell> _spells = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ClassDefinition> _classes = new(StringComparer.Ordinal);
     private readonly Dictionary<string, WeaponDefinition> _weapons = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CreatureDefinition> _creatures = new(StringComparer.Ordinal);
     private readonly Dictionary<string, EncounterDefinition> _encounters = new(StringComparer.Ordinal);
@@ -63,6 +65,8 @@ public sealed class ContentLibrary
 
     public IReadOnlyCollection<string> SpellIds => _spells.Keys;
 
+    public IReadOnlyCollection<string> ClassIds => _classes.Keys;
+
     public IReadOnlyCollection<string> WeaponIds => _weapons.Keys;
 
     public IReadOnlyCollection<string> CreatureIds => _creatures.Keys;
@@ -74,6 +78,8 @@ public sealed class ContentLibrary
     public EncounterDefinition? GetEncounter(string id) => _encounters.GetValueOrDefault(id);
 
     public CreatureDefinition? GetCreature(string id) => _creatures.GetValueOrDefault(id);
+
+    public ClassDefinition? GetClass(string id) => _classes.GetValueOrDefault(id);
 
     public WeaponAttack? BuildWeapon(string id) => _weapons.GetValueOrDefault(id)?.Build();
 
@@ -108,6 +114,10 @@ public sealed class ContentLibrary
                     Keep(_spells, reader, ReadSpell(reader), spell => spell.Id, "spell");
                     break;
 
+                case "class":
+                    Keep(_classes, reader, ReadClass(reader), taken => taken.Id, "class");
+                    break;
+
                 case "weapon":
                     Keep(_weapons, reader, ReadWeapon(reader), weapon => weapon.Id, "weapon");
                     break;
@@ -139,6 +149,12 @@ public sealed class ContentLibrary
             {
                 _problems.Add(new ContentProblem(
                     $"creature '{creature.Id}'", "weapons", $"no weapon called '{weapon}'."));
+            }
+
+            foreach (var taken in creature.Classes.Where(c => !_classes.ContainsKey(c.ClassId)))
+            {
+                _problems.Add(new ContentProblem(
+                    $"creature '{creature.Id}'", "classes", $"no class called '{taken.ClassId}'."));
             }
 
             foreach (var spell in creature.Spells.Where(id => !_spells.ContainsKey(id)))
@@ -327,6 +343,39 @@ public sealed class ContentLibrary
         };
     }
 
+    private ClassDefinition? ReadClass(Reader reader)
+    {
+        var id = reader.String("id");
+        if (id.Length == 0)
+        {
+            return null;
+        }
+
+        var good = new List<Save>();
+        foreach (var entry in reader.Array("goodSaves"))
+        {
+            if (System.Enum.TryParse<Save>(entry.GetString(), true, out var save))
+            {
+                good.Add(save);
+            }
+            else
+            {
+                reader.Problem("goodSaves", $"'{entry.GetString()}' is not a saving throw.");
+            }
+        }
+
+        return new ClassDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            HitDie = reader.Int("hitDie", 8),
+            Attack = reader.Enum("attack", AttackProgression.ThreeQuarters),
+            GoodSaves = good,
+            Casting = reader.Enum("casting", CasterProgression.None),
+            CastingAbility = reader.Enum("castingAbility", Ability.Intelligence),
+        };
+    }
+
     private WeaponDefinition? ReadWeapon(Reader reader)
     {
         var id = reader.String("id");
@@ -369,12 +418,20 @@ public sealed class ContentLibrary
             slots.Add(new SlotDefinition(slot.Int("level"), slot.Int("count")));
         }
 
+        var classes = new List<ClassLevelDefinition>();
+        foreach (var entry in reader.Array("classes"))
+        {
+            var taken = new Reader(entry, reader.Source, _problems);
+            classes.Add(new ClassLevelDefinition(taken.String("class"), taken.Int("level", 1)));
+        }
+
         return new CreatureDefinition
         {
             Id = id,
             Name = reader.StringOr("name", id),
             Abilities = abilities,
-            HitPoints = reader.Int("hitPoints", 8),
+            Classes = classes,
+            HitPoints = reader.Has("hitPoints") ? reader.Int("hitPoints") : null,
             HitDice = reader.Int("hitDice", 1),
             Level = reader.Int("level", 1),
             Size = reader.Enum("size", CreatureSize.Medium),
@@ -384,7 +441,9 @@ public sealed class ContentLibrary
             NaturalArmour = reader.Int("naturalArmour"),
             GoodSave = reader.Has("goodSave") ? reader.Enum("goodSave", Save.Fortitude) : null,
             Weapons = [.. reader.Array("weapons").Select(e => e.GetString() ?? string.Empty)],
-            CastingAbility = reader.Enum("castingAbility", Ability.Intelligence),
+            CastingAbility = reader.Has("castingAbility")
+                ? reader.Enum("castingAbility", Ability.Intelligence)
+                : null,
             CasterLevel = reader.Int("casterLevel"),
             Slots = slots,
             Spells = [.. reader.Array("spells").Select(e => e.GetString() ?? string.Empty)],

@@ -1,0 +1,10 @@
+// The NPC class. Everything a fighter has except the reason to be interesting — which is why
+// a goblin warrior and a goblin fighter are different things.
+{
+  "kind": "class",
+  "id": "warrior",
+  "name": "Warrior",
+  "hitDie": 10,
+  "attack": "Full",
+  "goodSaves": ["Fortitude"]
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "class",
+  "id": "rogue",
+  "name": "Rogue",
+  "hitDie": 8,
+  "attack": "ThreeQuarters",
+  "goodSaves": ["Reflex"]
+}

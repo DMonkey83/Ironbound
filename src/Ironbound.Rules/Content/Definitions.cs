@@ -1,4 +1,5 @@
 using Ironbound.Rules.Abilities;
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Magic;
@@ -76,6 +77,9 @@ public sealed record WeaponDefinition
     }
 }
 
+/// <summary>So many levels of a class, named by id until the library can resolve it.</summary>
+public readonly record struct ClassLevelDefinition(string ClassId, int Level);
+
 /// <summary>How many spell slots of one level a creature has.</summary>
 public readonly record struct SlotDefinition(int Level, int Count);
 
@@ -89,11 +93,15 @@ public sealed record CreatureDefinition
     /// <summary>Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma.</summary>
     public required IReadOnlyList<int> Abilities { get; init; }
 
-    public int HitPoints { get; init; } = 8;
+    /// <summary>Written down, or null to work it out from the classes.</summary>
+    public int? HitPoints { get; init; }
 
     public int HitDice { get; init; } = 1;
 
     public int Level { get; init; } = 1;
+
+    /// <summary>What it has levels in. Empty for something built from raw numbers instead.</summary>
+    public IReadOnlyList<ClassLevelDefinition> Classes { get; init; } = [];
 
     public CreatureSize Size { get; init; } = CreatureSize.Medium;
 
@@ -109,7 +117,7 @@ public sealed record CreatureDefinition
 
     public IReadOnlyList<string> Weapons { get; init; } = [];
 
-    public Ability CastingAbility { get; init; } = Ability.Intelligence;
+    public Ability? CastingAbility { get; init; }
 
     public int CasterLevel { get; init; }
 
@@ -124,13 +132,29 @@ public sealed record CreatureDefinition
         var scores = new AbilityScores(
             Abilities[0], Abilities[1], Abilities[2], Abilities[3], Abilities[4], Abilities[5]);
 
-        var creature = new Creature(name ?? Name, scores, HitPoints, HitDice, rules)
+        var levels = new List<ClassLevel>();
+        foreach (var taken in Classes)
+        {
+            // A class the library never heard of is already in Problems; carrying on with the
+            // levels that do resolve beats refusing to build the creature at all.
+            if (library.GetClass(taken.ClassId) is { } definition)
+            {
+                levels.Add(new ClassLevel(definition, taken.Level));
+            }
+        }
+
+        var classed = levels.Count > 0;
+        var level = classed ? Progression.TotalLevel(levels) : Level;
+        var hitPoints = HitPoints ?? (classed ? Progression.HitPointsBase(levels, rules) : 8);
+
+        var creature = new Creature(
+            name ?? Name, scores, hitPoints, classed ? level : HitDice, rules)
         {
             Size = Size,
             Speed = Speed,
         };
 
-        creature.BaseAttackBonus = BaseAttack;
+        creature.BaseAttackBonus = classed ? Progression.BaseAttack(levels) : BaseAttack;
 
         if (Armour != 0)
         {
@@ -144,9 +168,11 @@ public sealed record CreatureDefinition
 
         foreach (var save in SaveInfo.All)
         {
-            creature.Saves[save].Base = save == GoodSave
-                ? SaveProgression.Good(Level)
-                : SaveProgression.Poor(Level);
+            creature.Saves[save].Base = classed
+                ? Progression.SaveBase(save, levels)
+                : save == GoodSave
+                    ? SaveProgression.Good(level)
+                    : SaveProgression.Poor(level);
         }
 
         foreach (var weapon in Weapons)
@@ -157,8 +183,12 @@ public sealed record CreatureDefinition
             }
         }
 
-        creature.Spells.CastingAbility = CastingAbility;
-        creature.Spells.CasterLevel = CasterLevel;
+        var caster = Progression.Caster(levels);
+
+        creature.Spells.CastingAbility =
+            CastingAbility ?? caster?.Class.CastingAbility ?? Ability.Intelligence;
+        creature.Spells.CasterLevel =
+            CasterLevel != 0 ? CasterLevel : Progression.CasterLevel(levels);
 
         foreach (var slot in Slots)
         {
