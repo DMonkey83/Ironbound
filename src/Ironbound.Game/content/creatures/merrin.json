@@ -10,7 +10,9 @@
   "baseAttack": 2,
   "armour": 0,
   "goodSave": "Fortitude",
-  "weapons": ["quarterstaff"],
+  // Crossbow first, staff second: the same order the goblin archer uses, and the reason a
+  // click on a distant enemy offers the bolt while a click on an adjacent one offers the staff.
+  "weapons": ["light-crossbow", "quarterstaff"],
   "castingAbility": "Intelligence",
   "casterLevel": 5,
   "slots": [
