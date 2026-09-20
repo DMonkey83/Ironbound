@@ -462,3 +462,97 @@ public class SaveAndLoadTests
         Assert.All(reloaded.Foes, foe => Assert.Equal(Side.Foes, reloaded.SideOf(foe)));
     }
 }
+
+public class InteractiveTurnTests
+{
+    private static Battle Skirmish() => Scenarios.GoblinAmbush(seed: 4242);
+
+    [Fact]
+    public void ATurnStaysOpenUntilItIsEnded()
+    {
+        var battle = Skirmish();
+
+        var turn = battle.BeginTurn()!;
+
+        Assert.NotNull(turn);
+        Assert.False(battle.Encounter.Current!.IsEnded);
+        Assert.Same(turn.Actor, battle.Encounter.Current.Actor);
+
+        battle.EndTurn();
+
+        Assert.True(battle.Encounter.Current.IsEnded);
+    }
+
+    [Fact]
+    public void ActingOnAnOpenTurnProducesLogLines()
+    {
+        var battle = Skirmish();
+        var turn = battle.BeginTurn()!;
+        var target = battle.EnemiesOf(turn.Actor)[0];
+
+        var lines = battle.Act(new AttackAction(turn.Actor.PrimaryAttack!, target));
+
+        // Out of reach on the first round, so this one is refused rather than swung.
+        Assert.Empty(lines);
+        Assert.True(turn.Turn.Budget.HasStandard);
+    }
+
+    [Fact]
+    public void AMoveTakenByHandIsLoggedLikeAnyOther()
+    {
+        var battle = Skirmish();
+        var turn = battle.BeginTurn()!;
+        var field = battle.Battlefield!;
+        var target = battle.EnemiesOf(turn.Actor)[0];
+
+        var lines = battle.Act(MoveAction.Towards(field, turn.Actor, target)!);
+
+        Assert.NotEmpty(lines);
+        Assert.Contains("moves to", lines[0]);
+        Assert.Contains(lines[0], battle.Log);
+    }
+
+    [Fact]
+    public void NothingCanBeDoneAfterTheTurnEnds()
+    {
+        var battle = Skirmish();
+        var turn = battle.BeginTurn()!;
+        var target = battle.EnemiesOf(turn.Actor)[0];
+
+        battle.EndTurn();
+
+        Assert.Empty(battle.Act(new AttackAction(turn.Actor.PrimaryAttack!, target)));
+    }
+
+    [Fact]
+    public void TheOpenTurnKnowsWhoseSideItIsOn()
+    {
+        var battle = Skirmish();
+
+        var sides = new List<bool>();
+        for (var i = 0; i < 4; i++)
+        {
+            battle.BeginTurn();
+            sides.Add(battle.IsPartyTurn);
+            battle.EndTurn();
+        }
+
+        // A mixed initiative order, so both answers had better turn up.
+        Assert.Contains(true, sides);
+        Assert.Contains(false, sides);
+    }
+
+    [Fact]
+    public void HandDrivenAndSourceDrivenTurnsInterleave()
+    {
+        var battle = Skirmish();
+        var source = Scenarios.AutoPilot(battle, seed: 4242);
+
+        battle.BeginTurn();
+        battle.EndTurn();                 // somebody dithers and does nothing
+        Assert.NotNull(battle.AdvanceTurn(source));
+
+        Assert.NotEmpty(battle.Log);
+        Assert.Equal(BattleOutcome.InProgress, battle.Outcome);
+    }
+}

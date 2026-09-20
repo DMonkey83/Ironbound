@@ -148,53 +148,98 @@ public sealed class Battle
     };
 
     /// <summary>
-    /// Runs one creature's whole turn: begins it, keeps asking the action source until it has
-    /// nothing more to say, and ends it. Returns null once the fight is decided.
+    /// Opens the next creature's turn and returns it, or null once the fight is decided. The
+    /// turn stays open until <see cref="EndTurn"/>, which is what lets a person take as long as
+    /// they like over it.
     /// </summary>
-    public BattleTurn? AdvanceTurn(IActionSource source)
+    public BattleTurn? BeginTurn()
     {
-        ArgumentNullException.ThrowIfNull(source);
-
         if (Outcome != BattleOutcome.InProgress || Encounter.BeginNextTurn() is not { } turn)
         {
             return null;
         }
 
-        var lines = new List<string>();
+        var lines = turn.Events.Select(happened => happened.Description).ToList();
+        _log.AddRange(lines);
 
-        foreach (var happened in turn.Events)
+        return new BattleTurn(turn, lines);
+    }
+
+    /// <summary>
+    /// Takes one action on the open turn and returns the lines it produced. Empty means the
+    /// action was refused — out of reach, unaffordable, nothing left to spend it on.
+    /// </summary>
+    public IReadOnlyList<string> Act(GameAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (Encounter.Current is not { IsEnded: false } turn || turn.Take(action) is not { } result)
         {
-            lines.Add(happened.Description);
+            return [];
         }
 
-        // The loop lives here, not in the rules, so nothing ever waits on a decision.
-        while (source.NextAction(turn) is { } action)
+        var lines = Describe(result);
+        _log.AddRange(lines);
+        return lines;
+    }
+
+    public void EndTurn() => Encounter.Current?.End();
+
+    /// <summary>Whether the open turn belongs to somebody on the player's side.</summary>
+    public bool IsPartyTurn =>
+        Encounter.Current is { IsEnded: false } turn && SideOf(turn.Actor) == Side.Party;
+
+    /// <summary>
+    /// Runs a whole turn from beginning to end, asking the source what to do. The way an
+    /// AI-controlled creature takes its turn, and the way every test drives a fight.
+    /// </summary>
+    public BattleTurn? AdvanceTurn(IActionSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (BeginTurn() is not { } started)
         {
-            if (turn.Take(action) is not { } result)
+            return null;
+        }
+
+        var lines = new List<string>(started.Lines);
+
+        // The loop lives here, not in the rules, so nothing ever waits on a decision.
+        while (Encounter.Current is { IsEnded: false } turn && source.NextAction(turn) is { } action)
+        {
+            var produced = Act(action);
+            if (produced.Count == 0)
             {
                 break;
             }
 
-            lines.Add(result.Description);
-
-            // Opportunities happen inside somebody else's action and a spell's effect happens to
-            // several creatures at once; neither reaches the log unless it is unpacked here.
-            if (result is MoveActionResult { Opportunities.Count: > 0 } moved)
-            {
-                lines.AddRange(moved.Opportunities.Select(strike => $"  {strike}"));
-            }
-
-            if (result is CastSpellResult cast)
-            {
-                lines.AddRange(cast.Opportunities.Select(strike => $"  {strike}"));
-                lines.AddRange(cast.Cast?.Targets.Select(hit => $"  {hit}") ?? []);
-            }
+            lines.AddRange(produced);
         }
 
-        turn.End();
-        _log.AddRange(lines);
+        EndTurn();
+        return new BattleTurn(started.Turn, lines);
+    }
 
-        return new BattleTurn(turn, lines);
+    /// <summary>
+    /// Opportunities happen inside somebody else's action and a spell's effect happens to several
+    /// creatures at once; neither reaches the log unless it is unpacked here.
+    /// </summary>
+    private static List<string> Describe(ActionResult result)
+    {
+        var lines = new List<string> { result.Description };
+
+        if (result is MoveActionResult { Opportunities.Count: > 0 } moved)
+        {
+            lines.AddRange(moved.Opportunities.Select(strike => $"  {strike}"));
+        }
+
+        if (result is CastSpellResult cast)
+        {
+            lines.AddRange(cast.Opportunities.Select(strike => $"  {strike}"));
+            lines.AddRange(cast.Cast?.Targets.Select(hit => $"  {hit}") ?? []);
+        }
+
+        return lines;
     }
 
     /// <summary>Runs turns until someone wins or the cap is reached, guarding against a stalemate.</summary>

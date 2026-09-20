@@ -2,23 +2,25 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Ironbound.Rules.Creatures;
+using Ironbound.Rules.Encounters;
+using Ironbound.Rules.Encounters.Actions;
+using Ironbound.Rules.Magic;
+using Ironbound.Rules.Maps;
 using Ironbound.Rules.Persistence;
 using Ironbound.Simulation;
 
 /// <summary>
-/// The first place the rules engine meets Godot. Everything below this file is engine-free and
-/// unit-tested; this one owns the camera, the placeholder bodies and the combat log, and drives
-/// the fight one turn at a time.
+/// The first place the rules engine meets Godot: the camera, the placeholder bodies, the combat
+/// log, and the person playing.
 /// </summary>
 /// <remarks>
-/// The scene is built in code rather than authored as a .tscn. A scene file is awkward to write
-/// by hand, unreadable in a diff, and cannot be checked without opening the editor; this can be
-/// reviewed and run headless like any other code.
+/// The scene is built in code rather than authored as a .tscn — easier to review, and it can be
+/// run headless like any other code.
 /// <para>
-/// File handling lives here rather than in the rules: <c>GameSave</c> deals only in strings, so
-/// it can be tested without touching a disk. Godot's own <see cref="FileAccess"/> is used instead
-/// of <c>System.IO</c> because it understands <c>user://</c>, which resolves to the right place
-/// on every platform the game might be exported to.
+/// The party is driven by clicks and the enemy by <see cref="HeuristicActionSource"/>, through
+/// the same <c>Battle</c> methods. Nothing here blocks: a turn is opened, actions are taken
+/// whenever they happen to arrive, and the turn is closed when the player says so. That is what
+/// the non-blocking scheduler was built for, and it is why a person and an AI can share one loop.
 /// </para>
 /// </remarks>
 public partial class Main : Node3D
@@ -28,16 +30,35 @@ public partial class Main : Node3D
 
 	private static readonly Color PartyColour = new(0.35f, 0.55f, 0.85f);
 	private static readonly Color FoeColour = new(0.75f, 0.35f, 0.30f);
+	private static readonly Color LegalColour = new(0.35f, 0.75f, 0.40f, 0.45f);
+	private static readonly Color IllegalColour = new(0.75f, 0.30f, 0.30f, 0.35f);
+
+	private enum Mode
+	{
+		Move,
+		Attack,
+		Cast,
+	}
 
 	private readonly Dictionary<Creature, Node3D> _figures = new();
 
 	private Battle _battle;
-	private IActionSource _actors;
+	private IActionSource _enemies;
 	private Node3D _world;
+	private Camera3D _camera;
+	private MeshInstance3D _cursor;
+	private StandardMaterial3D _cursorPaint;
+
 	private RichTextLabel _log;
 	private Label _status;
-	private Button _advance;
+	private Label _prompt;
+	private OptionButton _spells;
+	private Button _endTurn;
 	private Button _load;
+	private readonly Dictionary<Mode, Button> _modes = new();
+
+	private Mode _mode = Mode.Move;
+	private GridSquare? _hovered;
 
 	public override void _Ready()
 	{
@@ -45,19 +66,211 @@ public partial class Main : Node3D
 
 		BuildInterface();
 		RebuildWorld();
-		ReportInitiative();
-		UpdateStatus();
 
 		if (DisplayServer.GetName() == "headless")
 		{
 			RunHeadlessAndQuit();
+			return;
 		}
+
+		ReportInitiative();
+		StartNextTurn();
 	}
 
 	private void Begin(Battle battle)
 	{
 		_battle = battle;
-		_actors = Scenarios.AutoPilot(_battle);
+		_enemies = Scenarios.AutoPilot(_battle);
+	}
+
+	// ---- whose turn it is ----
+
+	/// <summary>
+	/// Opens turns and lets the enemy take its own, stopping as soon as it is somebody's turn who
+	/// needs asking.
+	/// </summary>
+	private void StartNextTurn()
+	{
+		while (true)
+		{
+			if (_battle.BeginTurn() is not { } turn)
+			{
+				Prompt(_battle.Outcome == BattleOutcome.InProgress
+					? "Nobody left standing."
+					: $"{_battle.Outcome}.");
+				RefreshControls();
+				return;
+			}
+
+			Append($"[round {turn.Round}] {turn.Actor.Name}", turn.Lines);
+
+			if (_battle.IsPartyTurn)
+			{
+				_hovered = null;
+				SelectSpellsFor(turn.Actor);
+				Prompt($"{turn.Actor.Name}'s turn.");
+				RefreshFigures();
+				RefreshControls();
+				return;
+			}
+
+			RunEnemyTurn();
+			RefreshFigures();
+		}
+	}
+
+	private void RunEnemyTurn()
+	{
+		while (_battle.Encounter.Current is { IsEnded: false } turn
+			&& _enemies.NextAction(turn) is { } action)
+		{
+			var lines = _battle.Act(action);
+			if (lines.Count == 0)
+			{
+				break;
+			}
+
+			Append(null, lines);
+		}
+
+		_battle.EndTurn();
+	}
+
+	private void OnEndTurn()
+	{
+		_battle.EndTurn();
+		StartNextTurn();
+	}
+
+	// ---- what the player clicks ----
+
+	public override void _UnhandledInput(InputEvent @event)
+	{
+		if (@event is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
+			|| !_battle.IsPartyTurn
+			|| SquareUnderCursor() is not { } square)
+		{
+			return;
+		}
+
+		var actor = _battle.Encounter.Current!.Actor;
+		var lines = ActionFor(actor, square) is { } action ? _battle.Act(action) : [];
+
+		if (lines.Count == 0)
+		{
+			Prompt($"{actor.Name} cannot do that from here.");
+			return;
+		}
+
+		Append(null, lines);
+		RefreshFigures();
+		Prompt($"{actor.Name}'s turn.");
+		RefreshControls();
+		_hovered = null;
+	}
+
+	/// <summary>What clicking a square means, given the mode the player has chosen.</summary>
+	private GameAction ActionFor(Creature actor, GridSquare square)
+	{
+		var field = _battle.Battlefield;
+		if (field is null)
+		{
+			return null;
+		}
+
+		var occupant = field.OccupantOf(square);
+
+		switch (_mode)
+		{
+			case Mode.Attack:
+				return occupant is not null && actor.IsEnemyOf(occupant) && actor.PrimaryAttack is { } weapon
+					? new AttackAction(weapon, occupant)
+					: null;
+
+			case Mode.Cast:
+				if (SelectedSpell() is not { } spell)
+				{
+					return null;
+				}
+
+				return spell.NeedsAPoint
+					? CastSpellAction.At(spell, square)
+					: occupant is not null ? CastSpellAction.At(spell, occupant) : null;
+
+			default:
+				if (field.SquareOf(actor) is not { } from)
+				{
+					return null;
+				}
+
+				var path = field.FindPath(from, square, actor);
+
+				// A single square away is a five-foot step, which is free and provokes nothing.
+				return path.Count switch
+				{
+					< 2 => null,
+					2 when field.PathCost(path) <= Distance.FeetPerSquare =>
+						new FiveFootStepAction(path),
+					_ => new MoveAction(path),
+				};
+		}
+	}
+
+	private GridSquare? SquareUnderCursor()
+	{
+		if (_camera is null || _battle.Battlefield is not { } field)
+		{
+			return null;
+		}
+
+		var mouse = GetViewport().GetMousePosition();
+		var from = _camera.ProjectRayOrigin(mouse);
+		var direction = _camera.ProjectRayNormal(mouse);
+
+		if (Mathf.IsZeroApprox(direction.Y))
+		{
+			return null;
+		}
+
+		// Straight onto the ground plane. An orthographic camera over flat ground needs no physics.
+		var distance = -from.Y / direction.Y;
+		if (distance < 0)
+		{
+			return null;
+		}
+
+		var hit = from + (direction * distance);
+		var square = new GridSquare(Mathf.FloorToInt(hit.X), Mathf.FloorToInt(hit.Z));
+
+		return field.Contains(square) ? square : null;
+	}
+
+	public override void _Process(double delta)
+	{
+		if (_cursor is null)
+		{
+			return;
+		}
+
+		if (!_battle.IsPartyTurn || SquareUnderCursor() is not { } square)
+		{
+			_cursor.Visible = false;
+			return;
+		}
+
+		_cursor.Visible = true;
+		_cursor.Position = new Vector3(square.X + 0.5f, 0.02f, square.Y + 0.5f);
+
+		// Deciding what a click would mean runs a path search, so only do it when the cursor
+		// actually moves to a different square rather than once a frame.
+		if (_hovered == square)
+		{
+			return;
+		}
+
+		_hovered = square;
+		var actor = _battle.Encounter.Current!.Actor;
+		_cursorPaint.AlbedoColor = ActionFor(actor, square) is null ? IllegalColour : LegalColour;
 	}
 
 	// ---- saving ----
@@ -87,7 +300,7 @@ public partial class Main : Node3D
 		var json = GameSave.ToJson(GameSave.Capture(_battle.Encounter));
 		Write(json);
 
-		_log.AddText($"— saved {json.Length} characters to {SavePath} —\n");
+		_log.AddText($"— saved {json.Length} characters —\n");
 		_load.Disabled = false;
 	}
 
@@ -106,7 +319,7 @@ public partial class Main : Node3D
 		_log.Clear();
 		_log.AddText("— loaded —\n");
 		ReportInitiative();
-		UpdateStatus();
+		StartNextTurn();
 	}
 
 	// ---- the scene ----
@@ -130,15 +343,15 @@ public partial class Main : Node3D
 		// One Godot unit is one five-foot square, so rules coordinates need no conversion.
 		var centre = new Vector3(width / 2f, 0, height / 2f);
 
-		var camera = new Camera3D
+		_camera = new Camera3D
 		{
 			Projection = Camera3D.ProjectionType.Orthogonal,
 			Size = Mathf.Max(width, height) * 1.3f,
 		};
 
-		_world.AddChild(camera);
-		camera.Position = centre + new Vector3(12, 13, 12);
-		camera.LookAt(centre);
+		_world.AddChild(_camera);
+		_camera.Position = centre + new Vector3(12, 13, 12);
+		_camera.LookAt(centre);
 
 		var light = new DirectionalLight3D { ShadowEnabled = true };
 		_world.AddChild(light);
@@ -153,6 +366,21 @@ public partial class Main : Node3D
 
 		_world.AddChild(ground);
 		ground.Position = centre;
+
+		_cursorPaint = new StandardMaterial3D
+		{
+			AlbedoColor = LegalColour,
+			Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+		};
+
+		_cursor = new MeshInstance3D
+		{
+			Mesh = new PlaneMesh { Size = new Vector2(0.95f, 0.95f) },
+			MaterialOverride = _cursorPaint,
+			Visible = false,
+		};
+
+		_world.AddChild(_cursor);
 
 		Spawn(_battle.Party, PartyColour);
 		Spawn(_battle.Foes, FoeColour);
@@ -208,7 +436,7 @@ public partial class Main : Node3D
 		var panel = new PanelContainer();
 		layer.AddChild(panel);
 		panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomWide);
-		panel.OffsetTop = -300;
+		panel.OffsetTop = -320;
 
 		var margin = new MarginContainer();
 		margin.AddThemeConstantOverride("margin_left", 12);
@@ -223,11 +451,14 @@ public partial class Main : Node3D
 		_status = new Label();
 		rows.AddChild(_status);
 
+		_prompt = new Label();
+		rows.AddChild(_prompt);
+
 		_log = new RichTextLabel
 		{
 			ScrollFollowing = true,
 			SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-			CustomMinimumSize = new Vector2(0, 190),
+			CustomMinimumSize = new Vector2(0, 170),
 		};
 
 		rows.AddChild(_log);
@@ -235,9 +466,26 @@ public partial class Main : Node3D
 		var buttons = new HBoxContainer();
 		rows.AddChild(buttons);
 
-		_advance = new Button { Text = "Next turn", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		_advance.Pressed += OnAdvance;
-		buttons.AddChild(_advance);
+		foreach (var mode in new[] { Mode.Move, Mode.Attack, Mode.Cast })
+		{
+			var button = new Button
+			{
+				Text = mode.ToString(),
+				ToggleMode = true,
+				SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			};
+
+			button.Pressed += () => ChooseMode(mode);
+			buttons.AddChild(button);
+			_modes[mode] = button;
+		}
+
+		_spells = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		buttons.AddChild(_spells);
+
+		_endTurn = new Button { Text = "End turn" };
+		_endTurn.Pressed += OnEndTurn;
+		buttons.AddChild(_endTurn);
 
 		var save = new Button { Text = "Save" };
 		save.Pressed += OnSave;
@@ -246,28 +494,66 @@ public partial class Main : Node3D
 		_load = new Button { Text = "Load", Disabled = !SaveExists() };
 		_load.Pressed += OnLoad;
 		buttons.AddChild(_load);
+
+		ChooseMode(Mode.Move);
 	}
 
-	// ---- driving the fight ----
-
-	private void OnAdvance()
+	private void ChooseMode(Mode mode)
 	{
-		if (_battle.AdvanceTurn(_actors) is { } turn)
+		_mode = mode;
+		_hovered = null;
+		foreach (var (which, button) in _modes)
 		{
-			Append(turn);
-			RefreshFigures();
+			button.ButtonPressed = which == mode;
+		}
+	}
+
+	private void SelectSpellsFor(Creature actor)
+	{
+		_spells.Clear();
+		foreach (var spell in actor.Spells.Prepared)
+		{
+			_spells.AddItem($"{spell.Name} ({actor.Spells.SlotsRemaining(spell.Level)})");
+			_spells.SetItemDisabled(_spells.ItemCount - 1, !actor.Spells.CanCast(spell));
 		}
 
-		UpdateStatus();
+		_spells.Disabled = _spells.ItemCount == 0;
+		if (_spells.ItemCount > 0)
+		{
+			_spells.Selected = 0;
+		}
 	}
 
-	private void Append(BattleTurn turn)
+	private Spell SelectedSpell()
 	{
-		_log.AddText($"[round {turn.Round}] {turn.Actor.Name}\n");
-		foreach (var line in turn.Lines)
+		if (_battle.Encounter.Current is not { } turn || _spells.Selected < 0)
+		{
+			return null;
+		}
+
+		var prepared = turn.Actor.Spells.Prepared;
+		return _spells.Selected < prepared.Count ? prepared[_spells.Selected] : null;
+	}
+
+	// ---- reporting ----
+
+	private void Append(string header, IReadOnlyList<string> lines)
+	{
+		if (header is not null)
+		{
+			_log.AddText($"{header}\n");
+		}
+
+		foreach (var line in lines)
 		{
 			_log.AddText($"      {line}\n");
 		}
+	}
+
+	private void Prompt(string text)
+	{
+		_prompt.Text = text;
+		UpdateStatus();
 	}
 
 	private void ReportInitiative()
@@ -279,6 +565,19 @@ public partial class Main : Node3D
 		}
 
 		_log.AddText("\n");
+	}
+
+	private void RefreshControls()
+	{
+		var playing = _battle.IsPartyTurn;
+
+		_endTurn.Disabled = !playing;
+		foreach (var button in _modes.Values)
+		{
+			button.Disabled = !playing;
+		}
+
+		_spells.Disabled = !playing || _spells.ItemCount == 0;
 	}
 
 	private void RefreshFigures()
@@ -302,18 +601,14 @@ public partial class Main : Node3D
 
 	private void UpdateStatus()
 	{
-		var outcome = _battle.Outcome;
 		var standing = string.Join("   ", _battle.Encounter.Order.Select(
 			combatant => $"{combatant.Creature.Name} {combatant.Creature.HitPoints.Current}/{combatant.Creature.HitPoints.Maximum}"));
 
-		_status.Text = outcome == BattleOutcome.InProgress
-			? $"Round {_battle.Round}    {standing}"
-			: $"{outcome}    {standing}";
+		var budget = _battle.Encounter.Current is { IsEnded: false } turn
+			? $"    [{turn.Budget}]"
+			: string.Empty;
 
-		if (_advance is not null)
-		{
-			_advance.Disabled = outcome != BattleOutcome.InProgress;
-		}
+		_status.Text = $"Round {_battle.Round}{budget}    {standing}";
 	}
 
 	// ---- the headless proof ----
@@ -321,6 +616,7 @@ public partial class Main : Node3D
 	/// <summary>
 	/// Plays a few turns, writes a save, reads it back, and finishes from the reloaded copy — so
 	/// that saving is exercised through the engine's own file handling rather than only in a test.
+	/// Everyone is driven by the AI here; there is nobody to click anything.
 	/// </summary>
 	private void RunHeadlessAndQuit()
 	{
@@ -332,7 +628,7 @@ public partial class Main : Node3D
 
 		for (var turn = 0; turn < 5; turn++)
 		{
-			Report(_battle.AdvanceTurn(_actors));
+			Report(_battle.AdvanceTurn(_enemies));
 		}
 
 		var json = GameSave.ToJson(GameSave.Capture(_battle.Encounter));
@@ -343,12 +639,8 @@ public partial class Main : Node3D
 		Begin(Battle.Restore(GameSave.FromJson(Read())));
 
 		GD.Print($"--- reloaded at round {_battle.Round}, tick {_battle.Encounter.Tick} ---");
-		foreach (var combatant in _battle.Encounter.Order)
-		{
-			GD.Print($"  {combatant.Creature}");
-		}
 
-		while (_battle.AdvanceTurn(_actors) is { } turn)
+		while (_battle.AdvanceTurn(_enemies) is { } turn)
 		{
 			Report(turn);
 		}
