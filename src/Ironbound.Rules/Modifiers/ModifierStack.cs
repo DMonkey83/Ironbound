@@ -32,6 +32,36 @@ public sealed class ModifierStack : IEnumerable<Modifier>
         }
     }
 
+    /// <summary>
+    /// Resolves the stacking rules across several stacks at once, as one pass.
+    /// </summary>
+    /// <remarks>
+    /// Not the same as adding their totals, and the difference is a real bug: a Magic Weapon
+    /// spell granting +1 enhancement and a +1 sword granting +1 enhancement must come to +1, not
+    /// +2. Suppression only works if every modifier is weighed against every other one, so the
+    /// merge has to happen before the rules run, not after.
+    /// </remarks>
+    public static ModifierBreakdown Combine(params ModifierStack[] stacks)
+    {
+        ArgumentNullException.ThrowIfNull(stacks);
+
+        var merged = new ModifierStack();
+        foreach (var stack in stacks)
+        {
+            if (stack is null)
+            {
+                continue;
+            }
+
+            foreach (var modifier in stack._modifiers)
+            {
+                merged.Add(modifier);
+            }
+        }
+
+        return merged.Explain();
+    }
+
     public void Add(Modifier modifier)
     {
         _modifiers.Add(modifier);

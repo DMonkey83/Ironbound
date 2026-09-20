@@ -1,6 +1,7 @@
 using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Effects;
+using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Dice;
 
 namespace Ironbound.Rules.Creatures;
@@ -64,6 +65,15 @@ public sealed class Creature
 
     /// <summary>What stands between a damage roll and <see cref="HitPoints"/>.</summary>
     public DamageDefenses Defenses { get; }
+
+    /// <summary>
+    /// What the creature brings to every attack roll it makes: base attack bonus, size, and
+    /// buffs like Bless or Prayer. Met with the weapon's own modifiers in one stacking pass.
+    /// </summary>
+    public ModifierStack AttackModifiers { get; } = new();
+
+    /// <summary>What the creature brings to damage: Inspire Courage, Weapon Specialization.</summary>
+    public ModifierStack DamageModifiers { get; } = new();
 
     /// <summary>Buffs, conditions and anything else running on a clock.</summary>
     public EffectCollection Effects { get; }

@@ -27,6 +27,9 @@ public sealed record StrikeResult
     /// <summary>How the damage split between temporary and real hit points. Null on a miss.</summary>
     public DamageApplication? Applied { get; init; }
 
+    /// <summary>Damage that regeneration turned aside into nonlethal rather than real wounds.</summary>
+    public int NonlethalDealt { get; init; }
+
     public required HitPointState StateBefore { get; init; }
 
     public required HitPointState StateAfter { get; init; }
@@ -64,6 +67,11 @@ public sealed record StrikeResult
         if (Applied is { ToTemporary: > 0 } applied)
         {
             text += $" ({applied.ToTemporary} absorbed)";
+        }
+
+        if (NonlethalDealt > 0)
+        {
+            text += $"; {NonlethalDealt} of it nonlethal";
         }
 
         return $"{text}; {Target.Name} {Target.HitPoints}";

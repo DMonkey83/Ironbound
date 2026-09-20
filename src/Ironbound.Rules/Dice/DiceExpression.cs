@@ -73,6 +73,35 @@ public sealed class DiceExpression : IEquatable<DiceExpression>
     /// <summary>A formula that is just a number, e.g. fixed damage.</summary>
     public static DiceExpression Constant(int value) => new([DiceTerm.Constant(value)]);
 
+    /// <summary>
+    /// The same dice with a flat amount added, folded into any constant already present so the
+    /// result still reads as one expression: "1d8" plus 6 is "1d8+6", not "1d8" and "+6".
+    /// </summary>
+    public DiceExpression Plus(int amount)
+    {
+        var constant = amount;
+        var terms = new List<DiceTerm>(_terms.Length + 1);
+
+        foreach (var term in _terms)
+        {
+            if (term.IsConstant)
+            {
+                constant += term.ConstantValue;
+            }
+            else
+            {
+                terms.Add(term);
+            }
+        }
+
+        if (constant != 0 || terms.Count == 0)
+        {
+            terms.Add(DiceTerm.Constant(constant));
+        }
+
+        return new DiceExpression([.. terms]);
+    }
+
     public DiceRoll Roll(IRandomSource random)
     {
         ArgumentNullException.ThrowIfNull(random);

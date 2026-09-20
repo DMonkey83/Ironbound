@@ -24,6 +24,10 @@ public sealed class EffectCollection
 
     public int Count => _effects.Count;
 
+    /// <summary>The regeneration in force, if any. The damage pipeline asks before applying a blow.</summary>
+    public RegenerationEffect? Regeneration =>
+        _effects.OfType<RegenerationEffect>().FirstOrDefault();
+
     public bool Has(string name) => Find(name) is not null;
 
     public Effect? Find(string name) =>

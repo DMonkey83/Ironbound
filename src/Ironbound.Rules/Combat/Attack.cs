@@ -31,10 +31,24 @@ public sealed class Attack
         ArmorClass defense,
         IRandomSource random,
         DefenseOptions defenderState = DefenseOptions.None,
+        RuleOptions? rules = null) =>
+        Resolve(defense, random, Modifiers.Explain(), defenderState, rules);
+
+    /// <summary>
+    /// Resolves using a bonus worked out elsewhere. <see cref="Strike"/> uses this because only
+    /// it knows both the wielder and the weapon, and their modifiers have to meet the stacking
+    /// rules together rather than as two totals added up.
+    /// </summary>
+    public AttackResult Resolve(
+        ArmorClass defense,
+        IRandomSource random,
+        ModifierBreakdown bonus,
+        DefenseOptions defenderState = DefenseOptions.None,
         RuleOptions? rules = null)
     {
         ArgumentNullException.ThrowIfNull(defense);
         ArgumentNullException.ThrowIfNull(random);
+        ArgumentNullException.ThrowIfNull(bonus);
         rules ??= RuleOptions.Pathfinder;
 
         var options = defenderState;
@@ -44,7 +58,6 @@ public sealed class Attack
         }
 
         var armorClass = defense.Value(options);
-        var bonus = Modifiers.Explain();
 
         var natural = random.NextDie(DieSides);
         var total = natural + bonus.Total;
