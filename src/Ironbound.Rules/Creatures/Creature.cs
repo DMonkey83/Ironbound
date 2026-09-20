@@ -1,5 +1,6 @@
 using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Defense;
+using Ironbound.Rules.Effects;
 using Ironbound.Rules.Dice;
 
 namespace Ironbound.Rules.Creatures;
@@ -31,6 +32,7 @@ public sealed class Creature
         Rules = rules ?? RuleOptions.Pathfinder;
         ArmorClass = new ArmorClass(abilities.Dexterity);
         Defenses = new DamageDefenses();
+        Effects = new EffectCollection(this);
         HitPoints = new HitPoints(baseHitPoints, hitDice, abilities.Constitution, Rules);
     }
 
@@ -62,6 +64,9 @@ public sealed class Creature
 
     /// <summary>What stands between a damage roll and <see cref="HitPoints"/>.</summary>
     public DamageDefenses Defenses { get; }
+
+    /// <summary>Buffs, conditions and anything else running on a clock.</summary>
+    public EffectCollection Effects { get; }
 
     public HitPoints HitPoints { get; }
 
