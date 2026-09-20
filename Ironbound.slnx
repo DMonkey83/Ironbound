@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ironbound.Game/Ironbound.Game.csproj" />
+    <Project Path="src/Ironbound.Rules/Ironbound.Rules.csproj" />
+    <Project Path="src/Ironbound.Simulation/Ironbound.Simulation.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ironbound.Rules.Tests/Ironbound.Rules.Tests.csproj" />
+    <Project Path="tests/Ironbound.Simulation.Tests/Ironbound.Simulation.Tests.csproj" />
+  </Folder>
+</Solution>
