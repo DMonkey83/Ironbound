@@ -30,7 +30,7 @@ public sealed record SavedGame(
     SavedCreature[] Creatures,
     SavedCombatant[] Order)
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 }
 
 public sealed record SavedBattlefield(
@@ -99,7 +99,9 @@ public sealed record SavedWeapon(
     AbilityDamageScale DamageScale,
     SavedModifier[] AttackModifiers,
     SavedModifier[] DamageModifiers,
-    SavedDamageComponent[] Damage);
+    SavedDamageComponent[] Damage,
+    int RangeIncrement,
+    int MaximumIncrements);
 
 /// <summary>
 /// A running effect.

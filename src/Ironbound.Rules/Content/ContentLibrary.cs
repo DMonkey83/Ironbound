@@ -342,6 +342,8 @@ public sealed class ContentLibrary
             AttackAbility = reader.Enum("attackAbility", Ability.Strength),
             DamageAbility = reader.Enum("damageAbility", Ability.Strength),
             Enhancement = reader.Int("enhancement"),
+            RangeIncrement = reader.Int("rangeIncrement"),
+            MaximumIncrements = reader.Int("maximumIncrements", WeaponAttack.ProjectileIncrements),
         };
     }
 

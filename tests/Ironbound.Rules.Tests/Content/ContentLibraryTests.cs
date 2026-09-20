@@ -392,8 +392,9 @@ public class ShippedContentTests
         Assert.Equal(3, ambush.Placements.Count(placement => placement.Party));
         Assert.Equal(3, ambush.Placements.Count(placement => !placement.Party));
         Assert.Equal(
-            ["Goblin 1", "Goblin 2", "Goblin 3"],
+            ["Goblin 1", "Goblin 2", "Goblin Archer"],
             ambush.Placements.Where(p => !p.Party).Select(p => p.Name));
+        Assert.Equal(2, ambush.Blocked.Count);
     }
 
     [Fact]

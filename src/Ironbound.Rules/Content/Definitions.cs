@@ -39,16 +39,32 @@ public sealed record WeaponDefinition
 
     public int Enhancement { get; init; }
 
+    /// <summary>Zero for a melee weapon; anything else makes it a ranged one.</summary>
+    public int RangeIncrement { get; init; }
+
+    public int MaximumIncrements { get; init; } = WeaponAttack.ProjectileIncrements;
+
     public WeaponAttack Build()
     {
-        var weapon = WeaponAttack.Melee(
-            Name,
-            Damage,
-            DamageType,
-            new CriticalProfile(ThreatsOn, Multiplier),
-            Scale,
-            AttackAbility,
-            DamageAbility);
+        var weapon = RangeIncrement > 0
+            ? WeaponAttack.Ranged(
+                Name,
+                Damage,
+                DamageType,
+                RangeIncrement,
+                new CriticalProfile(ThreatsOn, Multiplier),
+                MaximumIncrements,
+                Scale,
+                AttackAbility,
+                DamageAbility)
+            : WeaponAttack.Melee(
+                Name,
+                Damage,
+                DamageType,
+                new CriticalProfile(ThreatsOn, Multiplier),
+                Scale,
+                AttackAbility,
+                DamageAbility);
 
         if (Enhancement != 0)
         {

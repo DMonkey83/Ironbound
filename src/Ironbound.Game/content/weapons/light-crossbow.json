@@ -1,0 +1,13 @@
+// Further and flatter than a bow, and it threatens on a 19. Reloading is not modelled yet.
+{
+  "kind": "weapon",
+  "id": "light-crossbow",
+  "name": "light crossbow",
+  "damage": "1d8",
+  "damageType": "Piercing",
+  "threatsOn": 19,
+  "multiplier": 2,
+  "rangeIncrement": 80,
+  "attackAbility": "Dexterity",
+  "scale": "None"
+}

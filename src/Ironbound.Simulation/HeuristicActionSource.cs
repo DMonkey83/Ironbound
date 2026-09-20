@@ -1,3 +1,4 @@
+using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
@@ -74,6 +75,25 @@ public sealed class HeuristicActionSource : IActionSource
             return null;
         }
 
+        // Nor, having just loosed an arrow, does an archer. Walking into reach would trade a shot
+        // it already has for a swing it does not, and hand out a free attack on the way in.
+        if (turn.Taken.Any(taken => taken is AttackActionResult { Strike.Weapon.IsRanged: true }))
+        {
+            return null;
+        }
+
+        // An archer with a clear shot has no business charging. Closing would cost the shot and
+        // hand out a free swing on the way in, and the line only gets worse once the melee it is
+        // firing into closes around the target.
+        if (playsWell
+            && turn.Budget.HasStandard
+            && turn.Encounter.Battlefield is { } range
+            && !range.IsWithinReach(actor, target)
+            && BestShot(range, actor, target) is { } bow)
+        {
+            return new AttackAction(bow, target);
+        }
+
         if (turn.Encounter.Battlefield is { } field && !field.IsWithinReach(actor, target))
         {
             var walk = turn.Budget.CanAfford(ActionCost.Move)
@@ -119,10 +139,39 @@ public sealed class HeuristicActionSource : IActionSource
         }
 
         // A wizard out of spells has nothing useful left, and that is a legitimate answer.
-        return turn.Budget.HasStandard && actor.PrimaryAttack is { } weapon
+        return turn.Budget.HasStandard && InClose(actor) is { } weapon
             ? new AttackAction(weapon, target)
             : null;
     }
+
+    /// <summary>
+    /// The best shot available from where the actor is standing, or null if there is none.
+    /// </summary>
+    /// <remarks>
+    /// Least range penalty wins. Ties go to whichever the creature carries first, which keeps the
+    /// choice reproducible — picking arbitrarily between two equal bows would be one more thing
+    /// that could diverge after a save is reloaded.
+    /// </remarks>
+    private static WeaponAttack? BestShot(Battlefield field, Creature actor, Creature target)
+    {
+        if (!field.HasLineOfSight(actor, target))
+        {
+            return null;
+        }
+
+        var feet = field.DistanceInFeet(actor, target) ?? 0;
+
+        return actor.Attacks
+            .Where(weapon => weapon.IsRanged && weapon.IsWithinRange(feet))
+            .MinBy(weapon => -weapon.RangePenalty(feet));
+    }
+
+    /// <summary>
+    /// What to swing once something has closed. An archer with a blade draws it: firing in
+    /// somebody's face provokes, and costs four besides.
+    /// </summary>
+    private static WeaponAttack? InClose(Creature actor) =>
+        actor.MeleeAttack ?? actor.PrimaryAttack;
 
     /// <summary>
     /// Whether there is a spell worth casting right now, and where to point it.

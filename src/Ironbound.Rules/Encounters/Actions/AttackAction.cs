@@ -4,7 +4,7 @@ using Ironbound.Rules.Defense;
 
 namespace Ironbound.Rules.Encounters.Actions;
 
-/// <summary>Swinging at something. A standard action wrapping <see cref="Strike"/>.</summary>
+/// <summary>Swinging at something, or shooting it. A standard action wrapping <see cref="Strike"/>.</summary>
 public sealed class AttackAction : GameAction
 {
     public AttackAction(WeaponAttack weapon, Creature target, DefenseOptions defenderState = DefenseOptions.None)
@@ -30,11 +30,21 @@ public sealed class AttackAction : GameAction
     public override bool CanPerform(ActionContext context) =>
         Target.IsAlive
         && !ReferenceEquals(Target, context.Actor)
-        && (context.Encounter.Battlefield is not { } field
-            || field.IsWithinReach(context.Actor, Target));
+        && CanReach(context);
 
-    public override ActionResult Perform(ActionContext context) =>
-        new AttackActionResult(
+    public override ActionResult Perform(ActionContext context)
+    {
+        // Drawing a bow in somebody's face is as careless as casting: the swing comes first, and
+        // it can drop you before you loose. A melee swing provokes nothing — it is the expected
+        // thing to be doing in a threatened square.
+        var opportunities = Weapon.IsRanged ? Provoke(context) : [];
+
+        if (!context.Actor.IsConscious)
+        {
+            return new AttackActionResult(this, context.Actor, null, opportunities);
+        }
+
+        return new AttackActionResult(
             this,
             context.Actor,
             Strike.Resolve(
@@ -44,9 +54,51 @@ public sealed class AttackAction : GameAction
                 context.Random,
                 DefenderState,
                 context.Rules,
-                context.Encounter.Battlefield));
+                context.Encounter.Battlefield),
+            opportunities);
+    }
+
+    /// <summary>
+    /// A melee weapon has to be able to touch the target; a ranged one has to be able to see it,
+    /// and to carry that far.
+    /// </summary>
+    private bool CanReach(ActionContext context)
+    {
+        if (context.Encounter.Battlefield is not { } field)
+        {
+            return true;
+        }
+
+        if (!Weapon.IsRanged)
+        {
+            return field.IsWithinReach(context.Actor, Target);
+        }
+
+        return field.HasLineOfSight(context.Actor, Target)
+            && (field.DistanceInFeet(context.Actor, Target) is not { } feet
+                || Weapon.IsWithinRange(feet));
+    }
+
+    private IReadOnlyList<StrikeResult> Provoke(ActionContext context) =>
+        context.Encounter.Battlefield?.SquareOf(context.Actor) is { } standing
+            ? Opportunities.Provoke(context.Encounter, context.Actor, standing)
+            : [];
 }
 
-/// <summary>An attack's outcome, carrying the strike itself rather than only a log line.</summary>
-public sealed record AttackActionResult(GameAction Action, Creature Actor, StrikeResult Strike)
-    : ActionResult(Action, Actor, Strike.ToString());
+/// <summary>
+/// An attack's outcome, carrying the strike itself rather than only a log line.
+/// </summary>
+/// <remarks>
+/// <see cref="Strike"/> is null when the attacker was cut down by an opportunity before the shot
+/// went off — the action happened, the attack never did.
+/// </remarks>
+public sealed record AttackActionResult(
+    GameAction Action,
+    Creature Actor,
+    StrikeResult? Strike,
+    IReadOnlyList<StrikeResult> Opportunities)
+    : ActionResult(Action, Actor, Describe(Actor, Action, Strike))
+{
+    private static string Describe(Creature actor, GameAction action, StrikeResult? strike) =>
+        strike?.ToString() ?? $"{actor.Name} is cut down drawing {action.Name}";
+}

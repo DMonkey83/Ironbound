@@ -132,6 +132,97 @@ public sealed class Battlefield
         return DistanceInFeet(attacker, target) is not { } feet || feet <= attacker.Reach;
     }
 
+    /// <summary>
+    /// Whether anything can be seen — or shot — from one square to another.
+    /// </summary>
+    /// <remarks>
+    /// One unobstructed corner-to-corner line anywhere is enough. That is a low bar on purpose:
+    /// the rules let you shoot down the narrowest seam, and reserve the question of how awkward
+    /// the shot was for <see cref="HasCover"/>.
+    /// </remarks>
+    public bool HasLineOfSight(GridSquare from, GridSquare to)
+    {
+        if (from == to || _blocked.Count == 0)
+        {
+            return true;
+        }
+
+        foreach (var origin in LineOfSight.Corners(from))
+        {
+            foreach (var corner in LineOfSight.Corners(to))
+            {
+                if (LineOfSight.IsClear(origin, corner, _blocked))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether an attack from one square to another is obstructed enough to grant the defender
+    /// cover.
+    /// </summary>
+    /// <remarks>
+    /// The rule as written, and note that it is not the mirror of
+    /// <see cref="HasLineOfSight"/>: the attacker picks whichever corner of their own square
+    /// suits them best, and only gets a clean shot if <em>every</em> line from that one corner to
+    /// the defender's four corners is unobstructed. One corner working for three lines out of
+    /// four is still cover.
+    /// </remarks>
+    public bool HasCover(GridSquare from, GridSquare to)
+    {
+        if (from == to || _blocked.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var origin in LineOfSight.Corners(from))
+        {
+            var clean = true;
+
+            foreach (var corner in LineOfSight.Corners(to))
+            {
+                if (!LineOfSight.IsClear(origin, corner, _blocked))
+                {
+                    clean = false;
+                    break;
+                }
+            }
+
+            if (clean)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Line of sight between two creatures. True when either is off the map, on the same
+    /// principle as <see cref="IsWithinReach"/>: a creature the ground does not know about is
+    /// not constrained by the ground.
+    /// </summary>
+    public bool HasLineOfSight(Creature from, Creature to)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        ArgumentNullException.ThrowIfNull(to);
+
+        return SquareOf(from) is not { } a || SquareOf(to) is not { } b || HasLineOfSight(a, b);
+    }
+
+    /// <summary>Whether <paramref name="to"/> has cover against an attack from <paramref name="from"/>.</summary>
+    public bool HasCover(Creature from, Creature to)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        ArgumentNullException.ThrowIfNull(to);
+
+        return SquareOf(from) is { } a && SquareOf(to) is { } b && HasCover(a, b);
+    }
+
     /// <summary>Everyone standing within <paramref name="feet"/> of a point, in placement order.</summary>
     public IReadOnlyList<Creature> CreaturesWithin(GridSquare centre, int feet)
     {

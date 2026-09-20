@@ -18,6 +18,9 @@ namespace Ironbound.Rules.Encounters;
 /// Only enemies take them. Strictly, anyone who threatens the square may; allies choosing to
 /// maul each other is not a rule worth honouring.
 /// </para>
+/// <para>
+/// A bow is no use here. Whoever takes the swing takes it with something they can swing.
+/// </para>
 /// </remarks>
 public static class Opportunities
 {
@@ -47,7 +50,7 @@ public static class Opportunities
 
             if (!threatener.IsEnemyOf(mover)
                 || !combatant.CanTakeOpportunity
-                || threatener.PrimaryAttack is not { } weapon
+                || threatener.MeleeAttack is not { } weapon
                 || !field.Threatens(threatener, leaving))
             {
                 continue;

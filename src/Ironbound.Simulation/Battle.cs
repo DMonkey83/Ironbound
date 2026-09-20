@@ -170,6 +170,17 @@ public sealed class Battle
     /// Takes one action on the open turn and returns the lines it produced. Empty means the
     /// action was refused — out of reach, unaffordable, nothing left to spend it on.
     /// </summary>
+    /// <summary>
+    /// Whether <see cref="Act"/> would do anything, so an interface can grey out or colour in
+    /// what it offers without guessing at the rules.
+    /// </summary>
+    public bool CanAct(GameAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        return Encounter.Current is { IsEnded: false } turn && turn.CanTake(action);
+    }
+
     public IReadOnlyList<string> Act(GameAction action)
     {
         ArgumentNullException.ThrowIfNull(action);

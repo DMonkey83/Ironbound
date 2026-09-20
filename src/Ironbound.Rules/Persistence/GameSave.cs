@@ -156,7 +156,9 @@ public static class GameSave
         Capture(weapon.Attack.Modifiers),
         Capture(weapon.DamageModifiers),
         [.. weapon.Damage.Components.Select(c =>
-            new SavedDamageComponent(c.Amount.ToString(), c.Type, c.MultipliedOnCritical))]);
+            new SavedDamageComponent(c.Amount.ToString(), c.Type, c.MultipliedOnCritical))],
+        weapon.RangeIncrement,
+        weapon.MaximumIncrements);
 
     private static SavedEffect Capture(Effect effect)
     {
@@ -384,6 +386,8 @@ public static class GameSave
             AttackAbility = saved.AttackAbility,
             DamageAbility = saved.DamageAbility,
             DamageScale = saved.DamageScale,
+            RangeIncrement = saved.RangeIncrement,
+            MaximumIncrements = Math.Max(1, saved.MaximumIncrements),
         };
 
         Fill(weapon.DamageModifiers, saved.DamageModifiers);

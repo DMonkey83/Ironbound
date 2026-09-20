@@ -49,26 +49,36 @@ public sealed class Turn
     public bool IsEnded { get; private set; }
 
     /// <summary>
+    /// Whether <see cref="Take"/> would accept this action, changing nothing either way.
+    /// </summary>
+    /// <remarks>
+    /// Exists so an interface can offer only what will actually work. It is deliberately the
+    /// same predicate <see cref="Take"/> uses rather than a second one that agrees today: an
+    /// interface that decides for itself what looks legal drifts from what is legal, and the
+    /// result is a cursor that says yes and a click that does nothing.
+    /// </remarks>
+    public bool CanTake(GameAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        return !IsEnded
+            && action.CanPerform(new ActionContext(this))
+            && Budget.CanAfford(action.Cost);
+    }
+
+    /// <summary>
     /// Attempts an action. Returns null — changing nothing — if the turn is over, the action does
     /// not make sense, or the budget cannot pay for it.
     /// </summary>
     public ActionResult? Take(GameAction action)
     {
-        ArgumentNullException.ThrowIfNull(action);
-
-        if (IsEnded)
-        {
-            return null;
-        }
-
-        var context = new ActionContext(this);
-        if (!action.CanPerform(context) || !Budget.CanAfford(action.Cost))
+        if (!CanTake(action))
         {
             return null;
         }
 
         Budget.Spend(action.Cost);
-        var result = action.Perform(context);
+        var result = action.Perform(new ActionContext(this));
         _taken.Add(result);
 
         return result;

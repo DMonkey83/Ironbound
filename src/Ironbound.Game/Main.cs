@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Ironbound.Rules.Combat;
 using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Encounters;
@@ -31,6 +32,7 @@ public partial class Main : Node3D
 
 	private static readonly Color PartyColour = new(0.35f, 0.55f, 0.85f);
 	private static readonly Color FoeColour = new(0.75f, 0.35f, 0.30f);
+	private static readonly Color PillarColour = new(0.38f, 0.36f, 0.34f);
 	private static readonly Color LegalColour = new(0.35f, 0.75f, 0.40f, 0.45f);
 	private static readonly Color IllegalColour = new(0.75f, 0.30f, 0.30f, 0.35f);
 
@@ -157,11 +159,23 @@ public partial class Main : Node3D
 		}
 
 		var actor = _battle.Encounter.Current!.Actor;
-		var lines = ActionFor(actor, square) is { } action ? _battle.Act(action) : [];
+
+		if (ActionFor(actor, square) is not { } action)
+		{
+			Refuse($"{actor.Name} cannot do that from here.");
+			return;
+		}
+
+		var lines = _battle.Act(action);
 
 		if (lines.Count == 0)
 		{
-			Prompt($"{actor.Name} cannot do that from here.");
+			// The cursor should already have been red, so reaching here means something changed
+			// between the hover and the click. Say which of the two reasons it was: "no action
+			// left" and "cannot reach" are very different complaints.
+			Refuse(_battle.Encounter.Current is { } turn && !turn.Budget.CanAfford(action.Cost)
+				? $"{actor.Name} has no {action.Cost.ToString().ToLowerInvariant()} action left."
+				: $"{actor.Name} cannot {action.Name} from there.");
 			return;
 		}
 
@@ -170,6 +184,50 @@ public partial class Main : Node3D
 		Prompt($"{actor.Name}'s turn.");
 		RefreshControls();
 		_hovered = null;
+	}
+
+	/// <summary>
+	/// Whether clicking this square would actually do something. Asks the rules rather than
+	/// re-deriving an answer here, so the cursor cannot promise what the click will not deliver.
+	/// </summary>
+	private bool CanAct(Creature actor, GridSquare square) =>
+		ActionFor(actor, square) is { } action && _battle.CanAct(action);
+
+	/// <summary>Turns a refusal down without swallowing it. The log is where the player is looking.</summary>
+	private void Refuse(string why)
+	{
+		Prompt(why);
+		_log.AddText($"— {why} —\n");
+	}
+
+	/// <summary>
+	/// Which weapon a click on an enemy means. Distance decides, because the player should not
+	/// have to: something in reach gets the blade, something across the room gets the bow, and an
+	/// archer who has been charged draws the scimitar rather than firing into a face.
+	/// </summary>
+	private static WeaponAttack WeaponFor(Battlefield field, Creature actor, Creature target)
+	{
+		if (field.IsWithinReach(actor, target))
+		{
+			return actor.MeleeAttack ?? actor.PrimaryAttack;
+		}
+
+		if (!field.HasLineOfSight(actor, target))
+		{
+			return null;
+		}
+
+		var feet = field.DistanceInFeet(actor, target) ?? 0;
+
+		foreach (var weapon in actor.Attacks)
+		{
+			if (weapon.IsRanged && weapon.IsWithinRange(feet))
+			{
+				return weapon;
+			}
+		}
+
+		return null;
 	}
 
 	/// <summary>What clicking a square means, given the mode the player has chosen.</summary>
@@ -186,9 +244,10 @@ public partial class Main : Node3D
 		switch (_mode)
 		{
 			case Mode.Attack:
-				return occupant is not null && actor.IsEnemyOf(occupant) && actor.PrimaryAttack is { } weapon
-					? new AttackAction(weapon, occupant)
-					: null;
+				return occupant is not null && actor.IsEnemyOf(occupant)
+					&& WeaponFor(field, actor, occupant) is { } weapon
+						? new AttackAction(weapon, occupant)
+						: null;
 
 			case Mode.Cast:
 				if (SelectedSpell() is not { } spell)
@@ -273,7 +332,7 @@ public partial class Main : Node3D
 
 		_hovered = square;
 		var actor = _battle.Encounter.Current!.Actor;
-		_cursorPaint.AlbedoColor = ActionFor(actor, square) is null ? IllegalColour : LegalColour;
+		_cursorPaint.AlbedoColor = CanAct(actor, square) ? LegalColour : IllegalColour;
 	}
 
 	// ---- saving ----
@@ -342,6 +401,18 @@ public partial class Main : Node3D
 
 	// ---- the scene ----
 
+	private void SpawnPillar(int x, int y)
+	{
+		var pillar = new MeshInstance3D
+		{
+			Mesh = new BoxMesh { Size = new Vector3(0.9f, 2.2f, 0.9f) },
+			MaterialOverride = new StandardMaterial3D { AlbedoColor = PillarColour },
+		};
+
+		_world.AddChild(pillar);
+		pillar.Position = new Vector3(x + 0.5f, 1.1f, y + 0.5f);
+	}
+
 	private void RebuildWorld()
 	{
 		if (_world is not null)
@@ -399,6 +470,21 @@ public partial class Main : Node3D
 		};
 
 		_world.AddChild(_cursor);
+
+		// Cover the player cannot see is cover the player will call a bug.
+		if (field is not null)
+		{
+			for (var x = 0; x < width; x++)
+			{
+				for (var y = 0; y < height; y++)
+				{
+					if (field.IsBlocked(new GridSquare(x, y)))
+					{
+						SpawnPillar(x, y);
+					}
+				}
+			}
+		}
 
 		Spawn(_battle.Party, PartyColour);
 		Spawn(_battle.Foes, FoeColour);

@@ -4,12 +4,20 @@
   "name": "Goblin Ambush",
   "width": 16,
   "height": 12,
+
+  // Two pillars across the middle of the room. They are not decoration: a shot whose line
+  // clips one gives the target +4, so the archer has to care where it stands.
+  "blocked": [
+    { "x": 6, "y": 4 },
+    { "x": 7, "y": 7 }
+  ],
+
   "placements": [
     { "creature": "valeria", "x": 3, "y": 4, "party": true },
     { "creature": "karn",    "x": 3, "y": 6, "party": true },
     { "creature": "merrin",  "x": 2, "y": 5, "party": true },
-    { "creature": "goblin",  "x": 10, "y": 3, "name": "Goblin 1" },
-    { "creature": "goblin",  "x": 10, "y": 5, "name": "Goblin 2" },
-    { "creature": "goblin",  "x": 10, "y": 7, "name": "Goblin 3" }
+    { "creature": "goblin",        "x": 10, "y": 3, "name": "Goblin 1" },
+    { "creature": "goblin",        "x": 10, "y": 5, "name": "Goblin 2" },
+    { "creature": "goblin-archer", "x": 12, "y": 7, "name": "Goblin Archer" }
   ]
 }

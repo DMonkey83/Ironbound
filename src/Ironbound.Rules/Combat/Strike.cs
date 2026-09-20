@@ -19,6 +19,16 @@ public static class Strike
     /// <summary>What having an ally on the far side is worth.</summary>
     public const int FlankingBonus = 2;
 
+    /// <summary>What standing behind something is worth to the target.</summary>
+    public const int CoverBonus = 4;
+
+    /// <summary>
+    /// The cost of shooting into a melee your own side is part of. Steep on purpose: it is the
+    /// rule that stops an archer treating a scrum as a free target, and the reason a bowman wants
+    /// an angle rather than a straight line down the middle of the fight.
+    /// </summary>
+    public const int IntoMeleePenalty = -4;
+
     /// <param name="defenderState">What is true of the target — flat-footed, surprised,
     /// immobilised. Position-dependent conditions will be derived here once a map exists.</param>
     /// <param name="rules">Defaults to the attacker's own options.</param>
@@ -39,7 +49,12 @@ public static class Strike
 
         var before = target.HitPoints.State;
         var attack = weapon.Attack.Resolve(
-            target.ArmorClass, random, AttackBonus(attacker, weapon, target, field), defenderState, rules);
+            target.ArmorClass,
+            random,
+            AttackBonus(attacker, weapon, target, field),
+            defenderState,
+            rules,
+            CoverFor(attacker, target, field));
 
         DamageRoll? damage = null;
         DamageTaken? taken = null;
@@ -89,7 +104,44 @@ public static class Strike
             weapon.Attack.Modifiers,
             SizeOf(attacker),
             Flanking(attacker, target, field),
+            AtRange(attacker, weapon, target, field),
             Derived(attacker, weapon.AttackAbility, modifier => modifier));
+    }
+
+    /// <summary>What the ground gives the defender against this particular attacker.</summary>
+    public static int CoverFor(Creature attacker, Creature target, Battlefield? field) =>
+        field?.HasCover(attacker, target) == true ? CoverBonus : 0;
+
+    /// <summary>
+    /// The two things that make a shot harder than a swing: distance, and your own side being in
+    /// the way. Both are penalties, so both always apply — there is no "highest penalty wins".
+    /// </summary>
+    private static ModifierStack AtRange(
+        Creature attacker, WeaponAttack weapon, Creature? target, Battlefield? field)
+    {
+        var stack = new ModifierStack();
+
+        if (!weapon.IsRanged || target is null || field is null)
+        {
+            return stack;
+        }
+
+        if (field.DistanceInFeet(attacker, target) is { } feet
+            && weapon.RangePenalty(feet) is var penalty and < 0)
+        {
+            stack.Add(penalty, BonusType.Untyped, $"Range ({feet} ft)");
+        }
+
+        if (field.SquareOf(target) is { } square
+            && field.Creatures.Any(ally =>
+                !ReferenceEquals(ally, attacker)
+                && ally.IsAllyOf(attacker)
+                && field.Threatens(ally, square)))
+        {
+            stack.Add(IntoMeleePenalty, BonusType.Untyped, "Firing into melee");
+        }
+
+        return stack;
     }
 
     /// <summary>

@@ -16,7 +16,7 @@ public class ScenariosTests
         var battle = Scenarios.GoblinAmbush();
 
         Assert.Equal(["Valeria", "Karn", "Merrin"], battle.Party.Select(c => c.Name));
-        Assert.Equal(["Goblin 1", "Goblin 2", "Goblin 3"], battle.Foes.Select(c => c.Name));
+        Assert.Equal(["Goblin 1", "Goblin 2", "Goblin Archer"], battle.Foes.Select(c => c.Name));
 
         var field = battle.Encounter.Battlefield!;
         Assert.Equal(new GridSquare(3, 4), field.SquareOf(battle.Party[0]));
@@ -35,6 +35,29 @@ public class ScenariosTests
         Assert.Equal(5, battle.Foes[0].HitPoints.Damage);
         Assert.Equal(0, battle.Foes[1].HitPoints.Damage);
         Assert.NotSame(battle.Foes[0].PrimaryAttack, battle.Foes[1].PrimaryAttack);
+    }
+
+    [Fact]
+    public void ThePillarsInTheAmbushAreRealEnoughToHideBehind()
+    {
+        var field = Scenarios.GoblinAmbush().Encounter.Battlefield!;
+
+        // Straight through the pillar at (6,4): the shot exists, but it is a worse one.
+        Assert.True(field.HasLineOfSight(new GridSquare(4, 4), new GridSquare(9, 4)));
+        Assert.True(field.HasCover(new GridSquare(4, 4), new GridSquare(9, 4)));
+
+        // And well clear of both pillars, nothing is in the way.
+        Assert.False(field.HasCover(new GridSquare(1, 10), new GridSquare(14, 10)));
+    }
+
+    [Fact]
+    public void TheArcherCarriesABowItReachesForAndABladeItFallsBackOn()
+    {
+        var archer = ContentFiles.Default.BuildCreature("goblin-archer")!;
+
+        Assert.True(archer.PrimaryAttack!.IsRanged);
+        Assert.Equal(60, archer.PrimaryAttack.RangeIncrement);
+        Assert.Equal("scimitar", archer.MeleeAttack!.Name);
     }
 
     [Fact]

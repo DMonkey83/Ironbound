@@ -511,3 +511,77 @@ public class TurnActionTests
         Assert.Throws<ArgumentNullException>(() => encounter.Add(null!));
     }
 }
+
+/// <summary>
+/// <see cref="Turn.CanTake"/> exists so an interface can offer only what will work. These pin the
+/// one property that makes it worth having: it agrees with <see cref="Turn.Take"/>, always.
+/// </summary>
+public class TurnCanTakeTests
+{
+    private static Creature Fighter(string name) =>
+        new(name, new AbilityScores(18, 10, 14, 10, 10, 10), 40, 6);
+
+    private static WeaponAttack Sword() =>
+        WeaponAttack.Create("sword", 5, "1d6", DamageType.Slashing);
+
+    private static Encounter Duel(params int[] extraRolls) =>
+        new([Fighter("Alice"), Fighter("Bob")], new SequenceRandom([18, 11, .. extraRolls]));
+
+    [Fact]
+    public void AskingDoesNotSpendAnything()
+    {
+        var turn = Duel(12, 4).BeginNextTurn()!;
+        var attack = new AttackAction(Sword(), turn.Encounter.Order[1].Creature);
+
+        Assert.True(turn.CanTake(attack));
+        Assert.True(turn.CanTake(attack));
+
+        // Three yeses and the budget is still untouched, or the cursor would cost you your turn.
+        Assert.True(turn.Budget.HasStandard);
+        Assert.Empty(turn.Taken);
+    }
+
+    [Fact]
+    public void ARefusedActionIsRefusedByBoth()
+    {
+        var turn = Duel().BeginNextTurn()!;
+
+        // Nobody can attack themselves, so CanPerform says no.
+        var absurd = new AttackAction(Sword(), turn.Actor);
+
+        Assert.False(turn.CanTake(absurd));
+        Assert.Null(turn.Take(absurd));
+    }
+
+    [Fact]
+    public void OnceTheStandardActionIsGoneBothSayNo()
+    {
+        var turn = Duel(12, 4).BeginNextTurn()!;
+        var target = turn.Encounter.Order[1].Creature;
+
+        Assert.True(turn.CanTake(new AttackAction(Sword(), target)));
+        Assert.NotNull(turn.Take(new AttackAction(Sword(), target)));
+
+        // This is the case that made the cursor lie: the action is still perfectly sensible,
+        // it simply cannot be paid for any more.
+        var second = new AttackAction(Sword(), target);
+        Assert.False(turn.CanTake(second));
+        Assert.Null(turn.Take(second));
+    }
+
+    [Fact]
+    public void AnEndedTurnAcceptsNothing()
+    {
+        var turn = Duel().BeginNextTurn()!;
+        var attack = new AttackAction(Sword(), turn.Encounter.Order[1].Creature);
+
+        turn.End();
+
+        Assert.False(turn.CanTake(attack));
+        Assert.Null(turn.Take(attack));
+    }
+
+    [Fact]
+    public void NullIsRejectedRatherThanTreatedAsIllegal() =>
+        Assert.Throws<ArgumentNullException>(() => Duel().BeginNextTurn()!.CanTake(null!));
+}

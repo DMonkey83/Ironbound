@@ -118,6 +118,17 @@ public sealed class Creature
     public WeaponAttack? PrimaryAttack => Attacks.Count > 0 ? Attacks[0] : null;
 
     /// <summary>
+    /// The first thing it can swing rather than shoot.
+    /// </summary>
+    /// <remarks>
+    /// Some things only a melee weapon may do, and an attack of opportunity is the one that
+    /// matters most: a creature holding nothing but a bow does not get to shoot people for
+    /// walking past it. Null means it has no answer to anything that closes.
+    /// </remarks>
+    public WeaponAttack? MeleeAttack =>
+        Attacks.FirstOrDefault(weapon => !weapon.IsRanged);
+
+    /// <summary>
     /// How many attacks of opportunity it gets between its turns. One, unless Combat Reflexes
     /// raises it to one plus the Dexterity modifier.
     /// </summary>

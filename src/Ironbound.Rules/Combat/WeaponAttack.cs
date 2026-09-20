@@ -91,6 +91,47 @@ public sealed class WeaponAttack
 
     public AbilityDamageScale DamageScale { get; set; } = AbilityDamageScale.Full;
 
+    /// <summary>Penalty per range increment past the first.</summary>
+    public const int RangePenaltyPerIncrement = -2;
+
+    /// <summary>How far this reaches before accuracy starts to suffer. Zero means melee.</summary>
+    public int RangeIncrement { get; set; }
+
+    /// <summary>
+    /// How many increments the weapon can manage at all: ten for something you shoot, five for
+    /// something you throw. Beyond it the attack is not made at a penalty — it cannot be made.
+    /// </summary>
+    public int MaximumIncrements { get; set; } = ProjectileIncrements;
+
+    public const int ProjectileIncrements = 10;
+
+    public const int ThrownIncrements = 5;
+
+    public bool IsRanged => RangeIncrement > 0;
+
+    /// <summary>The furthest this weapon can reach, or null for a melee weapon.</summary>
+    public int? MaximumRange => IsRanged ? RangeIncrement * MaximumIncrements : null;
+
+    /// <summary>
+    /// Which increment a shot of <paramref name="feet"/> falls in, counting from one. Anything
+    /// inside the first increment is still the first.
+    /// </summary>
+    public int IncrementsAt(int feet)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(feet);
+
+        return !IsRanged || feet <= RangeIncrement
+            ? 1
+            : ((feet + RangeIncrement - 1) / RangeIncrement);
+    }
+
+    public bool IsWithinRange(int feet) =>
+        !IsRanged || IncrementsAt(feet) <= MaximumIncrements;
+
+    /// <summary>The accuracy cost of distance: nothing up close, then -2 an increment.</summary>
+    public int RangePenalty(int feet) =>
+        IsRanged ? (IncrementsAt(feet) - 1) * RangePenaltyPerIncrement : 0;
+
     /// <summary>
     /// A melee weapon that draws on the wielder rather than carrying pre-computed numbers.
     /// The damage is dice only — "1d8", not "1d8+6" — because the wielder supplies the rest.
@@ -118,6 +159,41 @@ public sealed class WeaponAttack
         };
     }
 
+    /// <summary>
+    /// A bow, a crossbow, a thrown axe. Dexterity aims it, and by default strength does not
+    /// push it any harder — a longbow that cares how strong you are is a composite one, which
+    /// says so by setting a damage scale.
+    /// </summary>
+    public static WeaponAttack Ranged(
+        string name,
+        string damageDice,
+        DamageType type,
+        int rangeIncrement,
+        CriticalProfile? critical = null,
+        int maximumIncrements = ProjectileIncrements,
+        AbilityDamageScale scale = AbilityDamageScale.None,
+        Ability attackAbility = Ability.Dexterity,
+        Ability damageAbility = Ability.Strength)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(rangeIncrement, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumIncrements, 1);
+
+        var attack = new Attack();
+        if (critical is { } profile)
+        {
+            attack.Critical = profile;
+        }
+
+        return new WeaponAttack(name, attack, DamagePacket.Weapon(damageDice, type))
+        {
+            AttackAbility = attackAbility,
+            DamageAbility = damageAbility,
+            DamageScale = scale,
+            RangeIncrement = rangeIncrement,
+            MaximumIncrements = maximumIncrements,
+        };
+    }
+
     /// <summary>The ability modifier this weapon turns into damage, floored.</summary>
     public int ScaleDamage(int abilityModifier) => DamageScale switch
     {
@@ -128,5 +204,6 @@ public sealed class WeaponAttack
     };
 
     public override string ToString() =>
-        $"{Name} {Attack.Modifiers.Total:+0;-0;+0} ({Damage}, {Attack.Critical})";
+        $"{Name} {Attack.Modifiers.Total:+0;-0;+0} ({Damage}, {Attack.Critical}"
+        + (IsRanged ? $", {RangeIncrement} ft" : string.Empty) + ")";
 }

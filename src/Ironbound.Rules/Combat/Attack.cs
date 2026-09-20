@@ -39,12 +39,16 @@ public sealed class Attack
     /// it knows both the wielder and the weapon, and their modifiers have to meet the stacking
     /// rules together rather than as two totals added up.
     /// </summary>
+    /// <param name="cover">What the ground is worth to the defender, added to their armour
+    /// class. Positional, so it cannot live in the defender's own modifier stack: the same
+    /// pillar that shields them from the archer shields them from nobody standing beside it.</param>
     public AttackResult Resolve(
         ArmorClass defense,
         IRandomSource random,
         ModifierBreakdown bonus,
         DefenseOptions defenderState = DefenseOptions.None,
-        RuleOptions? rules = null)
+        RuleOptions? rules = null,
+        int cover = 0)
     {
         ArgumentNullException.ThrowIfNull(defense);
         ArgumentNullException.ThrowIfNull(random);
@@ -57,7 +61,7 @@ public sealed class Attack
             options |= DefenseOptions.TouchAttack;
         }
 
-        var armorClass = defense.Value(options);
+        var armorClass = defense.Value(options) + cover;
 
         var natural = random.NextDie(DieSides);
         var total = natural + bonus.Total;
@@ -94,6 +98,7 @@ public sealed class Attack
             Total = total,
             TargetArmorClass = armorClass,
             Options = options,
+            Cover = cover,
             Outcome = outcome,
             Threatened = threatened,
             ConfirmationNatural = confirmationNatural,

@@ -32,6 +32,12 @@ public sealed record AttackResult
     /// <summary>Which defences the attack bypassed, and whether the defender could react.</summary>
     public required DefenseOptions Options { get; init; }
 
+    /// <summary>
+    /// What the defender gained by standing behind something. Already folded into
+    /// <see cref="TargetArmorClass"/>; kept separately only so the log can say so out loud.
+    /// </summary>
+    public int Cover { get; init; }
+
     public required AttackOutcome Outcome { get; init; }
 
     /// <summary>The roll landed in the weapon's threat range and hit, so a confirmation was rolled.</summary>
@@ -73,8 +79,9 @@ public sealed record AttackResult
         {
             1 => "d20 [1] — automatic miss",
             20 => "d20 [20] — automatic hit",
-            _ => $"d20 [{NaturalRoll}] {bonus} = {Total} vs {label} {TargetArmorClass} — "
-                 + (IsHit ? "hit" : "miss"),
+            _ => $"d20 [{NaturalRoll}] {bonus} = {Total} vs {label} {TargetArmorClass}"
+                 + (Cover > 0 ? $" (+{Cover} cover)" : string.Empty)
+                 + " — " + (IsHit ? "hit" : "miss"),
         };
 
         if (Threatened)
