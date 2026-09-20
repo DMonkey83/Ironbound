@@ -26,13 +26,16 @@ public sealed class Attack
 
     /// <param name="defenderState">What is true of the target: <see cref="DefenseOptions.DexterityDenied"/>
     /// when flat-footed, surprised or immobilised.</param>
+    /// <param name="rules">Defaults to <see cref="RuleOptions.Pathfinder"/>.</param>
     public AttackResult Resolve(
         ArmorClass defense,
         IRandomSource random,
-        DefenseOptions defenderState = DefenseOptions.None)
+        DefenseOptions defenderState = DefenseOptions.None,
+        RuleOptions? rules = null)
     {
         ArgumentNullException.ThrowIfNull(defense);
         ArgumentNullException.ThrowIfNull(random);
+        rules ??= RuleOptions.Pathfinder;
 
         var options = defenderState;
         if (TargetsTouchArmorClass)
@@ -45,7 +48,7 @@ public sealed class Attack
 
         var natural = random.NextDie(DieSides);
         var total = natural + bonus.Total;
-        var hit = Lands(natural, total, armorClass);
+        var hit = Lands(natural, total, armorClass, rules);
 
         // A roll in the threat range only threatens if it actually hit; otherwise no
         // confirmation is rolled at all, and the random stream stays where a replay expects it.
@@ -55,12 +58,16 @@ public sealed class Attack
         int? confirmationTotal = null;
         var confirmed = false;
 
-        if (threatened)
+        if (threatened && !rules.ConfirmCriticals)
+        {
+            confirmed = true;
+        }
+        else if (threatened)
         {
             var roll = random.NextDie(DieSides);
             confirmationNatural = roll;
             confirmationTotal = roll + bonus.Total;
-            confirmed = Lands(roll, confirmationTotal.Value, armorClass);
+            confirmed = Lands(roll, confirmationTotal.Value, armorClass, rules);
         }
 
         var outcome = confirmed ? AttackOutcome.CriticalHit
@@ -83,14 +90,24 @@ public sealed class Attack
     }
 
     /// <summary>
-    /// Whether an attack roll connects. A natural 20 always does and a natural 1 never does,
-    /// without consulting the total; the rule applies to the confirmation roll as well,
-    /// because a confirmation is itself an attack roll.
+    /// Whether an attack roll connects. By default a natural 20 always does and a natural 1
+    /// never does, without consulting the total; the rule applies to the confirmation roll as
+    /// well, because a confirmation is itself an attack roll. The natural-20 floor is what keeps
+    /// a high-armour opponent reachable at 5% a swing, and
+    /// <see cref="RuleOptions.NaturalTwentyAlwaysHits"/> is what removes that mercy.
     /// </summary>
-    private static bool Lands(int natural, int total, int armorClass) => natural switch
+    private static bool Lands(int natural, int total, int armorClass, RuleOptions rules)
     {
-        DieSides => true,
-        1 => false,
-        _ => total >= armorClass,
-    };
+        if (natural == DieSides && rules.NaturalTwentyAlwaysHits)
+        {
+            return true;
+        }
+
+        if (natural == 1 && rules.NaturalOneAlwaysMisses)
+        {
+            return false;
+        }
+
+        return total >= armorClass;
+    }
 }
