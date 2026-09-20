@@ -14,6 +14,7 @@ public sealed class SequenceRandom : IRandomSource
     private readonly int[] _values;
     private readonly bool _repeat;
     private int _index;
+    private int _consumed;
 
     public SequenceRandom(params int[] values) : this(repeat: false, values)
     {
@@ -34,8 +35,8 @@ public sealed class SequenceRandom : IRandomSource
     /// <summary>A source that returns the same value forever. "Every d20 comes up 20."</summary>
     public static SequenceRandom Always(int value) => new(repeat: true, value);
 
-    /// <summary>How many values have been consumed. Lets a test assert on rolls made.</summary>
-    public int Consumed => _index;
+    /// <summary>Total values handed out, counting past any wrap-around. Lets a test assert on rolls made.</summary>
+    public int Consumed => _consumed;
 
     public int Next(int minInclusive, int maxExclusive)
     {
@@ -58,6 +59,7 @@ public sealed class SequenceRandom : IRandomSource
         }
 
         var value = _values[_index++];
+        _consumed++;
         if (value < minInclusive || value >= maxExclusive)
         {
             throw new InvalidOperationException(
@@ -68,7 +70,11 @@ public sealed class SequenceRandom : IRandomSource
         return value;
     }
 
-    public RandomState Capture() => new((ulong)_index, 0);
+    public RandomState Capture() => new((ulong)_index, (ulong)_consumed);
 
-    public void Restore(in RandomState state) => _index = (int)state.A;
+    public void Restore(in RandomState state)
+    {
+        _index = (int)state.A;
+        _consumed = (int)state.B;
+    }
 }

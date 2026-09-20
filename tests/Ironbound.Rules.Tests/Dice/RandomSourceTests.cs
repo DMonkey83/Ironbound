@@ -173,6 +173,19 @@ public class SequenceRandomTests
     }
 
     [Fact]
+    public void CountsEveryValueEvenAcrossAWrap()
+    {
+        var random = SequenceRandom.Always(4);
+
+        for (var i = 0; i < 18; i++)
+        {
+            random.NextDie(6);
+        }
+
+        Assert.Equal(18, random.Consumed);
+    }
+
+    [Fact]
     public void RequiresAtLeastOneValue()
     {
         Assert.Throws<ArgumentException>(() => new SequenceRandom());
