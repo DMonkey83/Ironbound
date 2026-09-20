@@ -134,6 +134,42 @@ public class ScenariosTests
     }
 
     [Fact]
+    public void AHeroWhoHasBeenCutDownIsNotHandedBackToThePlayer()
+    {
+        var battle = Scenarios.GoblinAmbush();
+
+        // Open turns until it is Valeria's, then drop her where she stands.
+        BattleTurn? turn;
+        while ((turn = battle.BeginTurn()) is not null && turn.Actor.Name != "Valeria")
+        {
+            battle.EndTurn();
+        }
+
+        Assert.NotNull(turn);
+        Assert.True(battle.NeedsPlayer);
+
+        turn!.Actor.HitPoints.Take(turn.Actor.HitPoints.Maximum + 20);
+
+        // Still the party's turn, still open — but there is nothing to decide, so asking the
+        // player would mean making them click past a corpse once a round.
+        Assert.True(battle.IsPartyTurn);
+        Assert.False(battle.NeedsPlayer);
+    }
+
+    [Fact]
+    public void NorIsOneWhoHasBeenStunned()
+    {
+        var battle = Scenarios.GoblinAmbush();
+        var turn = battle.BeginTurn()!;
+
+        Assert.True(battle.NeedsPlayer);
+
+        turn.Actor.Effects.Apply(ConditionInfo.Effect(Condition.Stunned, Duration.Rounds(1)));
+
+        Assert.False(battle.NeedsPlayer);
+    }
+
+    [Fact]
     public void AnEncounterThatIsNotInTheFilesSaysSoRatherThanBuildingAnEmptyFight()
     {
         var error = Assert.Throws<ArgumentException>(

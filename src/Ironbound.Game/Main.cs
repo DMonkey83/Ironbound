@@ -34,6 +34,11 @@ public partial class Main : Node3D
 	private static readonly Color PartyColour = new(0.35f, 0.55f, 0.85f);
 	private static readonly Color FoeColour = new(0.75f, 0.35f, 0.30f);
 	private static readonly Color PillarColour = new(0.38f, 0.36f, 0.34f);
+
+	// Bright enough to find at a glance, and coloured by side so "is it my move?" needs no
+	// reading. The ring sits under whoever is acting.
+	private static readonly Color ActivePartyColour = new(0.45f, 0.85f, 1.00f);
+	private static readonly Color ActiveFoeColour = new(1.00f, 0.55f, 0.30f);
 	private static readonly Color LegalColour = new(0.35f, 0.75f, 0.40f, 0.45f);
 	private static readonly Color IllegalColour = new(0.75f, 0.30f, 0.30f, 0.35f);
 
@@ -64,6 +69,8 @@ public partial class Main : Node3D
 	private Node3D _world;
 	private Camera3D _camera;
 	private MeshInstance3D _cursor;
+	private MeshInstance3D _turnMarker;
+	private StandardMaterial3D _turnPaint;
 	private StandardMaterial3D _cursorPaint;
 
 	private RichTextLabel _log;
@@ -123,7 +130,17 @@ public partial class Main : Node3D
 
 			Append($"[round {turn.Round}] {turn.Actor.Name}", turn.Lines);
 
-			if (_battle.IsPartyTurn)
+			// Nothing to decide and nobody to ask. The turn still opens, so effects tick and
+			// the dying keep dying, but it closes itself rather than waiting on a click.
+			if (!turn.Actor.CanAct)
+			{
+				Append(null, new List<string> { Idle(turn.Actor) });
+				_battle.EndTurn();
+				RefreshFigures();
+				continue;
+			}
+
+			if (_battle.NeedsPlayer)
 			{
 				_hovered = null;
 				SelectSpellsFor(turn.Actor);
@@ -136,6 +153,28 @@ public partial class Main : Node3D
 			RunEnemyTurn();
 			RefreshFigures();
 		}
+	}
+
+	/// <summary>Why somebody is doing nothing this turn, in as few words as carry the meaning.</summary>
+	private static string Idle(Creature creature)
+	{
+		if (!creature.IsAlive)
+		{
+			return $"{creature.Name} is dead";
+		}
+
+		if (!creature.IsConscious)
+		{
+			return $"{creature.Name} is down and cannot act";
+		}
+
+		var stopped = creature.Conditions
+			.Where(condition => ConditionInfo.Of(condition).DeniesActions)
+			.ToList();
+
+		return stopped.Count > 0
+			? $"{creature.Name} is {string.Join(" and ", stopped).ToLowerInvariant()} and loses the turn"
+			: $"{creature.Name} can do nothing";
 	}
 
 	private void RunEnemyTurn()
@@ -593,6 +632,23 @@ public partial class Main : Node3D
 
 		_world.AddChild(_cursor);
 
+		_turnPaint = new StandardMaterial3D
+		{
+			AlbedoColor = ActivePartyColour,
+			EmissionEnabled = true,
+			Emission = ActivePartyColour,
+			Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+		};
+
+		_turnMarker = new MeshInstance3D
+		{
+			Mesh = new TorusMesh { InnerRadius = 0.36f, OuterRadius = 0.48f },
+			MaterialOverride = _turnPaint,
+			Visible = false,
+		};
+
+		_world.AddChild(_turnMarker);
+
 		// Cover the player cannot see is cover the player will call a bug.
 		if (field is not null)
 		{
@@ -891,6 +947,31 @@ public partial class Main : Node3D
 			var down = !creature.IsConscious || creature.IsProne;
 			figure.Rotation = down ? new Vector3(Mathf.Pi / 2f, 0, 0) : Vector3.Zero;
 		}
+
+		RefreshTurnMarker();
+	}
+
+	/// <summary>Puts the ring under whoever is acting, and hides it when nobody is.</summary>
+	private void RefreshTurnMarker()
+	{
+		if (_turnMarker is null)
+		{
+			return;
+		}
+
+		if (_battle.Encounter.Current is not { IsEnded: false } turn
+			|| _battle.Battlefield?.SquareOf(turn.Actor) is not { } square)
+		{
+			_turnMarker.Visible = false;
+			return;
+		}
+
+		var colour = _battle.IsPartyTurn ? ActivePartyColour : ActiveFoeColour;
+		_turnPaint.AlbedoColor = colour;
+		_turnPaint.Emission = colour;
+
+		_turnMarker.Position = new Vector3(square.X + 0.5f, 0.04f, square.Y + 0.5f);
+		_turnMarker.Visible = true;
 	}
 
 	private void UpdateStatus()
@@ -900,8 +981,11 @@ public partial class Main : Node3D
 			var creature = combatant.Creature;
 			var wrong = string.Join(", ", creature.Conditions);
 			var note = wrong.Length > 0 ? $" ({wrong})" : string.Empty;
+			var acting = _battle.Encounter.Current is { IsEnded: false } open
+				&& ReferenceEquals(open.Actor, creature);
 
-			return $"{creature.Name} {creature.HitPoints.Current}/{creature.HitPoints.Maximum}{note}";
+			return (acting ? "> " : string.Empty)
+				+ $"{creature.Name} {creature.HitPoints.Current}/{creature.HitPoints.Maximum}{note}";
 		}));
 
 		var budget = _battle.Encounter.Current is { IsEnded: false } turn
