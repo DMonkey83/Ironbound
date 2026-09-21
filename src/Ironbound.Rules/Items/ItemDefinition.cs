@@ -55,6 +55,17 @@ public sealed record ItemDefinition
 
     public EquipmentSlot Slot { get; init; } = EquipmentSlot.Carried;
 
+    /// <summary>
+    /// What it looks like in somebody's hand, or empty for things that are not held.
+    /// </summary>
+    /// <remarks>
+    /// A path the rules hold and never open, as a creature's and a terrain's are. It lives on the
+    /// item rather than on the weapon kind because the silvered longsword and the plain one are
+    /// the same kind of weapon and should not look the same: which blade she is holding is the
+    /// whole point of the werewolf fight.
+    /// </remarks>
+    public string Model { get; init; } = string.Empty;
+
     /// <summary>What wearing it is worth, in the ordinary stacking currency.</summary>
     public IReadOnlyList<ModifierGrant> Grants { get; init; } = [];
 

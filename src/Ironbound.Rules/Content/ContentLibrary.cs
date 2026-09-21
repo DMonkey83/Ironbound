@@ -586,6 +586,7 @@ public sealed class ContentLibrary
             Name = reader.StringOr("name", id),
             Description = reader.StringOr("description", string.Empty),
             Slot = reader.Enum("slot", EquipmentSlot.Carried),
+            Model = reader.StringOr("model", string.Empty),
             Grants = grants,
             Weapon = reader.Has("weapon") ? reader.StringOr("weapon", string.Empty) : null,
             Enhancement = reader.Int("enhancement"),

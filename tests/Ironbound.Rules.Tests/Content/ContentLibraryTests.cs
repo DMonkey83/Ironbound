@@ -458,6 +458,60 @@ public class TerrainContentTests
     }
 }
 
+public class ItemModelTests
+{
+    [Fact]
+    public void AnItemCanNameWhatItLooksLikeInTheHand()
+    {
+        var library = ContentParsingTests.From("""
+            { "kind": "weapon", "id": "club", "name": "club", "damage": "1d6", "type": "Bludgeoning" }
+            """, """
+            { "kind": "item", "id": "club", "name": "Club", "slot": "MainHand", "weapon": "club",
+              "model": "res://art/weapons/club.glb" }
+            """);
+
+        Assert.Equal("res://art/weapons/club.glb", library.GetItem("club")!.Model);
+    }
+
+    [Fact]
+    public void AndOneThatDoesNotIsSimplyNotDrawn()
+    {
+        Assert.Equal(string.Empty, TestContent.Library.GetItem("chain-shirt")!.Model);
+    }
+
+    [Fact]
+    public void EverythingTheGameShipsThatIsHeldInAHandHasAModel()
+    {
+        foreach (var id in TestContent.Library.ItemIds)
+        {
+            var item = TestContent.Library.GetItem(id)!;
+            var held = item.Slot is Ironbound.Rules.Items.EquipmentSlot.MainHand
+                or Ironbound.Rules.Items.EquipmentSlot.OffHand
+                or Ironbound.Rules.Items.EquipmentSlot.Shield;
+
+            // A bite is carried in the main hand as far as the rules care, and in the mouth as
+            // far as anybody looking is concerned.
+            if (!held || id == "bite")
+            {
+                continue;
+            }
+
+            Assert.True(
+                item.Model.StartsWith("res://art/weapons/", StringComparison.Ordinal),
+                $"item '{id}' is held in a hand but names no model (has '{item.Model}').");
+        }
+    }
+
+    [Fact]
+    public void TheSilveredSwordDoesNotLookLikeThePlainOne()
+    {
+        // Which blade she is holding is the whole point of the werewolf fight.
+        Assert.NotEqual(
+            TestContent.Library.GetItem("longsword")!.Model,
+            TestContent.Library.GetItem("silvered-longsword")!.Model);
+    }
+}
+
 public class CreatureModelTests
 {
     [Theory]

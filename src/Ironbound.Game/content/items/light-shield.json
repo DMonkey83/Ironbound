@@ -1,4 +1,4 @@
-{
+{ "model": "res://art/weapons/light-shield.glb",
   "kind": "item", "id": "light-shield", "name": "light shield",
   "slot": "Shield",
   "grants": [ { "target": "armourClass", "value": 1, "type": "Shield" } ]

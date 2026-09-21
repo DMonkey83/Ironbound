@@ -13,6 +13,11 @@ Built from **modular_rpg_characters** by **System G6 (Qoma)**. The pack's own re
 Credit is optional and given anyway. A line in the credits screen costs nothing and the pack is
 worth more than that.
 
+**The source archives are no longer on this machine** (they were in `~/Downloads` and are gone),
+so `tools/build_character.py` cannot currently rebuild these three files. The committed `.glb`s
+are complete and the game needs nothing else; but a new party member, or a change of armour,
+needs the pack again. If a copy exists anywhere, keep it somewhere that is not `~/Downloads`.
+
 These three `.glb` files are **built, not copied**. The pack is a parts bin — a body, several
 heads and hairstyles, and armour in light, medium and heavy with matching boots, gloves and
 helmets — and `tools/build_character.py` assembles a named set of parts into one character. The
@@ -72,6 +77,25 @@ body's middle is within 0.12 of its square's centre for all four generated creat
 
 The ceiling is a stylised sculpt. Pitted iron, pores and stitched leather come from sculpting and
 painted textures, and no script produces those.
+
+## Weapons — `weapons/*.glb`
+
+**Generated**, by `tools/generate_weapons.py`: ten small static meshes, one per hand-held item,
+284 KB between them. Each item's content file names its own, so the silvered longsword and the
+plain one are different models — which blade Valeria is holding is the point of the werewolf
+fight, and now it shows.
+
+They hang on the `wep_pos_R` / `wep_pos_L` socket bones the human pack's skeleton already had.
+The generated creatures have no sockets and carry their own modelled kit, so they are untouched.
+
+One convention, so that the only orientation anybody had to discover was the hand's: grip at the
+origin, business end up. A shield faces forward from its strap; anything you *point* rather than
+swing (the crossbow) is built lying forward instead, so the same grip works for it too. The grip
+for held things — +90 degrees about the socket's X — was found by putting a sword in Valeria's
+hand at four rotations and looking. Shields do not use the hand socket at all: they are strapped
+to `arm_lower_L`, a third of the way down and out past the arm's thickness. On the hand socket a
+shield looked right in the rest pose and lay flat like a tray in the fighting stance, because a
+palm turns and a forearm does not — so judge any attachment in the idle clip, never at rest.
 
 ## Werewolf — `werewolf.glb`
 

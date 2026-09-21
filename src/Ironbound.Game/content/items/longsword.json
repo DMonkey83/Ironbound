@@ -1,6 +1,7 @@
 // Names the weapon rather than restating its dice, so this and a silvered one cannot
 // disagree about what a longsword does.
 {
+  "model": "res://art/weapons/longsword.glb",
   "kind": "item", "id": "longsword", "name": "longsword",
   "slot": "MainHand", "weapon": "longsword"
 }

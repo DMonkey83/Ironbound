@@ -1,1 +1,1 @@
-{ "kind": "item", "id": "greataxe", "name": "greataxe", "slot": "MainHand", "weapon": "greataxe" }
+{ "model": "res://art/weapons/greataxe.glb", "kind": "item", "id": "greataxe", "name": "greataxe", "slot": "MainHand", "weapon": "greataxe" }

@@ -386,7 +386,7 @@ public partial class Main
 	private void RunCameraTour()
 	{
 		var view = GetViewport().GetVisibleRect().Size;
-		var toward = view * new Vector2(0.62f, 0.52f);
+		var toward = view * (OS.GetCmdlineUserArgs().Contains("--tour-party") ? new Vector2(0.37f, 0.30f) : new Vector2(0.62f, 0.52f));
 		var tour = CreateTween();
 
 		tour.TweenInterval(1.0);

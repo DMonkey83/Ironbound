@@ -379,6 +379,9 @@ public partial class Main : Node3D
 		}
 
 		_log.AddText($"— {bearer.Name} takes the {item.Name} —\n");
+
+		// In her hand now, not at the start of the next chapter.
+		Rearm(bearer);
 		RefreshControls();
 		UpdateStatus();
 	}
@@ -1329,6 +1332,7 @@ public partial class Main : Node3D
 
 			var body = Model(creature) ?? Placeholder(creature, colour);
 			figure.AddChild(body);
+			Arm(creature, body);
 
 			var nameplate = new Label3D
 			{

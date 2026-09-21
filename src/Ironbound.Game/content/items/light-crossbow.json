@@ -1,1 +1,1 @@
-{ "kind": "item", "id": "light-crossbow", "name": "light crossbow", "slot": "MainHand", "weapon": "light-crossbow" }
+{ "model": "res://art/weapons/light-crossbow.glb", "kind": "item", "id": "light-crossbow", "name": "light crossbow", "slot": "MainHand", "weapon": "light-crossbow" }

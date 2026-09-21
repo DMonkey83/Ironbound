@@ -54,6 +54,17 @@ Imports `generate_goblin.py` for everything that is not specifically a wolf, so 
 skeleton, the exporter or the validator lands in both. New creatures should start the same way:
 a `frame()` of landmarks, a body grown from them, and whatever is sharp or bright added on top.
 
+## `generate_weapons.py` — what the party holds
+
+```sh
+blender -b --factory-startup --python tools/generate_weapons.py -- src/Ironbound.Game/art/weapons [name ...]
+```
+
+One static `.glb` per hand-held item; an item's content file names it with `"model"`, and
+`Armoury.cs` hangs whatever is *worn* in main hand, off hand or shield slot on the model's hand
+sockets. Read the convention at the top of the script before adding one: grip at the origin,
+business end up, and things you point are built lying forward.
+
 ## `preview_model.py` — render what actually came out
 
 ```sh
@@ -96,6 +107,7 @@ free, until you take the camera; Home gives it back. While a turn plays out the 
 anybody acting off-screen.
 
 `-- --camera-tour` drives all of that from a script, for checking it without a hand on the mouse.
+`-- --tour-party` aims that tour's zoom at the party instead of the enemy.
 `-- --pass-turns` has the party end each turn after a pause, which walks the interface through
 everybody's turn — how the per-character button row was checked.
 

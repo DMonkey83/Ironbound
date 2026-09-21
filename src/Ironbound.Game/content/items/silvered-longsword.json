@@ -1,6 +1,7 @@
 // The door in the wall. Damage reduction has been able to say "DR 10/silver" since the defence
 // layer was written; this is the first thing in the game that can answer it.
 {
+  "model": "res://art/weapons/silvered-longsword.glb",
   "kind": "item",
   "id": "silvered-longsword",
   "name": "silvered longsword",

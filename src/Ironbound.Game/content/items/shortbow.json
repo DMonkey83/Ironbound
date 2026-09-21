@@ -1,1 +1,1 @@
-{ "kind": "item", "id": "shortbow", "name": "shortbow", "slot": "MainHand", "weapon": "shortbow" }
+{ "model": "res://art/weapons/shortbow.glb", "kind": "item", "id": "shortbow", "name": "shortbow", "slot": "MainHand", "weapon": "shortbow" }
