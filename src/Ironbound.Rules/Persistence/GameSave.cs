@@ -191,7 +191,11 @@ public static class GameSave
             (effect as DamageOverTimeEffect)?.DamageType,
             (effect as FastHealingEffect)?.Amount ?? (effect as RegenerationEffect)?.Amount,
             (effect as RegenerationEffect)?.SuspendedBy.ToArray(),
-            (effect as RegenerationEffect)?.IsSuspended ?? false,
+            // "Suspended" for a regeneration is suppression; for a bleed it is having stopped.
+            // Same field, same meaning: this effect is currently not doing its thing.
+            (effect as RegenerationEffect)?.IsSuspended
+                ?? (effect as BleedingOutEffect)?.IsStable
+                ?? false,
             effect.Condition);
     }
 
@@ -487,6 +491,15 @@ public static class GameSave
             case nameof(FastHealingEffect):
                 return new FastHealingEffect(
                     saved.Name, duration, saved.Heal!.Value, Duration.FromTicks(saved.Period.Ticks));
+
+            case nameof(BleedingOutEffect):
+                var bleeding = new BleedingOutEffect();
+                if (saved.Suspended)
+                {
+                    bleeding.Stabilise();
+                }
+
+                return bleeding;
 
             case nameof(RegenerationEffect):
                 var regeneration = new RegenerationEffect(

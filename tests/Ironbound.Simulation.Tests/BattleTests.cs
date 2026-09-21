@@ -511,13 +511,14 @@ public class InteractiveTurnTests
 
         // Past anybody the ambush caught: a surprised combatant is refused every action, so
         // their turn would produce no lines at all.
-        BattleTurn turn;
-        while ((turn = battle.BeginTurn()!) is not null
+        BattleTurn? turn;
+        while ((turn = battle.BeginTurn()) is not null
             && !battle.CanAct(MoveAction.Towards(field, turn.Actor, battle.EnemiesOf(turn.Actor)[0])!))
         {
             battle.EndTurn();
         }
 
+        Assert.NotNull(turn);
         var target = battle.EnemiesOf(turn.Actor)[0];
         var lines = battle.Act(MoveAction.Towards(field, turn.Actor, target)!);
 

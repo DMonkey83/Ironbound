@@ -59,10 +59,13 @@ public partial class Main : Node3D
 
 		/// <summary>Drive them backwards, out of position and out of your way.</summary>
 		Shove,
+
+		/// <summary>Kneel beside somebody on the floor and stop the bleeding.</summary>
+		Help,
 	}
 
 	private static readonly Mode[] ModeOrder =
-		[Mode.Move, Mode.Attack, Mode.Full, Mode.Trip, Mode.Shove, Mode.Cast];
+		[Mode.Move, Mode.Attack, Mode.Full, Mode.Trip, Mode.Shove, Mode.Help, Mode.Cast];
 
 	private readonly Dictionary<Creature, Node3D> _figures = new();
 
@@ -511,6 +514,16 @@ public partial class Main : Node3D
 
 		switch (_mode)
 		{
+			case Mode.Help:
+				if (occupant is null || actor.IsEnemyOf(occupant))
+				{
+					return "There is nobody of yours there.";
+				}
+
+				return occupant.HitPoints.State == HitPointState.Dying
+					? $"{actor.Name} cannot reach {occupant.Name}."
+					: $"{occupant.Name} is not bleeding out.";
+
 			case Mode.Trip:
 			case Mode.Shove:
 				if (occupant is null || !actor.IsEnemyOf(occupant))
@@ -600,6 +613,11 @@ public partial class Main : Node3D
 			case Mode.Shove:
 				return occupant is not null && actor.IsEnemyOf(occupant)
 					? new BullRushAction(occupant)
+					: null;
+
+			case Mode.Help:
+				return occupant is not null && !actor.IsEnemyOf(occupant)
+					? new StabiliseAction(occupant)
 					: null;
 
 			case Mode.Cast:
@@ -1329,6 +1347,7 @@ public partial class Main : Node3D
 		_modes[Mode.Full].Disabled = turn is null || !turn.Budget.CanAfford(ActionCost.FullRound);
 		_modes[Mode.Trip].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Shove].Disabled = turn is null || !turn.Budget.HasStandard;
+		_modes[Mode.Help].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Cast].Disabled = turn is null || !turn.Budget.HasStandard || _spells.ItemCount == 0;
 		_modes[Mode.Move].Disabled = turn is null || !CanStillMove(turn);
 

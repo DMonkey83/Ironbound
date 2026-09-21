@@ -149,6 +149,10 @@ public sealed class Encounter
         var events = new List<EffectEvent>();
         foreach (var combatant in _combatants)
         {
+            // One place decides who is bleeding. Damage arrives from strikes, spells, poison
+            // and falling, and none of those should have to remember to check.
+            Bleeding.Sync(combatant.Creature);
+
             events.AddRange(combatant.Creature.Effects.Advance(elapsed, Random));
         }
 

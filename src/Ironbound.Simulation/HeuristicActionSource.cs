@@ -2,6 +2,7 @@ using Ironbound.Rules.Combat;
 using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
+using Ironbound.Rules.Effects;
 using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Encounters.Actions;
 using Ironbound.Rules.Magic;
@@ -77,6 +78,13 @@ public sealed class HeuristicActionSource : IActionSource
         if (actor.IsProne && turn.Budget.CanAfford(ActionCost.Move))
         {
             return new StandUpAction();
+        }
+
+        // A friend on the floor is worth more than a swing. They are losing a point a round and
+        // will be dead in a few of them; the enemy will still be there afterwards.
+        if (playsWell && turn.Budget.HasStandard && Bleedingout(turn, actor) is { } patient)
+        {
+            return new StabiliseAction(patient);
         }
 
         if (playsWell && IsBadlyHurt(actor) && turn.Budget.HasStandard)
@@ -228,6 +236,30 @@ public sealed class HeuristicActionSource : IActionSource
     /// </summary>
     private static WeaponAttack? InClose(Creature actor) =>
         actor.MeleeAttack ?? actor.PrimaryAttack;
+
+    /// <summary>The nearest ally bleeding out within arm's reach, if there is one.</summary>
+    private static Creature? Bleedingout(Turn turn, Creature actor)
+    {
+        if (turn.Encounter.Battlefield is not { } field)
+        {
+            return null;
+        }
+
+        foreach (var combatant in turn.Encounter.Order)
+        {
+            var other = combatant.Creature;
+
+            if (other.IsAllyOf(actor)
+                && other.HitPoints.State == HitPointState.Dying
+                && !Bleeding.IsStable(other)
+                && field.IsWithinReach(actor, other))
+            {
+                return other;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Who to go after: the weakest of whoever is already in reach, else the weakest anywhere.
