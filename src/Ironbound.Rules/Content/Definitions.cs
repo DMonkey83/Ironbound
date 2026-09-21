@@ -172,6 +172,7 @@ public sealed record CreatureDefinition
         var creature = new Creature(
             name ?? Name, scores, hitPoints, classed ? level : HitDice, rules)
         {
+            DefinitionId = Id,
             Size = Size,
             Speed = Speed,
         };
@@ -263,6 +264,35 @@ public readonly record struct PlacementDefinition(
     int Y,
     bool Party,
     string? Name = null);
+
+/// <summary>
+/// A run of fights, in order, and how much respite there is along the way.
+/// </summary>
+/// <remarks>
+/// The smallest thing that turns a fight into a game. A single encounter is won or lost on its
+/// own terms; a sequence of them is won or lost on what you have left when you reach the end,
+/// which is the resource game the whole ruleset is built around. Spell slots only matter when
+/// there is a next fight to have wanted them for.
+/// </remarks>
+public sealed record CampaignDefinition
+{
+    public required string Id { get; init; }
+
+    public required string Name { get; init; }
+
+    /// <summary>The encounters, in the order they are fought.</summary>
+    public IReadOnlyList<string> Encounters { get; init; } = [];
+
+    /// <summary>
+    /// How many times the party may stop and recover everything.
+    /// </summary>
+    /// <remarks>
+    /// A budget rather than a cooldown, because a rest that costs nothing is one you always
+    /// take, and a decision you always make the same way is not a decision. One rest across
+    /// three fights is a question worth asking.
+    /// </remarks>
+    public int Rests { get; init; } = 1;
+}
 
 /// <summary>
 /// A fight as written down: the ground, and who stands where on it.

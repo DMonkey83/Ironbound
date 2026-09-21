@@ -68,6 +68,17 @@ public sealed class Creature
 
     public string Name { get; }
 
+    /// <summary>
+    /// The content id it was built from, when it was built from content at all.
+    /// </summary>
+    /// <remarks>
+    /// Needed because a display name is a label and not an identity. A campaign carrying the
+    /// party from one chapter to the next has to recognise that the Valeria who survived the
+    /// ambush is the Valeria the clearing is expecting, and it has to still know that after a
+    /// save and a reload.
+    /// </remarks>
+    public string? DefinitionId { get; set; }
+
     public RuleOptions Rules { get; }
 
     public AbilityScores Abilities { get; }

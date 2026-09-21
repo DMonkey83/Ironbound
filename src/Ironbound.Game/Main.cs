@@ -31,6 +31,9 @@ public partial class Main : Node3D
 	/// <summary>Resolves to the per-user data directory; on Linux, under ~/.local/share/godot.</summary>
 	private const string SavePath = "user://ironbound.save";
 
+	/// <summary>The run the game opens on. Picking between them is a menu this has no need of yet.</summary>
+	private const string CampaignId = "the-long-road";
+
 	private static readonly Color PartyColour = new(0.35f, 0.55f, 0.85f);
 	private static readonly Color FoeColour = new(0.75f, 0.35f, 0.30f);
 	private static readonly Color PillarColour = new(0.38f, 0.36f, 0.34f);
@@ -64,6 +67,7 @@ public partial class Main : Node3D
 	private readonly Dictionary<Creature, Node3D> _figures = new();
 
 	private ContentLibrary _content;
+	private Campaign _campaign;
 	private Battle _battle;
 	private IActionSource _enemies;
 	private Node3D _world;
@@ -80,6 +84,8 @@ public partial class Main : Node3D
 	private Button _endTurn;
 	private Button _load;
 	private Button _stand;
+	private Button _press;
+	private Button _rest;
 	private readonly Dictionary<Mode, Button> _modes = new();
 
 	private Mode _mode = Mode.Move;
@@ -88,7 +94,8 @@ public partial class Main : Node3D
 	public override void _Ready()
 	{
 		_content = GodotContent.Load();
-		Begin(Scenarios.Build(_content, Scenarios.GoblinAmbushId));
+		_campaign = Campaign.Begin(_content, CampaignId);
+		Begin(_campaign.Battle);
 
 		BuildInterface();
 		RebuildWorld();
@@ -121,9 +128,8 @@ public partial class Main : Node3D
 		{
 			if (_battle.BeginTurn() is not { } turn)
 			{
-				Prompt(_battle.Outcome == BattleOutcome.InProgress
-					? "Nobody left standing."
-					: $"{_battle.Outcome}.");
+				Prompt(Verdict());
+				RefreshFigures();
 				RefreshControls();
 				return;
 			}
@@ -154,6 +160,49 @@ public partial class Main : Node3D
 			RefreshFigures();
 		}
 	}
+
+	/// <summary>What to say once the fighting stops, which depends on what is left of the run.</summary>
+	private string Verdict() => _campaign.State switch
+	{
+		CampaignState.Between => _campaign.CanRest
+			? $"Chapter {_campaign.Chapter} won. Press on, or spend your one rest."
+			: $"Chapter {_campaign.Chapter} won. Press on — there is no rest left.",
+		CampaignState.Won => $"{_campaign.Definition.Name} is finished. Every fight won.",
+		CampaignState.Lost => "The party is down. The road ends here.",
+		_ => "Nobody left standing.",
+	};
+
+	private void OnPressOn()
+	{
+		if (!_campaign.Advance())
+		{
+			return;
+		}
+
+		Begin(_campaign.Battle);
+		RebuildWorld();
+
+		_log.AddText($"\n— chapter {_campaign.Chapter}: {CurrentChapterName()} —\n");
+		ReportInitiative();
+		StartNextTurn();
+	}
+
+	private void OnRest()
+	{
+		if (!_campaign.Rest())
+		{
+			return;
+		}
+
+		_log.AddText("— the party rests: wounds closed, spells prepared again —\n");
+		Prompt(Verdict());
+		RefreshFigures();
+		RefreshControls();
+	}
+
+	private string CurrentChapterName() =>
+		_content.GetEncounter(_campaign.Definition.Encounters[_campaign.Chapter - 1])?.Name
+		?? "the next fight";
 
 	/// <summary>Why somebody is doing nothing this turn, in as few words as carry the meaning.</summary>
 	private static string Idle(Creature creature)
@@ -520,7 +569,7 @@ public partial class Main : Node3D
 
 	private void OnSave()
 	{
-		var json = GameSave.ToJson(GameSave.Capture(_battle.Encounter));
+		var json = _campaign.ToJson();
 		Write(json);
 
 		_log.AddText($"— saved {json.Length} characters —\n");
@@ -534,10 +583,10 @@ public partial class Main : Node3D
 			return;
 		}
 
-		Battle restored;
+		Campaign restored;
 		try
 		{
-			restored = Battle.Restore(GameSave.FromJson(json), _content);
+			restored = Campaign.FromJson(json, _content);
 		}
 		catch (System.IO.InvalidDataException problem)
 		{
@@ -549,7 +598,8 @@ public partial class Main : Node3D
 			return;
 		}
 
-		Begin(restored);
+		_campaign = restored;
+		Begin(_campaign.Battle);
 
 		// The bodies were built for the fight that is being replaced, so they go with it.
 		RebuildWorld();
@@ -769,6 +819,14 @@ public partial class Main : Node3D
 		_stand.Pressed += OnStandUp;
 		buttons.AddChild(_stand);
 
+		_press = new Button { Text = "Press on" };
+		_press.Pressed += OnPressOn;
+		buttons.AddChild(_press);
+
+		_rest = new Button { Text = "Rest" };
+		_rest.Pressed += OnRest;
+		buttons.AddChild(_rest);
+
 		_endTurn = new Button { Text = "End turn" };
 		_endTurn.Pressed += OnEndTurn;
 		buttons.AddChild(_endTurn);
@@ -871,6 +929,8 @@ public partial class Main : Node3D
 
 		_spells.Disabled = turn is null || _spells.ItemCount == 0;
 		_stand.Disabled = turn is null || !turn.CanTake(new StandUpAction());
+		_press.Disabled = !_campaign.CanAdvance;
+		_rest.Disabled = !_campaign.CanRest;
 
 		// Being left holding a mode that can no longer do anything is its own small trap. Move
 		// first, because a five-foot step outlives everything else.
@@ -992,7 +1052,8 @@ public partial class Main : Node3D
 			? $"    [{turn.Budget}]"
 			: string.Empty;
 
-		_status.Text = $"Round {_battle.Round}{budget}    {standing}";
+		_status.Text = $"Chapter {_campaign.Chapter}/{_campaign.Definition.Encounters.Count}"
+			+ $"  rests {_campaign.RestsRemaining}    Round {_battle.Round}{budget}    {standing}";
 	}
 
 	// ---- the headless proof ----
@@ -1015,23 +1076,54 @@ public partial class Main : Node3D
 			Report(_battle.AdvanceTurn(_enemies));
 		}
 
-		var json = GameSave.ToJson(GameSave.Capture(_battle.Encounter));
+		var json = _campaign.ToJson();
 		Write(json);
 
 		GD.Print($"--- saved {json.Length} characters to {ProjectSettings.GlobalizePath(SavePath)} ---");
 
-		Begin(Battle.Restore(GameSave.FromJson(Read()), _content));
+		_campaign = Campaign.FromJson(Read(), _content);
+		Begin(_campaign.Battle);
 
 		GD.Print($"--- reloaded at round {_battle.Round}, tick {_battle.Encounter.Tick} ---");
 
-		while (_battle.AdvanceTurn(_enemies) is { } turn)
+		while (true)
 		{
-			Report(turn);
+			while (_battle.AdvanceTurn(_enemies) is { } turn)
+			{
+				Report(turn);
+			}
+
+			GD.Print($"--- chapter {_campaign.Chapter}: {_battle.Outcome} ---");
+
+			if (!_campaign.CanAdvance)
+			{
+				break;
+			}
+
+			// The proof the whole layer exists for: the same people, carrying their wounds and
+			// their spent slots, walking into the next fight.
+			GD.Print($"--- chapter over with {Remaining()} ---");
+
+			// Somebody bleeding out is not a decision, it is an answer. A player gets to weigh
+			// the one rest against what is coming; this is a demonstration, so it takes it.
+			if (_campaign.CanRest && _campaign.Party.Any(one => !one.IsConscious))
+			{
+				_campaign.Rest();
+				GD.Print($"--- the party rests: {Remaining()} ---");
+			}
+
+			_campaign.Advance();
+			Begin(_campaign.Battle);
+			GD.Print($"--- chapter {_campaign.Chapter}: {CurrentChapterName()} ---");
 		}
 
-		GD.Print($"--- {_battle.Outcome} ---");
+		GD.Print($"--- {_campaign.State} ---");
 		GetTree().Quit();
 	}
+
+	private string Remaining() => string.Join(
+		", ",
+		_campaign.Party.Select(c => $"{c.Name} {c.HitPoints.Current}/{c.HitPoints.Maximum}"));
 
 	private static void Report(BattleTurn turn)
 	{

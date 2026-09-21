@@ -35,6 +35,7 @@ public sealed class ContentLibrary
     private readonly Dictionary<string, WeaponDefinition> _weapons = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CreatureDefinition> _creatures = new(StringComparer.Ordinal);
     private readonly Dictionary<string, EncounterDefinition> _encounters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CampaignDefinition> _campaigns = new(StringComparer.Ordinal);
     private readonly List<ContentProblem> _problems = [];
 
     /// <summary>
@@ -82,9 +83,13 @@ public sealed class ContentLibrary
 
     public IReadOnlyCollection<string> EncounterIds => _encounters.Keys;
 
+    public IReadOnlyCollection<string> CampaignIds => _campaigns.Keys;
+
     public Spell? GetSpell(string id) => _spells.GetValueOrDefault(id);
 
     public EncounterDefinition? GetEncounter(string id) => _encounters.GetValueOrDefault(id);
+
+    public CampaignDefinition? GetCampaign(string id) => _campaigns.GetValueOrDefault(id);
 
     public CreatureDefinition? GetCreature(string id) => _creatures.GetValueOrDefault(id);
 
@@ -161,6 +166,10 @@ public sealed class ContentLibrary
                     Keep(_creatures, reader, ReadCreature(reader), creature => creature.Id, "creature");
                     break;
 
+                case "campaign":
+                    Keep(_campaigns, reader, ReadCampaign(reader), run => run.Id, "campaign");
+                    break;
+
                 case "encounter":
                     Keep(_encounters, reader, ReadEncounter(reader), encounter => encounter.Id, "encounter");
                     break;
@@ -217,6 +226,15 @@ public sealed class ContentLibrary
             {
                 _problems.Add(new ContentProblem(
                     $"item '{item.Id}'", "weapon", $"no weapon called '{weapon}'."));
+            }
+        }
+
+        foreach (var run in _campaigns.Values)
+        {
+            foreach (var id in run.Encounters.Where(id => !_encounters.ContainsKey(id)))
+            {
+                _problems.Add(new ContentProblem(
+                    $"campaign '{run.Id}'", "encounters", $"no encounter called '{id}'."));
             }
         }
 
@@ -599,6 +617,19 @@ public sealed class ContentLibrary
             CasterLevel = reader.Int("casterLevel"),
             Slots = slots,
             Spells = [.. reader.Array("spells").Select(e => e.GetString() ?? string.Empty)],
+        };
+    }
+
+    private CampaignDefinition? ReadCampaign(Reader reader)
+    {
+        var id = reader.String("id");
+
+        return id.Length == 0 ? null : new CampaignDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            Encounters = [.. reader.Array("encounters").Select(e => e.GetString() ?? string.Empty)],
+            Rests = reader.Int("rests", 1),
         };
     }
 

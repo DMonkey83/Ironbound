@@ -35,7 +35,23 @@ public static class Scenarios
     /// <summary>Builds a fight from its written-down form.</summary>
     /// <exception cref="ArgumentException">There is no encounter by that id.</exception>
     public static Battle Build(
-        ContentLibrary library, string encounterId, ulong seed = 20260920, RuleOptions? rules = null)
+        ContentLibrary library, string encounterId, ulong seed = 20260920, RuleOptions? rules = null) =>
+        Build(library, encounterId, seed, rules, roster: null);
+
+    /// <summary>
+    /// Builds a fight, optionally reusing party members who have been here before.
+    /// </summary>
+    /// <param name="roster">
+    /// Party creatures already alive, keyed by the content id they were built from. A campaign
+    /// passes the same dictionary to every chapter, which is what carries wounds and spent
+    /// spell slots from one fight into the next; anyone missing is built fresh and remembered.
+    /// </param>
+    internal static Battle Build(
+        ContentLibrary library,
+        string encounterId,
+        ulong seed,
+        RuleOptions? rules,
+        Dictionary<string, Creature>? roster)
     {
         ArgumentNullException.ThrowIfNull(library);
 
@@ -58,9 +74,14 @@ public static class Scenarios
 
         foreach (var placement in definition.Placements)
         {
-            // A missing creature is already in library.Problems; skipping keeps the rest of the
-            // fight loadable instead of trading one bad id for no game at all.
-            if (library.BuildCreature(placement.CreatureId, rules, placement.Name) is not { } creature)
+            var creature = placement.Party && roster is not null
+                ? Enlist(library, roster, placement, rules)
+
+                // A missing creature is already in library.Problems; skipping keeps the rest of
+                // the fight loadable instead of trading one bad id for no game at all.
+                : library.BuildCreature(placement.CreatureId, rules, placement.Name);
+
+            if (creature is null)
             {
                 continue;
             }
@@ -70,6 +91,29 @@ public static class Scenarios
         }
 
         return new Battle(party, foes, new PcgRandom(seed, DiceStream), rules, field);
+    }
+
+    /// <summary>
+    /// The same person who fought the last chapter, or a new one on their first outing.
+    /// </summary>
+    private static Creature? Enlist(
+        ContentLibrary library,
+        Dictionary<string, Creature> roster,
+        PlacementDefinition placement,
+        RuleOptions? rules)
+    {
+        if (roster.TryGetValue(placement.CreatureId, out var veteran))
+        {
+            return veteran;
+        }
+
+        if (library.BuildCreature(placement.CreatureId, rules, placement.Name) is not { } recruit)
+        {
+            return null;
+        }
+
+        roster[placement.CreatureId] = recruit;
+        return recruit;
     }
 
     /// <summary>An AI to drive a battle, thinking on its own stream.</summary>

@@ -39,7 +39,7 @@ public static class GameSave
 
     // ---- capture ----
 
-    public static SavedGame Capture(Encounter encounter)
+    public static SavedGame Capture(Encounter encounter, SavedCampaign? campaign = null)
     {
         ArgumentNullException.ThrowIfNull(encounter);
 
@@ -53,7 +53,8 @@ public static class GameSave
             encounter.Tick,
             Capture(encounter.Battlefield),
             [.. encounter.Order.Select(c => Capture(c.Creature, encounter.Battlefield))],
-            [.. encounter.Order.Select(Capture)]);
+            [.. encounter.Order.Select(Capture)],
+            campaign);
     }
 
     private static SavedBattlefield? Capture(Battlefield? field)
@@ -106,6 +107,7 @@ public static class GameSave
 
     private static SavedCreature Capture(Creature creature, Battlefield? field) => new(
         creature.Name,
+        creature.DefinitionId,
         creature.Allegiance,
         creature.Size,
         creature.Speed,
@@ -262,6 +264,7 @@ public static class GameSave
         var creature = new Creature(
             saved.Name, abilities, saved.HitPoints.Base, saved.HitPoints.HitDice, rules)
         {
+            DefinitionId = saved.DefinitionId,
             Allegiance = saved.Allegiance,
             Size = saved.Size,
             Speed = saved.Speed,

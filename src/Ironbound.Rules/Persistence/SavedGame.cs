@@ -28,10 +28,14 @@ public sealed record SavedGame(
     long Tick,
     SavedBattlefield? Ground,
     SavedCreature[] Creatures,
-    SavedCombatant[] Order)
+    SavedCombatant[] Order,
+    SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 }
+
+/// <summary>Where a run of encounters had got to.</summary>
+public sealed record SavedCampaign(string Id, int Chapter, int RestsRemaining, ulong Seed);
 
 public sealed record SavedBattlefield(
     int Width,
@@ -133,6 +137,7 @@ public sealed record SavedEffect(
 
 public sealed record SavedCreature(
     string Name,
+    string? DefinitionId,
     int Allegiance,
     CreatureSize Size,
     int Speed,

@@ -1,0 +1,9 @@
+// Two fights and one rest between them. The question the whole ruleset is built around: is
+// Merrin's fireball worth spending on goblins, knowing what waits in the clearing?
+{
+  "kind": "campaign",
+  "id": "the-long-road",
+  "name": "The Long Road",
+  "encounters": ["goblin-ambush", "moonlit-clearing"],
+  "rests": 1
+}
