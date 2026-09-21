@@ -4,5 +4,9 @@
   "id": "improved-trip",
   "name": "Improved Trip",
   "description": "Tripping does not provoke, and the check is +2.",
-  "effect": "ImprovedTrip"
+  "effect": "ImprovedTrip",
+
+  // A feat that wants a feat. This is what makes a trip specialist a build: two slots spent to
+  // get to the one that matters.
+  "requires": { "int": 13, "feats": ["combat-expertise"] }
 }

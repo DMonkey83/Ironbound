@@ -1,3 +1,4 @@
+using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Effects;
 
 namespace Ironbound.Rules.Feats;
@@ -38,6 +39,82 @@ public enum FeatEffect
 }
 
 /// <summary>
+/// What a feat asks of you before it will have you.
+/// </summary>
+/// <remarks>
+/// Prerequisites are most of what makes feat selection a build rather than a shopping list.
+/// Power Attack wanting Strength 13 is why the wiry duellist cannot have it, and Improved Trip
+/// wanting Combat Expertise is why the trip specialist spends two slots to get there.
+/// </remarks>
+public sealed record FeatRequirements
+{
+    /// <summary>Minimum ability scores, by ability.</summary>
+    public IReadOnlyDictionary<Ability, int> Abilities { get; init; } =
+        new Dictionary<Ability, int>();
+
+    /// <summary>Feats that must already be held, by id.</summary>
+    public IReadOnlyList<string> Feats { get; init; } = [];
+
+    public int BaseAttack { get; init; }
+
+    public int Level { get; init; }
+
+    /// <summary>Whether a creature qualifies, and if not, what it is short of.</summary>
+    public IReadOnlyList<string> Unmet(Creatures.Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        var missing = new List<string>();
+
+        foreach (var (ability, minimum) in Abilities.OrderBy(entry => entry.Key))
+        {
+            if ((creature.Abilities[ability].Score ?? 0) < minimum)
+            {
+                missing.Add($"{AbilityInfo.Abbreviate(ability)} {minimum}");
+            }
+        }
+
+        foreach (var required in Feats.Where(id => !creature.HasFeat(id)))
+        {
+            missing.Add(required);
+        }
+
+        if (creature.BaseAttackBonus < BaseAttack)
+        {
+            missing.Add($"base attack +{BaseAttack}");
+        }
+
+        if (creature.Level < Level)
+        {
+            missing.Add($"level {Level}");
+        }
+
+        return missing;
+    }
+
+    public override string ToString()
+    {
+        var parts = Abilities
+            .OrderBy(entry => entry.Key)
+            .Select(entry => $"{AbilityInfo.Abbreviate(entry.Key)} {entry.Value}")
+            .Concat(Feats);
+
+        if (BaseAttack > 0)
+        {
+            parts = parts.Append($"base attack +{BaseAttack}");
+        }
+
+        if (Level > 0)
+        {
+            parts = parts.Append($"level {Level}");
+        }
+
+        var written = string.Join(", ", parts);
+        return written.Length == 0 ? "none" : written;
+    }
+}
+
+/// <summary>
 /// A feat as written down.
 /// </summary>
 /// <remarks>
@@ -59,6 +136,17 @@ public sealed record FeatDefinition
 
     /// <summary>What the rules must know about it beyond the numbers, if anything.</summary>
     public FeatEffect Effect { get; init; } = FeatEffect.None;
+
+    /// <summary>What it asks of you first.</summary>
+    public FeatRequirements Requires { get; init; } = new();
+
+    /// <summary>Whether a creature could take it: qualified, and does not already have it.</summary>
+    public bool AvailableTo(Creatures.Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        return !creature.HasFeat(Id) && Requires.Unmet(creature).Count == 0;
+    }
 
     /// <summary>Hands the feat's static bonuses to a creature. Called once, when it is built.</summary>
     public void ApplyTo(Creatures.Creature creature)

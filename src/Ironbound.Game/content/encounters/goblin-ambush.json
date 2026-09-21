@@ -4,6 +4,7 @@
   "name": "Goblin Ambush",
   "width": 16,
   "height": 12,
+  "terrain": "rocky",
 
   // Two pillars across the middle of the room. They are not decoration: a shot whose line
   // clips one gives the target +4, so the archer has to care where it stands.

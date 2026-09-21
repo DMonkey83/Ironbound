@@ -184,6 +184,33 @@ public class ContentParsingTests
         Assert.NotNull(library.BuildWeapon("scimitar"));
     }
 
+    [Fact]
+    public void ATerrainIsAPairOfModelNamesAndNothingElse()
+    {
+        var library = From("""
+            { "kind": "terrain", "id": "marsh", "name": "Marsh",
+              "ground": "res://art/Reeds.obj", "blocked": "res://art/Boulder.obj" }
+            """);
+
+        var marsh = library.GetTerrain("marsh")!;
+
+        // Strings, deliberately. The rules layer has no notion of a file and never opens one.
+        Assert.Equal("Marsh", marsh.Name);
+        Assert.Equal("res://art/Reeds.obj", marsh.Ground);
+        Assert.Equal("res://art/Boulder.obj", marsh.Blocked);
+    }
+
+    [Fact]
+    public void AnEncounterWithNoTerrainNamesNoneRatherThanFailing()
+    {
+        var library = From("""
+            { "kind": "encounter", "id": "cellar", "name": "Cellar" }
+            """);
+
+        // The bare floor the game drew before there was any art is still a legal battlefield.
+        Assert.Equal(string.Empty, library.GetEncounter("cellar")!.Terrain);
+    }
+
     internal static ContentLibrary From(params string[] files) => From(false, files);
 
     internal static ContentLibrary From(string json, bool expectProblems) =>
@@ -345,6 +372,65 @@ public class ContentDiagnosticsTests
 
         Assert.Equal("nameless.json: id: is required.", library.Problems[0].ToString());
         Assert.False(library.IsValid);
+    }
+}
+
+public class TerrainContentTests
+{
+    [Fact]
+    public void AnEncounterFoughtOnGroundNobodyWroteIsReported()
+    {
+        var library = ContentLibrary.Load([
+            ("clearing.json", """
+                { "kind": "encounter", "id": "clearing", "name": "Clearing",
+                  "terrain": "swamp" }
+                """),
+        ]);
+
+        var problem = Assert.Single(library.Problems);
+        Assert.Equal("encounter 'clearing'", problem.Source);
+        Assert.Contains("swamp", problem.Message);
+    }
+
+    [Fact]
+    public void AndIsNotReportedOnceTheTerrainExists()
+    {
+        var library = ContentLibrary.Load([
+            ("clearing.json", """
+                { "kind": "encounter", "id": "clearing", "name": "Clearing",
+                  "terrain": "swamp" }
+                """),
+            ("swamp.json", """
+                { "kind": "terrain", "id": "swamp", "name": "Swamp" }
+                """),
+        ]);
+
+        Assert.Empty(library.Problems);
+    }
+
+    [Fact]
+    public void EveryShippedEncounterIsFoughtOnGroundThatExists()
+    {
+        foreach (var id in TestContent.Library.EncounterIds)
+        {
+            var encounter = TestContent.Library.GetEncounter(id)!;
+
+            // Not merely valid: named at all. An encounter that forgot its terrain is a bare
+            // grey floor, which is a thing you notice by playing and not by compiling.
+            Assert.NotEqual(string.Empty, encounter.Terrain);
+            Assert.NotNull(TestContent.Library.GetTerrain(encounter.Terrain));
+        }
+    }
+
+    [Theory]
+    [InlineData("woodland")]
+    [InlineData("rocky")]
+    public void EveryShippedTerrainNamesBothOfItsModels(string id)
+    {
+        var terrain = TestContent.Library.GetTerrain(id)!;
+
+        Assert.StartsWith("res://art/", terrain.Ground);
+        Assert.StartsWith("res://art/", terrain.Blocked);
     }
 }
 

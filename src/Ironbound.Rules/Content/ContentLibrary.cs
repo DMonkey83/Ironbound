@@ -37,6 +37,7 @@ public sealed class ContentLibrary
     private readonly Dictionary<string, CreatureDefinition> _creatures = new(StringComparer.Ordinal);
     private readonly Dictionary<string, EncounterDefinition> _encounters = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CampaignDefinition> _campaigns = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TerrainDefinition> _terrains = new(StringComparer.Ordinal);
     private readonly List<ContentProblem> _problems = [];
 
     /// <summary>
@@ -86,9 +87,13 @@ public sealed class ContentLibrary
 
     public IReadOnlyCollection<string> CampaignIds => _campaigns.Keys;
 
+    public IReadOnlyCollection<string> TerrainIds => _terrains.Keys;
+
     public Spell? GetSpell(string id) => _spells.GetValueOrDefault(id);
 
     public EncounterDefinition? GetEncounter(string id) => _encounters.GetValueOrDefault(id);
+
+    public TerrainDefinition? GetTerrain(string id) => _terrains.GetValueOrDefault(id);
 
     public CampaignDefinition? GetCampaign(string id) => _campaigns.GetValueOrDefault(id);
 
@@ -175,6 +180,10 @@ public sealed class ContentLibrary
                     Keep(_encounters, reader, ReadEncounter(reader), encounter => encounter.Id, "encounter");
                     break;
 
+                case "terrain":
+                    Keep(_terrains, reader, ReadTerrain(reader), terrain => terrain.Id, "terrain");
+                    break;
+
                 case "":
                     break;
 
@@ -221,6 +230,18 @@ public sealed class ContentLibrary
             }
         }
 
+        // A sibling of the creature loop, not a child of it. Nested, the same dangling
+        // prerequisite was reported once per creature in the library, and never reported at
+        // all in a library that happened to contain no creatures.
+        foreach (var feat in _feats.Values)
+        {
+            foreach (var wanted in feat.Requires.Feats.Where(id => !_feats.ContainsKey(id)))
+            {
+                _problems.Add(new ContentProblem(
+                    $"feat '{feat.Id}'", "requires", $"no feat called '{wanted}'."));
+            }
+        }
+
         foreach (var item in _items.Values)
         {
             if (item.Weapon is { } weapon && !_weapons.ContainsKey(weapon))
@@ -241,6 +262,14 @@ public sealed class ContentLibrary
 
         foreach (var encounter in _encounters.Values)
         {
+            if (encounter.Terrain.Length > 0 && !_terrains.ContainsKey(encounter.Terrain))
+            {
+                _problems.Add(new ContentProblem(
+                    $"encounter '{encounter.Id}'",
+                    "terrain",
+                    $"no terrain called '{encounter.Terrain}'."));
+            }
+
             foreach (var placement in encounter.Placements
                 .Where(p => !_creatures.ContainsKey(p.CreatureId)))
             {
@@ -493,9 +522,28 @@ public sealed class ContentLibrary
                 ReadTarget(grant), grant.Int("value"), grant.Enum("type", BonusType.Untyped)));
         }
 
+        var wants = reader.Object("requires");
+        var minimums = new Dictionary<Ability, int>();
+
+        foreach (var ability in AbilityInfo.All)
+        {
+            var key = AbilityInfo.Abbreviate(ability).ToLowerInvariant();
+            if (wants.Has(key))
+            {
+                minimums[ability] = wants.Int(key);
+            }
+        }
+
         return new FeatDefinition
         {
             Id = id,
+            Requires = new FeatRequirements
+            {
+                Abilities = minimums,
+                Feats = [.. wants.Array("feats").Select(e => e.GetString() ?? string.Empty)],
+                BaseAttack = wants.Int("baseAttack"),
+                Level = wants.Int("level"),
+            },
             Name = reader.StringOr("name", id),
             Description = reader.StringOr("description", string.Empty),
             Grants = grants,
@@ -693,9 +741,23 @@ public sealed class ContentLibrary
             Name = reader.StringOr("name", id),
             Width = reader.Int("width", 16),
             Height = reader.Int("height", 12),
+            Terrain = reader.StringOr("terrain", string.Empty),
             Blocked = [.. Squares(reader, "blocked")],
             Difficult = [.. Squares(reader, "difficult")],
             Placements = placements,
+        };
+    }
+
+    private TerrainDefinition? ReadTerrain(Reader reader)
+    {
+        var id = reader.String("id");
+
+        return id.Length == 0 ? null : new TerrainDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            Ground = reader.StringOr("ground", string.Empty),
+            Blocked = reader.StringOr("blocked", string.Empty),
         };
     }
 

@@ -5,6 +5,7 @@
   "name": "Moonlit Clearing",
   "width": 14,
   "height": 10,
+  "terrain": "woodland",
   "blocked": [ { "x": 5, "y": 3 }, { "x": 8, "y": 6 } ],
   "placements": [
     { "creature": "valeria", "x": 2, "y": 4, "party": true },

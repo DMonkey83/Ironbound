@@ -6,7 +6,7 @@
   "kind": "creature",
   "id": "werewolf",
   "name": "Werewolf",
-  "abilities": [19, 15, 17, 10, 12, 10],
+  "abilities": [19, 15, 17, 13, 12, 10],
   "classes": [ { "class": "warrior", "level": 5 } ],
 
   "skills": [
@@ -16,7 +16,9 @@
   "speed": 30,
   "naturalArmour": 4,
   "goodSave": "Fortitude",
-  "feats": ["combat-reflexes", "improved-trip"],
+  // Combat Expertise is there because Improved Trip requires it. A wolf that trips you is
+  // the whole idea, and the prerequisite chain is what it costs.
+  "feats": ["combat-reflexes", "combat-expertise", "improved-trip"],
   "items": ["bite"],
   "reduction": [
     { "amount": 10, "bypassedBy": ["Silver"], "mode": "Any" }

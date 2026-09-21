@@ -6,7 +6,9 @@ using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Encounters;
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Encounters.Actions;
+using Ironbound.Rules.Feats;
 using Ironbound.Rules.Magic;
 using Ironbound.Rules.Maps;
 using Ironbound.Rules.Persistence;
@@ -38,12 +40,25 @@ public partial class Main : Node3D
 	private static readonly Color FoeColour = new(0.75f, 0.35f, 0.30f);
 	private static readonly Color PillarColour = new(0.38f, 0.36f, 0.34f);
 
+	/// <summary>
+	/// How far the grid floats above the floor. Terrain tiles put their top face at zero, and a
+	/// grid drawn at exactly zero would z-fight with every one of them.
+	/// </summary>
+	private const float GridHeight = 0.006f;
+
 	// Bright enough to find at a glance, and coloured by side so "is it my move?" needs no
 	// reading. The ring sits under whoever is acting.
 	private static readonly Color ActivePartyColour = new(0.45f, 0.85f, 1.00f);
 	private static readonly Color ActiveFoeColour = new(1.00f, 0.55f, 0.30f);
 	private static readonly Color LegalColour = new(0.35f, 0.75f, 0.40f, 0.45f);
 	private static readonly Color IllegalColour = new(0.75f, 0.30f, 0.30f, 0.35f);
+
+	// Where a click would land, coloured by what kind of click it is. Faint throughout: these
+	// are hints, not the subject.
+	private static readonly Color ReachColour = new(0.40f, 0.62f, 0.90f, 0.20f);
+	private static readonly Color StrikeColour = new(0.90f, 0.45f, 0.35f, 0.26f);
+	private static readonly Color SpellColour = new(0.70f, 0.50f, 0.95f, 0.24f);
+	private static readonly Color HelpColour = new(0.45f, 0.85f, 0.50f, 0.24f);
 
 	private enum Mode
 	{
@@ -77,6 +92,8 @@ public partial class Main : Node3D
 	private Camera3D _camera;
 	private MeshInstance3D _cursor;
 	private MeshInstance3D _turnMarker;
+	private ShaderMaterial _groundPaint;
+	private MultiMeshInstance3D _reach;
 	private StandardMaterial3D _turnPaint;
 	private StandardMaterial3D _cursorPaint;
 
@@ -96,6 +113,12 @@ public partial class Main : Node3D
 	private PanelContainer _sheetPanel;
 	private RichTextLabel _sheet;
 	private Button _showSheet;
+	private PanelContainer _levelPanel;
+	private OptionButton _levelClass;
+	private OptionButton _levelFeat;
+	private Button _levelTake;
+	private Button _levelClose;
+	private RichTextLabel _levelDetail;
 	private readonly Dictionary<Stance, Button> _stances = new();
 	private HFlowContainer _between;
 	private RichTextLabel _roster;
@@ -113,6 +136,7 @@ public partial class Main : Node3D
 		Begin(_campaign.Battle);
 
 		BuildInterface();
+		BuildSky();
 		RebuildWorld();
 
 		if (DisplayServer.GetName() == "headless")
@@ -170,9 +194,9 @@ public partial class Main : Node3D
 
 			// Nothing to decide and nobody to ask. The turn still opens, so effects tick and
 			// the dying keep dying, but it closes itself rather than waiting on a click.
-			if (!turn.Actor.CanAct)
+			if (!turn.Combatant.CanAct)
 			{
-				Append(null, new List<string> { Idle(turn.Actor) });
+				Append(null, new List<string> { Idle(turn.Combatant) });
 				_battle.EndTurn();
 				RefreshFigures();
 				continue;
@@ -272,6 +296,14 @@ public partial class Main : Node3D
 		_bearer.Disabled = !between;
 		_give.Disabled = !usable;
 		_levelUp.Disabled = !between || !_campaign.Ready.Any();
+
+		// Not a screen you leave open into a fight.
+		if (_levelPanel is not null && !between)
+		{
+			_levelPanel.Visible = false;
+		}
+
+		RefreshLevelUp();
 		RefreshSheet();
 	}
 
@@ -298,24 +330,19 @@ public partial class Main : Node3D
 		UpdateStatus();
 	}
 
+	/// <summary>Opens the level-up screen rather than levelling on the spot.</summary>
 	private void OnLevelUp()
 	{
-		if (_bearer.Selected < 0 || _bearer.Selected >= _campaign.Party.Count)
+		if (Subject() is not { } creature || !_campaign.CanLevel(creature))
 		{
+			Refuse("Nobody here has earned a level yet.");
 			return;
 		}
 
-		var creature = _campaign.Party[_bearer.Selected];
-
-		if (!_campaign.LevelUp(creature))
-		{
-			Refuse($"{creature.Name} has not earned a level yet.");
-			return;
-		}
-
-		_log.AddText($"— {creature.Name} is now {creature.Description} —\n");
-		RefreshControls();
-		UpdateStatus();
+		_levelPanel.Visible = true;
+		_levelClass.Clear();
+		_levelFeat.Clear();
+		RefreshLevelUp();
 	}
 
 	private void OnPressOn()
@@ -347,13 +374,31 @@ public partial class Main : Node3D
 		RefreshControls();
 	}
 
-	private string CurrentChapterName() =>
-		_content.GetEncounter(_campaign.Definition.Encounters[_campaign.Chapter - 1])?.Name
-		?? "the next fight";
+	/// <summary>The fight being looked at, as its content file wrote it.</summary>
+	private EncounterDefinition CurrentEncounter()
+	{
+		var chapters = _campaign.Definition.Encounters;
+		var index = _campaign.Chapter - 1;
+
+		return index >= 0 && index < chapters.Count ? _content.GetEncounter(chapters[index]) : null;
+	}
+
+	/// <summary>What the fight is fought on, if its file says. Null is a bare floor.</summary>
+	private TerrainDefinition CurrentTerrain() =>
+		CurrentEncounter()?.Terrain is { Length: > 0 } id ? _content.GetTerrain(id) : null;
+
+	private string CurrentChapterName() => CurrentEncounter()?.Name ?? "the next fight";
 
 	/// <summary>Why somebody is doing nothing this turn, in as few words as carry the meaning.</summary>
-	private static string Idle(Creature creature)
+	private static string Idle(Combatant combatant)
 	{
+		var creature = combatant.Creature;
+
+		if (combatant.IsUnaware)
+		{
+			return $"{creature.Name} is taken by surprise and loses the turn";
+		}
+
 		if (!creature.IsAlive)
 		{
 			return $"{creature.Name} is dead";
@@ -440,8 +485,20 @@ public partial class Main : Node3D
 	public override void _UnhandledInput(InputEvent @event)
 	{
 		if (@event is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
-			|| !_battle.IsPartyTurn
 			|| SquareUnderCursor() is not { } square)
+		{
+			return;
+		}
+
+		// Between chapters there is no turn, no budget and nothing to provoke, so a click just
+		// puts somebody where you pointed. The board is a camp rather than a battlefield.
+		if (_campaign.State != CampaignState.Fighting)
+		{
+			Wander(square);
+			return;
+		}
+
+		if (!_battle.IsPartyTurn)
 		{
 			return;
 		}
@@ -471,6 +528,34 @@ public partial class Main : Node3D
 		RefreshFigures();
 		PromptTurn();
 		RefreshControls();
+		_hovered = null;
+	}
+
+	/// <summary>
+	/// Walks whoever the party selector names to a square, with none of the rules attached.
+	/// </summary>
+	/// <remarks>
+	/// Walls and other people still stop you, because walking through a pillar is not freedom,
+	/// it is a bug. Nothing carries into the next chapter — <c>Press on</c> rebuilds the board
+	/// from the encounter file — so this is for looking around rather than for arranging a line.
+	/// </remarks>
+	private void Wander(GridSquare square)
+	{
+		if (_battle.Battlefield is not { } field || Subject() is not { } walker)
+		{
+			return;
+		}
+
+		if (!field.IsFree(square))
+		{
+			Refuse("Something is already there.");
+			return;
+		}
+
+		field.Remove(walker);
+		field.Place(walker, square);
+
+		RefreshFigures();
 		_hovered = null;
 	}
 
@@ -709,7 +794,9 @@ public partial class Main : Node3D
 			return;
 		}
 
-		if (!_battle.IsPartyTurn || SquareUnderCursor() is not { } square)
+		var fighting = _campaign.State == CampaignState.Fighting;
+
+		if ((fighting && !_battle.IsPartyTurn) || SquareUnderCursor() is not { } square)
 		{
 			_cursor.Visible = false;
 			return;
@@ -717,6 +804,15 @@ public partial class Main : Node3D
 
 		_cursor.Visible = true;
 		_cursor.Position = new Vector3(square.X + 0.5f, 0.02f, square.Y + 0.5f);
+
+		// Out of a fight the only thing that can refuse you is somebody standing there.
+		if (!fighting)
+		{
+			_cursorPaint.AlbedoColor =
+				_battle.Battlefield?.IsFree(square) == true ? LegalColour : IllegalColour;
+
+			return;
+		}
 
 		// Deciding what a click would mean runs a path search, so only do it when the cursor
 		// actually moves to a different square rather than once a frame.
@@ -797,16 +893,226 @@ public partial class Main : Node3D
 
 	// ---- the scene ----
 
-	private void SpawnPillar(int x, int y)
+	/// <summary>
+	/// The ground, with its grid.
+	/// </summary>
+	/// <remarks>
+	/// Every distance in the rules is counted in five-foot squares and until now not one of them
+	/// was visible, so reach, movement and a fireball's radius all had to be guessed at. Falls
+	/// back to the old flat colour if the shader will not load, because a board you can play on
+	/// beats no board at all.
+	/// </remarks>
+	private static Material GroundPaint()
 	{
-		var pillar = new MeshInstance3D
+		if (GD.Load<Shader>("res://grid.gdshader") is { } shader)
 		{
-			Mesh = new BoxMesh { Size = new Vector3(0.9f, 2.2f, 0.9f) },
-			MaterialOverride = new StandardMaterial3D { AlbedoColor = PillarColour },
+			return new ShaderMaterial { Shader = shader };
+		}
+
+		GD.PushError("Content: grid.gdshader would not load; falling back to a bare floor.");
+		return new StandardMaterial3D { AlbedoColor = new Color(0.20f, 0.22f, 0.20f) };
+	}
+
+	/// <summary>
+	/// The daylight the flat-shaded models need to be worth looking at.
+	/// </summary>
+	/// <remarks>
+	/// A child of the scene rather than of <c>_world</c>, so it survives every
+	/// <see cref="RebuildWorld"/>. There is one sun and no ambient term without it, which means
+	/// every face turned away from that sun renders pure black — fine for grey capsules, ruinous
+	/// for a model whose whole shading budget is one flat colour per material.
+	/// </remarks>
+	private void BuildSky()
+	{
+		var air = new Godot.Environment
+		{
+			BackgroundMode = Godot.Environment.BGMode.Color,
+			BackgroundColor = new Color(0.07f, 0.08f, 0.11f),
+
+			// A colour rather than a sky: cheap, and it does the one job wanted of it.
+			AmbientLightSource = Godot.Environment.AmbientSource.Color,
+			AmbientLightColor = new Color(0.58f, 0.62f, 0.72f),
+
+			// Enough to keep a face turned away from the sun readable, and no more: the ground
+			// models are pale, and ambient on top of full sun washed them out to white paper.
+			AmbientLightEnergy = 0.35f,
+			TonemapMode = Godot.Environment.ToneMapper.Filmic,
 		};
 
-		_world.AddChild(pillar);
-		pillar.Position = new Vector3(x + 0.5f, 1.1f, y + 0.5f);
+		AddChild(new WorldEnvironment { Environment = air });
+	}
+
+	/// <summary>
+	/// A mesh named by a content file, whichever way Godot chose to import it.
+	/// </summary>
+	/// <remarks>
+	/// The same <c>.obj</c> arrives as a bare <see cref="Mesh"/> or as a whole
+	/// <see cref="PackedScene"/> depending on which importer claimed the file, and which one that
+	/// is depends on editor settings rather than on anything in this repository. Handling both
+	/// costs three lines. Anything that will not load returns null and the caller falls back to
+	/// the plain shapes, because a board you can play on beats no board at all.
+	/// </remarks>
+	private static Mesh Model(string path)
+	{
+		if (string.IsNullOrEmpty(path))
+		{
+			return null;
+		}
+
+		if (!ResourceLoader.Exists(path))
+		{
+			GD.PushError($"Content: no model at {path}; falling back to plain shapes.");
+			return null;
+		}
+
+		switch (GD.Load(path))
+		{
+			case Mesh mesh:
+				return Earthly(mesh);
+
+			case PackedScene scene:
+				var root = scene.Instantiate();
+				var found = FirstMesh(root);
+				root.QueueFree();
+				return found is null ? null : Earthly(found);
+
+			default:
+				GD.PushError($"Content: {path} loaded, but it is not a model.");
+				return null;
+		}
+	}
+
+	/// <summary>
+	/// Takes the polish off a model that arrived claiming to be made of metal.
+	/// </summary>
+	/// <remarks>
+	/// Wavefront's <c>Ks</c> is a specular colour, and Godot's importer reads its brightest
+	/// channel as metalness. Every material in this art pack sets <c>Ks</c> to pure white, so
+	/// sand, bark and leaves all import as polished metal — which has no diffuse term at all, and
+	/// with a flat colour for a sky there is nothing for it to reflect instead. The result is a
+	/// rock that reads as a hole in the floor.
+	/// <para>
+	/// Corrected here rather than by editing the <c>.mtl</c> files, so that anything else dropped
+	/// into <c>art/</c> later is corrected too, and the art stays exactly as it was received.
+	/// </para>
+	/// </remarks>
+	private static Mesh Earthly(Mesh mesh)
+	{
+		for (var surface = 0; surface < mesh.GetSurfaceCount(); surface++)
+		{
+			if (mesh.SurfaceGetMaterial(surface) is StandardMaterial3D material)
+			{
+				material.Metallic = 0f;
+				material.Roughness = 0.9f;
+			}
+		}
+
+		return mesh;
+	}
+
+	private static Mesh FirstMesh(Node node)
+	{
+		if (node is MeshInstance3D { Mesh: { } mesh })
+		{
+			return mesh;
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			if (FirstMesh(child) is { } found)
+			{
+				return found;
+			}
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Lays one ground mesh on every square, as a single multimesh.
+	/// </summary>
+	/// <remarks>
+	/// A sixteen-by-twelve board is a hundred and ninety-two tiles and one draw call, which is
+	/// why the identical ground goes through a <see cref="MultiMesh"/> and the handful of props
+	/// do not.
+	/// </remarks>
+	private void LayTiles(Mesh tile, int width, int height)
+	{
+		var box = tile.GetAabb();
+		var middle = box.GetCenter();
+
+		// Models arrive at whatever size they were modelled at. Scaled to exactly one square,
+		// because a square is five feet and every distance in the rules is counted in them.
+		var footprint = Mathf.Max(box.Size.X, box.Size.Z);
+		var scale = footprint > 0f ? 1f / footprint : 1f;
+
+		// Sunk until the top face is y=0, which is where the figures, the hover cursor and the
+		// turn ring all already expect the floor to be.
+		var sunk = -box.End.Y * scale;
+
+		var tiles = new MultiMeshInstance3D
+		{
+			Multimesh = new MultiMesh
+			{
+				TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+				Mesh = tile,
+				InstanceCount = width * height,
+			},
+		};
+
+		_world.AddChild(tiles);
+
+		for (var y = 0; y < height; y++)
+		{
+			for (var x = 0; x < width; x++)
+			{
+				var placed = new Transform3D(
+					Basis.Identity.Scaled(Vector3.One * scale),
+					new Vector3(
+						x + 0.5f - (middle.X * scale),
+						sunk,
+						y + 0.5f - (middle.Z * scale)));
+
+				tiles.Multimesh.SetInstanceTransform((y * width) + x, placed);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Whatever stands on a square nothing can walk through: the terrain's own prop, or the grey
+	/// box that stood there before there was any art.
+	/// </summary>
+	private void SpawnPillar(int x, int y, Mesh prop)
+	{
+		if (prop is null)
+		{
+			var pillar = new MeshInstance3D
+			{
+				Mesh = new BoxMesh { Size = new Vector3(0.9f, 2.2f, 0.9f) },
+				MaterialOverride = new StandardMaterial3D { AlbedoColor = PillarColour },
+			};
+
+			_world.AddChild(pillar);
+			pillar.Position = new Vector3(x + 0.5f, 1.1f, y + 0.5f);
+			return;
+		}
+
+		var box = prop.GetAabb();
+		var footprint = Mathf.Max(box.Size.X, box.Size.Z);
+
+		// Trimmed to fit its square, never grown: a rock modelled smaller than five feet across
+		// is a rock that small, and stretching it would be a lie about what blocks the line.
+		var scale = footprint > 0.95f ? 0.95f / footprint : 1f;
+
+		var piece = new MeshInstance3D { Mesh = prop };
+		_world.AddChild(piece);
+
+		piece.Scale = Vector3.One * scale;
+		piece.Position = new Vector3(x + 0.5f, -box.Position.Y * scale, y + 0.5f);
+
+		// Turned by a repeatable eighth, so two rocks in a row are not the same rock twice.
+		// Derived from the square rather than rolled, because a reloaded save must look the same.
+		piece.RotateY(Mathf.DegToRad((((x * 37) + (y * 61)) % 8) * 45f));
 	}
 
 	private void RebuildWorld()
@@ -843,14 +1149,54 @@ public partial class Main : Node3D
 		light.Position = centre + new Vector3(5, 10, 3);
 		light.LookAt(centre);
 
+		// What the fight is fought on, if the encounter file says. Both are null for a bare
+		// floor, and every path below falls back to the shapes that were there before.
+		var terrain = CurrentTerrain();
+		var tile = Model(terrain?.Ground);
+		var prop = Model(terrain?.Blocked);
+
+		if (tile is not null)
+		{
+			LayTiles(tile, width, height);
+		}
+
+		var paint = GroundPaint();
+		_groundPaint = paint as ShaderMaterial;
+
 		var ground = new MeshInstance3D
 		{
 			Mesh = new PlaneMesh { Size = new Vector2(width, height) },
-			MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.20f, 0.22f, 0.20f) },
+			MaterialOverride = paint,
+
+			// Without the shader this plane is an opaque slab, and an opaque slab laid over the
+			// terrain would hide it. Losing the grid is survivable; losing the ground is not.
+			Visible = _groundPaint is not null || tile is null,
 		};
 
 		_world.AddChild(ground);
-		ground.Position = centre;
+
+		// Over the terrain rather than instead of it: the lines keep their alpha and everything
+		// between them turns to glass.
+		_groundPaint?.SetShaderParameter("floor_alpha", tile is null ? 1.0f : 0.0f);
+		ground.Position = centre + new Vector3(0, GridHeight, 0);
+
+		// Where the current actor could get to. One draw call however many squares light up.
+		_reach = new MultiMeshInstance3D
+		{
+			Multimesh = new MultiMesh
+			{
+				TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+				Mesh = new PlaneMesh { Size = new Vector2(0.92f, 0.92f) },
+				InstanceCount = 0,
+			},
+			MaterialOverride = new StandardMaterial3D
+			{
+				AlbedoColor = ReachColour,
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+			},
+		};
+
+		_world.AddChild(_reach);
 
 		_cursorPaint = new StandardMaterial3D
 		{
@@ -893,7 +1239,7 @@ public partial class Main : Node3D
 				{
 					if (field.IsBlocked(new GridSquare(x, y)))
 					{
-						SpawnPillar(x, y);
+						SpawnPillar(x, y, prop);
 					}
 				}
 			}
@@ -911,7 +1257,7 @@ public partial class Main : Node3D
 			var scale = ScaleOf(creature.Size);
 			var figure = new MeshInstance3D
 			{
-				Mesh = new CapsuleMesh { Radius = 0.3f * scale, Height = 1.4f * scale },
+				Mesh = new CapsuleMesh { Radius = 0.3f * scale, Height = CapsuleHeight(creature) },
 				MaterialOverride = new StandardMaterial3D { AlbedoColor = colour },
 			};
 
@@ -923,13 +1269,19 @@ public partial class Main : Node3D
 				Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
 				FontSize = 48,
 				PixelSize = 0.005f,
-				Position = new Vector3(0, 1.2f, 0),
+
+				// Above the head rather than a fixed height, or it sits inside the chest of
+				// anything larger than a person.
+				Position = new Vector3(0, (0.6f * CapsuleHeight(creature)) + 0.5f, 0),
 			};
 
 			figure.AddChild(nameplate);
 			_figures[creature] = figure;
 		}
 	}
+
+	/// <summary>How tall the capsule standing in for a creature is drawn.</summary>
+	private static float CapsuleHeight(Creature creature) => 1.4f * ScaleOf(creature.Size);
 
 	/// <summary>
 	/// How big to draw something. Purely presentational: every creature still stands in one
@@ -962,6 +1314,7 @@ public partial class Main : Node3D
 		BuildRoster(layer);
 		BuildLog(layer);
 		BuildSheet(layer);
+		BuildLevelUp(layer);
 		BuildControls(layer);
 
 		RefreshLogPanel();
@@ -1007,6 +1360,12 @@ public partial class Main : Node3D
 		Check(nameof(_sheetPanel), _sheetPanel);
 		Check(nameof(_sheet), _sheet);
 		Check(nameof(_showSheet), _showSheet);
+		Check(nameof(_levelPanel), _levelPanel);
+		Check(nameof(_levelClass), _levelClass);
+		Check(nameof(_levelFeat), _levelFeat);
+		Check(nameof(_levelTake), _levelTake);
+		Check(nameof(_levelClose), _levelClose);
+		Check(nameof(_levelDetail), _levelDetail);
 
 		foreach (var stance in new[] { Stance.PowerAttack, Stance.CombatExpertise, Stance.FightingDefensively })
 		{
@@ -1198,6 +1557,191 @@ public partial class Main : Node3D
 			: _campaign.Party.FirstOrDefault();
 	}
 
+	/// <summary>
+	/// The level-up screen: which class takes the level, and which feat comes with it.
+	/// </summary>
+	/// <remarks>
+	/// The same overlay shape as the character sheet, for the same reason — it is read and
+	/// decided rather than watched. It opens only between chapters, because that is the only
+	/// time anybody can level.
+	/// </remarks>
+	private void BuildLevelUp(CanvasLayer layer)
+	{
+		_levelPanel = new PanelContainer { Visible = false };
+		layer.AddChild(_levelPanel);
+
+		_levelPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		_levelPanel.AnchorLeft = 0.16f;
+		_levelPanel.AnchorRight = 0.70f;
+		_levelPanel.OffsetLeft = 0;
+		_levelPanel.OffsetRight = 0;
+		_levelPanel.OffsetTop = 96;
+		_levelPanel.AnchorBottom = 0.70f;
+		_levelPanel.OffsetBottom = -8;
+
+		var margin = Padded();
+		_levelPanel.AddChild(margin);
+
+		var rows = new VBoxContainer();
+		margin.AddChild(rows);
+
+		var picks = new HFlowContainer();
+		rows.AddChild(picks);
+
+		picks.AddChild(new Label { Text = "Class" });
+
+		_levelClass = new OptionButton { CustomMinimumSize = new Vector2(200, 0) };
+		_levelClass.ItemSelected += _ => RefreshLevelUp();
+		picks.AddChild(_levelClass);
+
+		picks.AddChild(new Label { Text = "Feat" });
+
+		_levelFeat = new OptionButton { CustomMinimumSize = new Vector2(280, 0) };
+		_levelFeat.ItemSelected += _ => RefreshLevelUp();
+		picks.AddChild(_levelFeat);
+
+		_levelTake = new Button { Text = "Take the level", CustomMinimumSize = new Vector2(150, 0) };
+		_levelTake.Pressed += OnTakeLevel;
+		picks.AddChild(_levelTake);
+
+		_levelClose = new Button { Text = "Not yet" };
+		_levelClose.Pressed += () => { _levelPanel.Visible = false; RefreshControls(); };
+		picks.AddChild(_levelClose);
+
+		_levelDetail = new RichTextLabel
+		{
+			BbcodeEnabled = true,
+			SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+		};
+
+		rows.AddChild(_levelDetail);
+	}
+
+	/// <summary>Fills the pickers for whoever the party selector names, and says what is on offer.</summary>
+	private void RefreshLevelUp()
+	{
+		if (_levelPanel is null || !_levelPanel.Visible)
+		{
+			return;
+		}
+
+		if (Subject() is not { } creature || !_campaign.CanLevel(creature))
+		{
+			_levelDetail.Text = "Nobody here has earned a level.";
+			_levelTake.Disabled = true;
+			return;
+		}
+
+		var classes = _campaign.ClassesFor(creature).ToList();
+		var feats = _campaign.FeatsFor(creature).ToList();
+		var earnsFeat = _campaign.NextLevelGrantsFeat(creature);
+
+		Fill(_levelClass, classes.Select(taken => taken.Name));
+		Fill(_levelFeat, earnsFeat ? feats.Select(feat => feat.Name) : []);
+
+		_levelFeat.Disabled = !earnsFeat || feats.Count == 0;
+		_levelTake.Disabled = false;
+
+		var text = new System.Text.StringBuilder();
+		text.Append($"[b]{creature.Name}[/b] — {creature.Description}, taking level {creature.Level + 1}\n\n");
+
+		if (_levelClass.Selected >= 0 && _levelClass.Selected < classes.Count)
+		{
+			var taken = classes[_levelClass.Selected];
+			text.Append($"[b]{taken.Name}[/b]: d{taken.HitDie}, {taken.Attack} base attack");
+			text.Append(taken.GoodSaves.Count > 0
+				? $", good {string.Join(" and ", taken.GoodSaves)}\n"
+				: "\n");
+		}
+
+		text.Append(earnsFeat
+			? $"\nA feat comes with this level. {feats.Count} available.\n"
+			: "\nNo feat at this level — the next one is at "
+				+ $"{creature.Level + (Levelling.GrantsFeatAt(creature.Level + 2) ? 2 : 3)}.\n");
+
+		if (earnsFeat)
+		{
+			// The ones they cannot have, and exactly what they are short of. Far more useful
+			// than a list that silently omits them — "where is Power Attack?" has an answer.
+			var barred = WithheldFeats(creature).ToList();
+
+			if (barred.Count > 0)
+			{
+				text.Append("\n[b]Not available[/b]\n");
+				foreach (var (name, missing) in barred)
+				{
+					text.Append($"  {name} — needs {missing}\n");
+				}
+			}
+		}
+
+		_levelDetail.Text = text.ToString();
+	}
+
+	/// <summary>Feats the creature does not qualify for, and what each one is waiting on.</summary>
+	private IEnumerable<(string Name, string Missing)> WithheldFeats(Creature creature) =>
+		_content.FeatIds
+			.Select(_content.GetFeat)
+			.OfType<FeatDefinition>()
+			.Where(feat => !creature.HasFeat(feat.Id) && feat.Requires.Unmet(creature).Count > 0)
+			.OrderBy(feat => feat.Name, System.StringComparer.Ordinal)
+			.Select(feat => (feat.Name, string.Join(", ", feat.Requires.Unmet(creature))));
+
+	private static void Fill(OptionButton picker, IEnumerable<string> entries)
+	{
+		var wanted = entries.ToList();
+		if (picker.ItemCount == wanted.Count)
+		{
+			return;
+		}
+
+		picker.Clear();
+		foreach (var entry in wanted)
+		{
+			picker.AddItem(entry);
+		}
+
+		if (wanted.Count > 0)
+		{
+			picker.Selected = 0;
+		}
+	}
+
+	private void OnTakeLevel()
+	{
+		if (Subject() is not { } creature)
+		{
+			return;
+		}
+
+		var classes = _campaign.ClassesFor(creature).ToList();
+		var feats = _campaign.FeatsFor(creature).ToList();
+
+		if (_levelClass.Selected < 0 || _levelClass.Selected >= classes.Count)
+		{
+			return;
+		}
+
+		var chosen = _campaign.NextLevelGrantsFeat(creature)
+			&& _levelFeat.Selected >= 0
+			&& _levelFeat.Selected < feats.Count
+				? feats[_levelFeat.Selected]
+				: null;
+
+		if (!_campaign.LevelUp(creature, classes[_levelClass.Selected], chosen))
+		{
+			Refuse($"{creature.Name} cannot take that level.");
+			return;
+		}
+
+		_log.AddText($"— {creature.Name} is now {creature.Description}"
+			+ (chosen is null ? string.Empty : $", and learns {chosen.Name}") + " —\n");
+
+		_levelPanel.Visible = false;
+		RefreshControls();
+		UpdateStatus();
+	}
+
 	/// <summary>Everything you click to act, along the bottom where it started.</summary>
 	private void BuildControls(CanvasLayer layer)
 	{
@@ -1238,6 +1782,9 @@ public partial class Main : Node3D
 		}
 
 		_spells = new OptionButton { CustomMinimumSize = new Vector2(220, 0) };
+
+		// Which squares a spell reaches depends on which spell, so the picture follows the pick.
+		_spells.ItemSelected += _ => RefreshReach();
 		actions.AddChild(_spells);
 
 		var turn = new HFlowContainer();
@@ -1317,6 +1864,9 @@ public partial class Main : Node3D
 		{
 			button.ButtonPressed = which == mode;
 		}
+
+		// The reachable squares are a Move-mode thing, so they come and go with the mode.
+		RefreshReach();
 	}
 
 	private void SelectSpellsFor(Creature actor)
@@ -1469,11 +2019,16 @@ public partial class Main : Node3D
 
 		foreach (var (creature, figure) in _figures)
 		{
+			// Half the capsule's own height, not a flat 0.7: the mesh is built at
+			// Height = 1.4 * scale, so anything Large or bigger stood buried in the floor —
+			// a Gargantuan creature by a whole unit.
+			var standing = 0.5f * CapsuleHeight(creature);
+
 			if (field?.SquareOf(creature) is { } square)
 			{
 				figure.Position = new Vector3(
 					square.X + 0.5f,
-					creature.IsConscious && !creature.IsProne ? 0.7f : 0.3f,
+					creature.IsConscious && !creature.IsProne ? standing : 0.3f,
 					square.Y + 0.5f);
 			}
 
@@ -1484,6 +2039,79 @@ public partial class Main : Node3D
 		}
 
 		RefreshTurnMarker();
+		RefreshReach();
+	}
+
+	/// <summary>
+	/// Lights the squares the current actor could actually walk to, and turns the grid off once
+	/// there is nobody left to walk.
+	/// </summary>
+	/// <remarks>
+	/// Every square is offered to the rules exactly as a click would be, rather than measured
+	/// against a budget worked out here. That is not fastidiousness: a creature that has taken
+	/// its five-foot step still has a move action in the bank, so a budget check says yes while
+	/// <c>MoveAction</c> says no, and the highlight ends up promising ground the click refuses.
+	/// <para>
+	/// It follows the mode for nothing, because <c>ActionFor</c> already does: in Move mode it
+	/// is the ground you can cross, in Cast mode the squares a spell will reach, in Attack mode
+	/// whoever is close enough to hit. The colour says which.
+	/// </para>
+	/// </remarks>
+	private void RefreshReach()
+	{
+		if (_reach is null)
+		{
+			return;
+		}
+
+		var fighting = _campaign.State == CampaignState.Fighting;
+		_groundPaint?.SetShaderParameter("strength", fighting ? 1.0f : 0.0f);
+
+		if (!fighting
+			|| !_battle.NeedsPlayer
+			|| _battle.Battlefield is not { } field
+			|| _battle.Encounter.Current is not { IsEnded: false } turn)
+		{
+			_reach.Multimesh.InstanceCount = 0;
+			return;
+		}
+
+		if (_reach.MaterialOverride is StandardMaterial3D paint)
+		{
+			paint.AlbedoColor = _mode switch
+			{
+				Mode.Move => ReachColour,
+				Mode.Cast => SpellColour,
+				Mode.Help => HelpColour,
+				_ => StrikeColour,
+			};
+		}
+
+		var squares = new List<GridSquare>();
+
+		for (var x = 0; x < field.Width; x++)
+		{
+			for (var y = 0; y < field.Height; y++)
+			{
+				var square = new GridSquare(x, y);
+
+				if (CanAct(turn.Actor, square))
+				{
+					squares.Add(square);
+				}
+			}
+		}
+
+		_reach.Multimesh.InstanceCount = squares.Count;
+
+		for (var i = 0; i < squares.Count; i++)
+		{
+			_reach.Multimesh.SetInstanceTransform(
+				i,
+				new Transform3D(
+					Basis.Identity,
+					new Vector3(squares[i].X + 0.5f, 0.015f, squares[i].Y + 0.5f)));
+		}
 	}
 
 	/// <summary>Puts the ring under whoever is acting, and hides it when nobody is.</summary>

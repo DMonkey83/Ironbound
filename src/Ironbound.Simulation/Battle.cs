@@ -31,6 +31,8 @@ public sealed record BattleTurn(Turn Turn, IReadOnlyList<string> Lines)
 {
     public Creature Actor => Turn.Actor;
 
+    public Combatant Combatant => Turn.Combatant;
+
     public int Round => Turn.Round;
 }
 
@@ -255,10 +257,12 @@ public sealed class Battle
     /// <remarks>
     /// Belonging to the party is not enough. A hero who has been cut down still gets a turn —
     /// their effects tick, their bleeding continues — but there is nothing to decide, and
-    /// handing it to the player means making them click past a corpse once a round.
+    /// handing it to the player means making them click past a corpse once a round. The same
+    /// goes for anyone the ambush caught: a full action budget and not one legal thing to
+    /// spend it on.
     /// </remarks>
     public bool NeedsPlayer =>
-        IsPartyTurn && Encounter.Current is { Actor.CanAct: true };
+        IsPartyTurn && Encounter.Current is { Combatant.CanAct: true };
 
     /// <summary>
     /// Runs a whole turn from beginning to end, asking the source what to do. The way an

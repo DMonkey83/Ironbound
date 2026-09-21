@@ -3,5 +3,6 @@
   "id": "improved-bull-rush",
   "name": "Improved Bull Rush",
   "description": "Bull rushing does not provoke, and the check is +2.",
-  "effect": "ImprovedBullRush"
+  "effect": "ImprovedBullRush",
+  "requires": { "str": 13, "feats": ["power-attack"] }
 }

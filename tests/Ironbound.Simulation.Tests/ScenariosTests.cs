@@ -136,11 +136,12 @@ public class ScenariosTests
     [Fact]
     public void AHeroWhoHasBeenCutDownIsNotHandedBackToThePlayer()
     {
-        var battle = Scenarios.GoblinAmbush();
+        // The clearing rather than the ambush: nobody is hiding there, so the first party turn
+        // is one the player actually has.
+        var battle = Scenarios.Build(ContentFiles.Default, "moonlit-clearing");
 
-        // Open turns until it is Valeria's, then drop her where she stands.
         BattleTurn? turn;
-        while ((turn = battle.BeginTurn()) is not null && turn.Actor.Name != "Valeria")
+        while ((turn = battle.BeginTurn()) is not null && !battle.NeedsPlayer)
         {
             battle.EndTurn();
         }
@@ -159,13 +160,39 @@ public class ScenariosTests
     [Fact]
     public void NorIsOneWhoHasBeenStunned()
     {
-        var battle = Scenarios.GoblinAmbush();
-        var turn = battle.BeginTurn()!;
+        var battle = Scenarios.Build(ContentFiles.Default, "moonlit-clearing");
+
+        BattleTurn? turn;
+        while ((turn = battle.BeginTurn()) is not null && !battle.NeedsPlayer)
+        {
+            battle.EndTurn();
+        }
 
         Assert.True(battle.NeedsPlayer);
 
-        turn.Actor.Effects.Apply(ConditionInfo.Effect(Condition.Stunned, Duration.Rounds(1)));
+        turn!.Actor.Effects.Apply(ConditionInfo.Effect(Condition.Stunned, Duration.Rounds(1)));
 
+        Assert.False(battle.NeedsPlayer);
+    }
+
+    [Fact]
+    public void AndNorIsSomebodyTheAmbushCaught()
+    {
+        var battle = Scenarios.GoblinAmbush();
+        var surprised = battle.Encounter.Order.First(combatant => combatant.IsUnaware).Creature;
+
+        BattleTurn? turn;
+        while ((turn = battle.BeginTurn()) is not null
+            && !ReferenceEquals(turn.Actor, surprised))
+        {
+            battle.EndTurn();
+        }
+
+        Assert.NotNull(turn);
+
+        // A full action budget and not one legal thing to spend it on. Handing that to the
+        // player means they read "standard, move remaining" and wonder why nothing works.
+        Assert.True(turn!.Turn.Budget.HasStandard);
         Assert.False(battle.NeedsPlayer);
     }
 

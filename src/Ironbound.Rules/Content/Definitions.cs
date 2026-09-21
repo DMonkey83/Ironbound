@@ -328,6 +328,34 @@ public sealed record CampaignDefinition
 }
 
 /// <summary>
+/// What a battlefield is made of, as a set of model names.
+/// </summary>
+/// <remarks>
+/// The rules layer holds these strings and never opens them: it has no notion of a file, let
+/// alone of a mesh, and the whole point of keeping it free of Godot is that it stays that way.
+/// What it does own is the <em>decision</em> — that this fight is fought among trees and that one
+/// among rocks — because that belongs in the encounter file beside the width, the height and the
+/// blocked squares, not in a switch statement in the scene code.
+/// <para>
+/// A model is named per battlefield feature rather than per square, so a terrain is three lines
+/// of JSON and not a hand-painted map. Squares the game has no art for simply fall back to what
+/// was drawn before: an untextured floor and a grey box.
+/// </para>
+/// </remarks>
+public sealed record TerrainDefinition
+{
+    public required string Id { get; init; }
+
+    public required string Name { get; init; }
+
+    /// <summary>The model laid on every ordinary square.</summary>
+    public string Ground { get; init; } = string.Empty;
+
+    /// <summary>What stands on a square nobody can walk through.</summary>
+    public string Blocked { get; init; } = string.Empty;
+}
+
+/// <summary>
 /// A fight as written down: the ground, and who stands where on it.
 /// </summary>
 /// <remarks>
@@ -344,6 +372,9 @@ public sealed record EncounterDefinition
     public int Width { get; init; } = 16;
 
     public int Height { get; init; } = 12;
+
+    /// <summary>The terrain it is fought on, by id. Empty means the bare floor.</summary>
+    public string Terrain { get; init; } = string.Empty;
 
     public IReadOnlyList<PlacementDefinition> Blocked { get; init; } = [];
 

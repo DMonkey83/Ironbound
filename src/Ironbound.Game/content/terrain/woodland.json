@@ -1,0 +1,14 @@
+// Trees on grass. The clearing fights.
+{
+  "kind": "terrain",
+  "id": "woodland",
+  "name": "Woodland",
+
+  // Paths, not meshes: the rules layer stores this string and never opens it. Only the Godot
+  // layer knows what res:// means, which is the whole reason the rules do not reference Godot.
+  "ground": "res://art/Grass_Flat.obj",
+
+  // What stands on a square nobody can walk through. The cover rules already treat these squares
+  // as blocking line of sight; now they look like they do.
+  "blocked": "res://art/Prop_Tree_Cedar_1.obj"
+}

@@ -1,5 +1,6 @@
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Content;
+using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Magic;
 
@@ -342,6 +343,187 @@ public class ExperienceTests
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
 
         return run;
+    }
+}
+
+public class LevellingChoiceTests
+{
+    [Fact]
+    public void TheLevelCanGoIntoAnyClassInTheLibrary()
+    {
+        var (run, merrin) = Ready();
+
+        Assert.Equal(
+            ["Barbarian", "Fighter", "Rogue", "Warrior", "Wizard"],
+            run.ClassesFor(merrin).Select(taken => taken.Name));
+    }
+
+    [Fact]
+    public void TakingOneInSomethingElseMakesYouTwoThings()
+    {
+        var (run, merrin) = Ready();
+
+        Assert.True(run.LevelUp(merrin, ContentFiles.Default.GetClass("fighter")!));
+
+        Assert.Equal("Wizard 5 / Fighter 1", merrin.Description);
+        Assert.Equal(6, merrin.Level);
+    }
+
+    [Fact]
+    public void OnlyFeatsSheQualifiesForAreOffered()
+    {
+        var (run, merrin) = Ready();
+        var offered = run.FeatsFor(merrin).Select(feat => feat.Id).ToList();
+
+        // Strength 8: Power Attack is not hers to take, whatever else is.
+        Assert.DoesNotContain("power-attack", offered);
+        Assert.Contains("dodge", offered);
+    }
+
+    [Fact]
+    public void NorAnythingSheAlreadyHas()
+    {
+        var (run, merrin) = Ready();
+
+        Assert.True(merrin.HasFeat("improved-initiative"));
+        Assert.DoesNotContain("improved-initiative", run.FeatsFor(merrin).Select(feat => feat.Id));
+    }
+
+    [Fact]
+    public void AChosenFeatIsAppliedExactlyOnce()
+    {
+        var (run, hero, library) = Owed();
+        var dodge = library.GetFeat("dodge")!;
+        var armour = hero.ArmorClass.Total;
+
+        Assert.True(run.NextLevelGrantsFeat(hero));
+        Assert.True(run.LevelUp(hero, library.GetClass("warrior")!, dodge));
+
+        Assert.True(hero.HasFeat("dodge"));
+
+        // ApplyTo is not idempotent, so applying it twice would quietly be worth two.
+        Assert.Equal(armour + 1, hero.ArmorClass.Total);
+    }
+
+    [Fact]
+    public void AFeatTheyDoNotQualifyForIsRefusedAndChangesNothing()
+    {
+        var (run, hero, library) = Owed();
+        var before = hero.Description;
+
+        Assert.False(run.LevelUp(
+            hero,
+            library.GetClass("warrior")!,
+            library.GetFeat("improved-trip")!));
+
+        // Refused outright rather than levelled without the feat: the choice was the point.
+        Assert.Equal(before, hero.Description);
+        Assert.False(hero.HasFeat("improved-trip"));
+    }
+
+    [Fact]
+    public void AFeatOnAnEvenLevelIsRefusedRatherThanQuietlyDropped()
+    {
+        var (run, merrin) = Ready();
+
+        // Wizard 5 taking her sixth: an even level, so no feat comes with it.
+        Assert.False(run.NextLevelGrantsFeat(merrin));
+        Assert.False(run.LevelUp(
+            merrin,
+            ContentFiles.Default.GetClass("wizard")!,
+            ContentFiles.Default.GetFeat("dodge")!));
+
+        Assert.Equal("Wizard 5", merrin.Description);
+    }
+
+    [Fact]
+    public void WithoutAFeatAnEvenLevelIsFine()
+    {
+        var (run, merrin) = Ready();
+
+        Assert.True(run.LevelUp(merrin, ContentFiles.Default.GetClass("wizard")!));
+        Assert.Equal("Wizard 6", merrin.Description);
+    }
+
+    [Fact]
+    public void TheOldNoArgumentFormStillTakesTheClassSheHasMostOf()
+    {
+        var (run, merrin) = Ready();
+
+        Assert.True(run.LevelUp(merrin));
+        Assert.Equal("Wizard 6", merrin.Description);
+    }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(3, true)]
+    [InlineData(20, false)]
+    public void FeatsComeAtOddLevels(int level, bool grants) =>
+        Assert.Equal(grants, Ironbound.Rules.Classes.Levelling.GrantsFeatAt(level));
+
+    /// <summary>
+    /// A campaign wound forward to somebody standing on an odd level with experience to spend.
+    /// </summary>
+    /// <remarks>
+    /// The shipped campaign cannot produce one. Merrin is its only party member who can level,
+    /// and her sixth is an even level, so no feat comes with it; the werewolf beyond her is
+    /// worth 2,500 against the 5,600 that a seventh would cost. Rather than inflate the content
+    /// to suit a test, this adds a two-creature run alongside it and wins that by fiat.
+    /// </remarks>
+    private static (Campaign Run, Creature Hero, ContentLibrary Library) Owed()
+    {
+        var files = ContentFiles
+            .Read(Path.Combine(AppContext.BaseDirectory, "content"))
+            .ToList();
+
+        files.Add(("test-hero.json", """
+            { "kind": "creature", "id": "test-hero", "name": "Tester",
+              "abilities": [16, 12, 14, 10, 12, 10],
+              "classes": [ { "class": "warrior", "level": 4 } ] }
+            """));
+
+        // Level eight, and therefore worth 6,400 — enough on its own to buy the fifth level.
+        files.Add(("test-foe.json", """
+            { "kind": "creature", "id": "test-foe", "name": "Something Large",
+              "abilities": [16, 12, 14, 10, 12, 10],
+              "classes": [ { "class": "warrior", "level": 8 } ] }
+            """));
+
+        files.Add(("test-encounter.json", """
+            { "kind": "encounter", "id": "test-fight", "name": "A Test",
+              "width": 8, "height": 8,
+              "placements": [
+                { "creature": "test-hero", "x": 1, "y": 1, "party": true },
+                { "creature": "test-foe", "x": 6, "y": 6 } ] }
+            """));
+
+        files.Add(("test-campaign.json", """
+            { "kind": "campaign", "id": "test-run", "name": "A Test Run",
+              "encounters": ["test-fight"], "rests": 0 }
+            """));
+
+        var library = ContentLibrary.Load(files);
+        var run = Campaign.Begin(library, "test-run");
+
+        foreach (var foe in run.Battle.Foes)
+        {
+            foe.HitPoints.Take(foe.HitPoints.Maximum + 100);
+        }
+
+        run.Collect();
+
+        return (run, run.Party.Single(), library);
+    }
+
+    /// <summary>Chapter one won, leaving Merrin a level behind the fighters and able to take it.</summary>
+    private static (Campaign Run, Creature Merrin) Ready()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
+        run.Collect();
+
+        return (run, run.Party.Single(one => one.Name == "Merrin"));
     }
 }
 

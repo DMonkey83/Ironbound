@@ -7,5 +7,6 @@
   "description": "+2 on weapon damage.",
   "grants": [
     { "target": "damage", "value": 2, "type": "Untyped" }
-  ]
+  ],
+  "requires": { "baseAttack": 4, "level": 4 }
 }

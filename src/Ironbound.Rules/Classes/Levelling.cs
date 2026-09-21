@@ -45,6 +45,17 @@ public static class Levelling
     public static int ThresholdFor(int level) =>
         Thresholds[Math.Clamp(level, 1, Thresholds.Length) - 1];
 
+    /// <summary>
+    /// Whether reaching this level comes with a feat.
+    /// </summary>
+    /// <remarks>
+    /// An opportunity rather than a running budget. Counting feats owed against feats held does
+    /// not work: a creature written in a content file carries feats it never earned — Valeria
+    /// has five at sixth level, where three odd levels have passed — and subtracting one from
+    /// the other would tell her she is four in arrears.
+    /// </remarks>
+    public static bool GrantsFeatAt(int level) => level % 2 == 1;
+
     /// <summary>The level a given amount of experience is worth.</summary>
     public static int LevelFor(int experience)
     {

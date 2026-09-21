@@ -5,5 +5,9 @@
   "id": "power-attack",
   "name": "Power Attack",
   "description": "Trade accuracy for damage on melee attacks. The trade steepens with skill.",
-  "effect": "PowerAttack"
+  "effect": "PowerAttack",
+
+  // Strength 13 is what keeps this off the wiry duellist. It is the whole reason an ability
+  // score is a build decision rather than a number you round up at creation.
+  "requires": { "str": 13, "baseAttack": 1 }
 }

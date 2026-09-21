@@ -64,8 +64,7 @@ public sealed class Turn
         // Dazed or stunned refuses everything, including the free actions: being unable to act
         // is the absence of a turn rather than a penalty on one. So does being surprised.
         return !IsEnded
-            && !Combatant.IsUnaware
-            && Actor.CanAct
+            && Combatant.CanAct
             && action.CanPerform(new ActionContext(this))
             && Budget.CanAfford(action.Cost);
     }

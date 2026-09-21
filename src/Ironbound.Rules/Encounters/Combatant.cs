@@ -65,6 +65,17 @@ public sealed class Combatant
     /// <summary>Caught with their guard down: before their first turn, or surprised entirely.</summary>
     public bool IsFlatFooted => !HasActed || IsUnaware;
 
+    /// <summary>
+    /// Whether this one can do anything at all this turn.
+    /// </summary>
+    /// <remarks>
+    /// Both halves of the question in one place. A creature knows whether it is conscious and
+    /// whether something has dazed it, but being <em>surprised</em> is a fact about this fight
+    /// rather than about the creature, so it lives here — and anything asking "is there a
+    /// decision to make?" has to ask both or it will hand somebody a turn they cannot use.
+    /// </remarks>
+    public bool CanAct => Creature.CanAct && !IsUnaware;
+
     public bool HasMoved { get; internal set; }
 
     /// <summary>Set by a five-foot step. Bars ordinary movement for the rest of the turn.</summary>

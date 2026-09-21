@@ -2,7 +2,9 @@
   "kind": "creature",
   "id": "valeria",
   "name": "Valeria",
-  "abilities": [18, 14, 14, 10, 12, 10],
+  // Intelligence 13 is not decoration: it is what Combat Expertise costs, and what Improved
+  // Trip costs on top of that. A fighter who wants to trip people pays for it here.
+  "abilities": [18, 14, 14, 13, 12, 10],
 
   // One fact instead of four. Hit points, base attack and all three saves now follow from it,
   // and cannot drift out of step with each other.

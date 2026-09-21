@@ -1,6 +1,7 @@
 using Ironbound.Rules;
 using Ironbound.Rules.Classes;
 using Ironbound.Rules.Content;
+using Ironbound.Rules.Feats;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Items;
 using Ironbound.Rules.Persistence;
@@ -285,7 +286,80 @@ public sealed class Campaign
             return false;
         }
 
-        return Levelling.Gain(creature, creature.Levels.MaxBy(level => level.Level).Class, _rules);
+        return LevelUp(creature, creature.Levels.MaxBy(level => level.Level).Class);
+    }
+
+    /// <summary>
+    /// Takes a level in a chosen class, and a chosen feat if the new level comes with one.
+    /// </summary>
+    /// <remarks>
+    /// The feat is an opportunity attached to this particular level rather than a balance owed:
+    /// offered when the new total is odd, taken now or not at all. Passing one on an even level
+    /// is refused rather than quietly ignored, because silently dropping somebody's choice is
+    /// worse than telling them it was not theirs to make.
+    /// </remarks>
+    public bool LevelUp(Creature creature, ClassDefinition taken, FeatDefinition? feat = null)
+    {
+        ArgumentNullException.ThrowIfNull(taken);
+
+        if (!CanLevel(creature) || _library.GetClass(taken.Id) is null)
+        {
+            return false;
+        }
+
+        if (feat is not null
+            && (!Levelling.GrantsFeatAt(creature.Level + 1) || !feat.AvailableTo(creature)))
+        {
+            return false;
+        }
+
+        if (!Levelling.Gain(creature, taken, _rules))
+        {
+            return false;
+        }
+
+        if (feat is not null)
+        {
+            // Both halves, exactly once: the list is the identity and ApplyTo is the only thing
+            // that pushes the bonuses into the stacks, and it is not idempotent.
+            creature.Feats.Add(feat);
+            feat.ApplyTo(creature);
+        }
+
+        return true;
+    }
+
+    /// <summary>Every class the level could be taken in, by name so a picker does not shuffle.</summary>
+    public IEnumerable<ClassDefinition> ClassesFor(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        return _library.ClassIds
+            .Select(_library.GetClass)
+            .OfType<ClassDefinition>()
+            .OrderBy(taken => taken.Name, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// The feats this creature could actually take: not already held, and nothing outstanding.
+    /// </summary>
+    public IEnumerable<FeatDefinition> FeatsFor(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        return _library.FeatIds
+            .Select(_library.GetFeat)
+            .OfType<FeatDefinition>()
+            .Where(feat => feat.AvailableTo(creature))
+            .OrderBy(feat => feat.Name, StringComparer.Ordinal);
+    }
+
+    /// <summary>Whether the next level somebody takes will come with a feat.</summary>
+    public bool NextLevelGrantsFeat(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        return Levelling.GrantsFeatAt(creature.Level + 1);
     }
 
     /// <summary>Moves on to the next fight, carrying the party into it as they are.</summary>
