@@ -221,10 +221,15 @@ public partial class Main
 			return;
 		}
 
+		// Still on the floor after moving means it crawled: slowly, and without the run clip,
+		// which played lying down looks like somebody being dragged off by the ankles.
+		var crawling = PostureOf(walker) == Posture.Prone;
+		var pace = crawling ? StepSeconds * 4f : StepSeconds;
+
 		var seconds = 0.0;
 		for (var i = 1; i < path.Count; i++)
 		{
-			seconds += StepSeconds * StepLength(path[i - 1], path[i]);
+			seconds += pace * StepLength(path[i - 1], path[i]);
 		}
 
 		Enqueue(seconds, () =>
@@ -235,7 +240,10 @@ public partial class Main
 			}
 
 			Follow(figure);
-			PlayClip(walker, loop: true, "run", "walk");
+			if (!crawling)
+			{
+				PlayClip(walker, loop: true, "run", "walk");
+			}
 
 			var tween = figure.CreateTween();
 			for (var i = 1; i < path.Count; i++)
@@ -245,8 +253,8 @@ public partial class Main
 
 				tween.TweenCallback(Callable.From(() => Turn(figure, to.X - from.X, to.Y - from.Y)));
 				tween.TweenProperty(
-					figure, "position", new Vector3(to.X + 0.5f, 0f, to.Y + 0.5f),
-					StepSeconds * StepLength(from, to));
+					figure, "position", new Vector3(to.X + 0.5f, figure.Position.Y, to.Y + 0.5f),
+					pace * StepLength(from, to));
 			}
 
 			tween.TweenCallback(Callable.From(() => Idle(walker)));

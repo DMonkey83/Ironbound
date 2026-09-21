@@ -47,8 +47,21 @@ public class MoveAction : GameAction
         return path.Count > 1 ? new MoveAction(path) : null;
     }
 
-    /// <summary>How much ground this kind of movement may cover.</summary>
-    protected virtual int Allowance(Creature mover) => mover.CurrentSpeed;
+    /// <summary>All the ground a creature on the floor can cover: it crawls, one square.</summary>
+    public const int CrawlFeet = Distance.FeetPerSquare;
+
+    /// <summary>
+    /// How much ground this kind of movement may cover.
+    /// </summary>
+    /// <remarks>
+    /// Somebody lying down does not get their speed. They crawl five feet for the same move
+    /// action, and it provokes like any other move — which is what makes being tripped a
+    /// problem rather than a posture: stay down and fight at -4, spend the move action getting
+    /// up, or drag yourself one square past the people standing over you. Nothing used to check,
+    /// so a character knocked over by Grease could slide the length of the board on their back.
+    /// </remarks>
+    protected virtual int Allowance(Creature mover) =>
+        mover.IsProne ? CrawlFeet : mover.CurrentSpeed;
 
     /// <summary>Whether leaving the square at <paramref name="stepIndex"/> is careless.</summary>
     protected virtual bool ProvokesLeaving(int stepIndex) => true;
@@ -126,7 +139,8 @@ public class MoveAction : GameAction
         field.Place(actor, landed);
         RecordMovement(context.Combatant);
 
-        var description = $"{actor.Name} {Name}s to {landed} ({spent} ft of {Allowance(actor)})";
+        var verb = actor.IsProne ? "crawl" : Name;
+        var description = $"{actor.Name} {verb}s to {landed} ({spent} ft of {Allowance(actor)})";
         if (opportunities.Count > 0)
         {
             description += $", provoking {opportunities.Count}";

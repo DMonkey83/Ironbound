@@ -298,7 +298,6 @@ public partial class Main : Node3D
 		// The log takes a quarter of the screen with it. If the player has not taken the camera,
 		// re-frame the board in what is left.
 		OnViewportResized();
-		_showLog.Text = _showLog.ButtonPressed ? "Hide log" : "Log";
 	}
 
 	/// <summary>Fills the two pickers, and greys the lot while anyone is still swinging.</summary>
@@ -310,6 +309,11 @@ public partial class Main : Node3D
 		if (_between is not null)
 		{
 			_between.Visible = between;
+		}
+
+		if (_hotbar is not null && between)
+		{
+			_hotbar.Visible = false;
 		}
 
 		if (_stash.ItemCount != loot.Count || !between)
@@ -545,7 +549,7 @@ public partial class Main : Node3D
 	{
 		// The camera first: wheel, middle-drag and its keys are never a move or an attack. Being
 		// *unhandled* input, a wheel over the log panel has already been eaten by the log.
-		if (CameraInput(@event))
+		if (CameraInput(@event) || HudInput(@event))
 		{
 			return;
 		}
@@ -1309,6 +1313,7 @@ public partial class Main : Node3D
 
 		Spawn(_battle.Party, PartyColour);
 		Spawn(_battle.Foes, FoeColour);
+		RebuildFrames();
 		RefreshFigures();
 	}
 
@@ -1615,11 +1620,7 @@ public partial class Main : Node3D
 		var layer = new CanvasLayer();
 		AddChild(layer);
 
-		BuildRoster(layer);
-		BuildLog(layer);
-		BuildSheet(layer);
-		BuildLevelUp(layer);
-		BuildControls(layer);
+		BuildHud(layer);
 
 		RefreshLogPanel();
 		VerifyInterface();
@@ -1690,83 +1691,6 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Who is in the fight and how they are doing, across the top.</summary>
-	private void BuildRoster(CanvasLayer layer)
-	{
-		var bar = new PanelContainer();
-		layer.AddChild(bar);
-		bar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopWide);
-		bar.CustomMinimumSize = new Vector2(0, 72);
-
-		var margin = Padded();
-		bar.AddChild(margin);
-
-		var across = new HBoxContainer();
-		margin.AddChild(across);
-
-		var lines = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		across.AddChild(lines);
-
-		_status = new Label();
-		lines.AddChild(_status);
-
-		_roster = new RichTextLabel
-		{
-			BbcodeEnabled = true,
-			FitContent = true,
-			ScrollActive = false,
-			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-		};
-
-		lines.AddChild(_roster);
-
-		_showLog = new Button
-		{
-			Text = "Log",
-			ToggleMode = true,
-			ButtonPressed = true,
-			CustomMinimumSize = new Vector2(80, 0),
-		};
-
-		_showLog.Toggled += _ => RefreshLogPanel();
-		across.AddChild(_showLog);
-
-		_showSheet = new Button
-		{
-			Text = "Sheet",
-			ToggleMode = true,
-			CustomMinimumSize = new Vector2(90, 0),
-		};
-
-		_showSheet.Toggled += _ => RefreshSheet();
-		across.AddChild(_showSheet);
-	}
-
-	/// <summary>The combat log, down the right-hand side and foldable out of the way.</summary>
-	private void BuildLog(CanvasLayer layer)
-	{
-		_logPanel = new PanelContainer();
-		layer.AddChild(_logPanel);
-
-		// The right quarter, between the roster and the controls.
-		_logPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-		_logPanel.AnchorLeft = 0.74f;
-		_logPanel.OffsetLeft = 0;
-		_logPanel.OffsetTop = 76;
-		_logPanel.AnchorBottom = 0.74f;
-		_logPanel.OffsetBottom = 0;
-
-		var margin = Padded();
-		_logPanel.AddChild(margin);
-
-		_log = new RichTextLabel
-		{
-			ScrollFollowing = true,
-			SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-		};
-
-		margin.AddChild(_log);
-	}
-
 	/// <summary>
 	/// The character sheet: every derived number beside the parts it was made of.
 	/// </summary>
@@ -1780,13 +1704,14 @@ public partial class Main : Node3D
 		layer.AddChild(_sheetPanel);
 
 		_sheetPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-		_sheetPanel.AnchorLeft = 0.08f;
-		_sheetPanel.AnchorRight = 0.72f;
+		_sheetPanel.AnchorLeft = 0.20f;
+		_sheetPanel.AnchorRight = 0.80f;
 		_sheetPanel.OffsetLeft = 0;
 		_sheetPanel.OffsetRight = 0;
-		_sheetPanel.OffsetTop = 84;
-		_sheetPanel.AnchorBottom = 0.74f;
-		_sheetPanel.OffsetBottom = -8;
+		_sheetPanel.AnchorTop = 0.05f;
+		_sheetPanel.OffsetTop = 0;
+		_sheetPanel.AnchorBottom = 0.82f;
+		_sheetPanel.OffsetBottom = 0;
 
 		var margin = Padded();
 		_sheetPanel.AddChild(margin);
@@ -1810,7 +1735,6 @@ public partial class Main : Node3D
 		}
 
 		_sheetPanel.Visible = _showSheet.ButtonPressed;
-		_showSheet.Text = _showSheet.ButtonPressed ? "Close" : "Sheet";
 
 		if (!_sheetPanel.Visible)
 		{
@@ -1875,13 +1799,14 @@ public partial class Main : Node3D
 		layer.AddChild(_levelPanel);
 
 		_levelPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-		_levelPanel.AnchorLeft = 0.16f;
-		_levelPanel.AnchorRight = 0.70f;
+		_levelPanel.AnchorLeft = 0.24f;
+		_levelPanel.AnchorRight = 0.76f;
 		_levelPanel.OffsetLeft = 0;
 		_levelPanel.OffsetRight = 0;
-		_levelPanel.OffsetTop = 96;
-		_levelPanel.AnchorBottom = 0.70f;
-		_levelPanel.OffsetBottom = -8;
+		_levelPanel.AnchorTop = 0.08f;
+		_levelPanel.OffsetTop = 0;
+		_levelPanel.AnchorBottom = 0.80f;
+		_levelPanel.OffsetBottom = 0;
 
 		var margin = Padded();
 		_levelPanel.AddChild(margin);
@@ -2047,119 +1972,6 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Everything you click to act, along the bottom where it started.</summary>
-	private void BuildControls(CanvasLayer layer)
-	{
-		var panel = new PanelContainer();
-		layer.AddChild(panel);
-		panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomWide);
-		panel.AnchorTop = 0.74f;
-		panel.OffsetTop = 0;
-		panel.CustomMinimumSize = new Vector2(0, 190);
-
-		var margin = Padded();
-		panel.AddChild(margin);
-
-		var rows = new VBoxContainer();
-		margin.AddChild(rows);
-
-		_prompt = new Label();
-		rows.AddChild(_prompt);
-
-		// Grouped by when you reach for them: what to do with this turn, what to do with the
-		// turn itself, and what to do once the fighting has stopped. Flow containers rather
-		// than boxes, so a row wraps instead of running off the edge.
-		var actions = new HFlowContainer();
-		rows.AddChild(actions);
-
-		foreach (var mode in ModeOrder)
-		{
-			var button = new Button
-			{
-				Text = mode == Mode.Full ? "Full attack" : mode.ToString(),
-				ToggleMode = true,
-				CustomMinimumSize = new Vector2(110, 0),
-			};
-
-			button.Pressed += () => ChooseMode(mode);
-			actions.AddChild(button);
-			_modes[mode] = button;
-		}
-
-		_spells = new OptionButton { CustomMinimumSize = new Vector2(220, 0) };
-
-		// Which squares a spell reaches depends on which spell, so the picture follows the pick.
-		_spells.ItemSelected += _ => RefreshReach();
-		actions.AddChild(_spells);
-
-		var turn = new HFlowContainer();
-		rows.AddChild(turn);
-
-		_stand = new Button { Text = "Stand up" };
-		_stand.Pressed += OnStandUp;
-		turn.AddChild(_stand);
-
-		_endTurn = new Button { Text = "End turn", CustomMinimumSize = new Vector2(110, 0) };
-		_endTurn.Pressed += OnEndTurn;
-		turn.AddChild(_endTurn);
-
-		// The dials, beside the turn they apply to. Greyed out for anyone without the training
-		// for them, which is most of the party.
-		foreach (var stance in new[] { Stance.PowerAttack, Stance.CombatExpertise, Stance.FightingDefensively })
-		{
-			var button = new Button
-			{
-				Text = stance == Stance.FightingDefensively ? "Defend" : Stances.Name(stance),
-				ToggleMode = true,
-			};
-
-			button.Pressed += () => OnStance(stance);
-			turn.AddChild(button);
-			_stances[stance] = button;
-		}
-
-		var save = new Button { Text = "Save" };
-		save.Pressed += OnSave;
-		turn.AddChild(save);
-
-		_load = new Button { Text = "Load", Disabled = !SaveExists() };
-		_load.Pressed += OnLoad;
-		turn.AddChild(_load);
-
-		// Hidden outright while anyone is still swinging rather than merely greyed: these are
-		// not choices you have during a fight, and a row of dead controls is just clutter.
-		_between = new HFlowContainer { Visible = false };
-		rows.AddChild(_between);
-
-		_between.AddChild(new Label { Text = "Spoils" });
-
-		_stash = new OptionButton { CustomMinimumSize = new Vector2(260, 0) };
-		_between.AddChild(_stash);
-
-		_between.AddChild(new Label { Text = "to" });
-
-		_bearer = new OptionButton { CustomMinimumSize = new Vector2(110, 0) };
-		_bearer.ItemSelected += _ => RefreshSheet();
-		_between.AddChild(_bearer);
-
-		_give = new Button { Text = "Take" };
-		_give.Pressed += OnTake;
-		_between.AddChild(_give);
-
-		_levelUp = new Button { Text = "Level up" };
-		_levelUp.Pressed += OnLevelUp;
-		_between.AddChild(_levelUp);
-
-		_rest = new Button { Text = "Rest" };
-		_rest.Pressed += OnRest;
-		_between.AddChild(_rest);
-
-		_press = new Button { Text = "Press on", CustomMinimumSize = new Vector2(110, 0) };
-		_press.Pressed += OnPressOn;
-		_between.AddChild(_press);
-
-		ChooseMode(Mode.Move);
-	}
-
 	private void ChooseMode(Mode mode)
 	{
 		_mode = mode;
@@ -2298,34 +2110,17 @@ public partial class Main : Node3D
 			button.ButtonPressed = turn is not null && turn.Actor.Stances.IsActive(stance);
 		}
 
-		// Two different kinds of "no". Out of actions is a fact about this turn, and stays on
-		// screen greyed out so the player can see what they have spent. Never learned it is a
-		// fact about the character, and a button nobody at the table can ever press is clutter:
-		// a fighter has no Cast, and only the one who took the feat has Power Attack. Decided
-		// when somebody's turn begins, and left alone in between so the row does not flicker
-		// every time the enemy moves.
-		if (turn is not null)
-		{
-			var caster = turn.Actor.Spells.Prepared.Count > 0;
-			_modes[Mode.Cast].Visible = caster;
-			_spells.Visible = caster;
-
-			foreach (var (stance, button) in _stances)
-			{
-				button.Visible = turn.Actor.Stances.CanAdopt(stance);
-			}
-		}
 		_press.Disabled = !_campaign.CanAdvance;
 		_rest.Disabled = !_campaign.CanRest;
 		RefreshStash();
 
 		// Being left holding a mode that can no longer do anything is its own small trap. Move
 		// first, because a five-foot step outlives everything else.
-		if (_modes[_mode].Disabled)
+		if (_modes[_mode].Disabled || !_modes[_mode].Visible)
 		{
 			foreach (var mode in ModeOrder)
 			{
-				if (!_modes[mode].Disabled)
+				if (!_modes[mode].Disabled && _modes[mode].Visible)
 				{
 					ChooseMode(mode);
 					break;
@@ -2515,7 +2310,7 @@ public partial class Main : Node3D
 
 	private void UpdateStatus()
 	{
-		var standing = string.Join("    ", _battle.Encounter.Order.Select(combatant =>
+		var standing = string.Join("\n", _battle.Encounter.Order.Select(combatant =>
 		{
 			var creature = combatant.Creature;
 
@@ -2543,34 +2338,66 @@ public partial class Main : Node3D
 				: $"[color=#{colour}]{text}[/color]";
 		}));
 
-		var budget = _battle.Encounter.Current is { IsEnded: false } turn
-			? $"   ·   {turn.Budget}"
-			: string.Empty;
-
 		var earned = _campaign.NextLevelAt is { } next
-			? $"   ·   xp {_campaign.Experience:n0} / {next:n0}"
-			: $"   ·   xp {_campaign.Experience:n0}";
+			? $"xp {_campaign.Experience:n0} / {next:n0}"
+			: $"xp {_campaign.Experience:n0}";
 
-		var headline = $"{_campaign.Definition.Name}   ·   "
-			+ $"chapter {_campaign.Chapter} of {_campaign.Definition.Encounters.Count}   ·   "
-			+ $"rests {_campaign.RestsRemaining}{earned}   ·   round {_battle.Round}{budget}";
+		var headline = $"{_campaign.Definition.Name}\n"
+			+ $"chapter {_campaign.Chapter} of {_campaign.Definition.Encounters.Count}   ·   round {_battle.Round}\n"
+			+ $"rests {_campaign.RestsRemaining}   ·   {earned}";
+
+		// The faces, the acting character and the action pips, snapshotted with the text so
+		// they all tell the same moment of the fight.
+		var open = _battle.Encounter.Current is { IsEnded: false } current ? current : null;
+		var party = _battle.Party.ToDictionary(
+			creature => creature,
+			creature => VitalsOf(creature, open is not null && ReferenceEquals(open.Actor, creature)));
+		// Between fights there is no turn, so the bar shows whoever leads the party rather than
+		// being left on the face of the last goblin to die.
+		var actor = open?.Actor ?? _battle.Party.FirstOrDefault(one => one.IsConscious) ?? _battle.Party.FirstOrDefault();
+		Vitals? acting = actor is null ? null : VitalsOf(actor, open is not null);
+
+		// Which buttons the bar offers is part of whose bar it is, so it is decided here, with
+		// the face, and shown with it. Two kinds of "no": out of actions is a fact about the
+		// turn and stays on screen greyed; never learned it is a fact about the character, and
+		// a button nobody can ever press is clutter — a fighter has no Cast. An enemy gets no
+		// buttons at all: it is their turn, not an offer.
+		var fighting = _campaign.State == CampaignState.Fighting;
+		var offered = new Offer(
+			Hotbar: fighting && actor is not null && _battle.SideOf(actor) == Ironbound.Simulation.Side.Party,
+			Cast: actor is not null && actor.Spells.Prepared.Count > 0,
+			Stances: actor is null ? [] : [.. _stances.Keys.Where(actor.Stances.CanAdopt)],
+
+			// And a third kind of "no": nothing to do it to. Standing up is for somebody on the
+			// floor and first aid is for somebody bleeding out on it. As words in a row they
+			// were harmless greyed out; as icons they are two permanent dead buttons.
+			Stand: actor is not null && actor.IsProne,
+			Help: actor is not null && _battle.Party.Any(one =>
+				!ReferenceEquals(one, actor)
+				&& one.HitPoints.State == HitPointState.Dying
+				&& !Ironbound.Rules.Effects.Bleeding.IsStable(one)));
+		(bool, bool, bool)? pips = open is null || !_battle.IsPartyTurn
+			? null
+			: (open.Budget.HasStandard, open.Budget.HasMove, open.Budget.HasSwift);
 
 		// Written down now, shown when the board catches up. The rules are already at the end
 		// of the enemy's turn; a roster that followed them would announce the kill, and then
 		// "chapter won", while the blow that did it was still three beats away.
+		void Show()
+		{
+			_status.Text = headline;
+			_roster.Text = standing;
+			ShowVitals(party, actor, acting, pips);
+			ShowOffer(offered);
+		}
+
 		if (StageBusy)
 		{
-			Enqueue(0.0, () =>
-			{
-				_status.Text = headline;
-				_roster.Text = standing;
-			});
-
+			Enqueue(0.0, Show);
 			return;
 		}
 
-		_status.Text = headline;
-		_roster.Text = standing;
+		Show();
 	}
 
 	// ---- the headless proof ----

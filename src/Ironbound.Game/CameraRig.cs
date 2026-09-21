@@ -104,17 +104,16 @@ public partial class Main
 
 	// ---- fitting the board to whatever the window is ----
 
-	/// <summary>
-	/// The part of the screen the HUD leaves alone, as fractions of the whole: the roster runs
-	/// along the top, the controls across the bottom, and the log down the right when it is open.
-	/// </summary>
+	/// <summary>The part of the screen the HUD leaves alone, as fractions of the whole.</summary>
 	private Rect2 FreeRect()
 	{
-		const float top = 0.075f;
-		const float bottom = 0.74f;
-		var right = _logPanel is { Visible: true } ? 0.74f : 1f;
+		// The interface lives in the corners now, so nearly the whole window is board. What is
+		// kept clear is the strip the action bar sits in, and a little air at the top so the
+		// far tip of the board does not run under the party's faces.
+		const float top = 0.03f;
+		const float bottom = 0.84f;
 
-		return new Rect2(0f, top, right, bottom - top);
+		return new Rect2(0.04f, top, 0.92f, bottom - top);
 	}
 
 	/// <summary>

@@ -37,6 +37,13 @@ public sealed class FiveFootStepAction(IReadOnlyList<GridSquare> path) : MoveAct
             return false;
         }
 
+        // A five-foot step is a careful step, and nobody steps anywhere from flat on their
+        // back. Without this the free, unprovoking step was a better crawl than the crawl.
+        if (context.Actor.IsProne)
+        {
+            return false;
+        }
+
         // Difficult ground costs ten feet a square, and a five-foot step is exactly five.
         return context.Encounter.Battlefield is { } field && !field.IsDifficult(Path[1]);
     }

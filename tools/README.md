@@ -63,6 +63,24 @@ blender -b --factory-startup --python tools/preview_model.py -- out.glb preview.
 Imports the `.glb` into an empty scene and renders it from two angles. **Use it.** Every one of
 the traps below produced a build log that claimed success.
 
+## The interface
+
+The board has the whole window and the interface sits in its corners (`src/Ironbound.Game/Hud.cs`):
+party portraits top-left, campaign and turn order top-right, the acting character and their
+actions bottom-centre, the log bottom-left, system buttons bottom-right.
+
+| Key | Does |
+| --- | --- |
+| 1 – 7 | Move, Attack, Full attack, Trip, Shove, Help, Cast |
+| Z / X / C | Power Attack, Combat Expertise, Fight defensively |
+| G / Space | Stand up, End turn |
+| L / I | Log, character sheet (or click a portrait) |
+| F5 / F9 | Save, Load |
+
+Portraits are not art: each is a small viewport with its own copy of the creature's model and a
+camera on its face, so anything with a model has a portrait. Icons are drawn in code
+(`DrawGlyph`), which is the one method real icon art would replace.
+
 ## The camera
 
 | Input | Does |

@@ -63,6 +63,13 @@ first frame and nobody ever sees the rest pose. Every bone is rolled to one conv
 forward), which is what lets the animation tables be read by a person. All four clips were
 re-authored for it, and the death now ends on the ground.
 
+Six clips each: `idle_combat`, `attack_melee`, `run`, `death`, and — because these creatures
+fight dirty and the human pack has nothing of the kind — `trip` (down low, sweeping the weapon arm
+across the shins; the werewolf goes in with his jaws) and `shove` (coiled behind the shield arm,
+then the whole body into them). The death walks the root forward as it tips back, so a body comes
+to rest on the square it died in rather than laid out across the one behind: measured, the fallen
+body's middle is within 0.12 of its square's centre for all four generated creatures.
+
 The ceiling is a stylised sculpt. Pitted iron, pores and stitched leather come from sculpting and
 painted textures, and no script produces those.
 
