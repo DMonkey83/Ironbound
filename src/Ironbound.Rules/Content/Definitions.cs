@@ -177,6 +177,11 @@ public sealed record CreatureDefinition
             Speed = Speed,
         };
 
+        foreach (var taken in levels)
+        {
+            creature.Levels.Add(taken);
+        }
+
         creature.BaseAttackBonus = classed ? Progression.BaseAttack(levels) : BaseAttack;
 
         if (Armour != 0)

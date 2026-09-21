@@ -246,6 +246,99 @@ public class LootTests
     }
 }
 
+public class ExperienceTests
+{
+    [Fact]
+    public void ThePartyStartsWhereItsLevelsSayItAlreadyIs()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+
+        // Otherwise the opening fight reads as though six levels had never happened, and the
+        // first goblin killed would hand the whole party a level.
+        Assert.Equal(6, run.EarnedLevel);
+        Assert.Equal(6, run.Party.Max(one => one.Level));
+        Assert.Empty(run.Ready);
+    }
+
+    [Fact]
+    public void WinningAChapterIsWorthSomething()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var opening = run.Experience;
+
+        run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
+        run.Collect();
+
+        Assert.True(run.Experience > opening);
+    }
+
+    [Fact]
+    public void ExperienceIsAwardedOnceHoweverManyTimesAnybodyAsks()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
+
+        run.Collect();
+        var earned = run.Experience;
+        run.Collect();
+
+        Assert.Equal(earned, run.Experience);
+    }
+
+    [Fact]
+    public void TwoFightsDoNotLevelASixthLevelParty()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
+        run.Advance();
+        run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
+        run.Collect();
+
+        // Not a shortcoming. Thirteen encounters is roughly what a level costs at this tier,
+        // and a campaign that levelled you every fight would make the numbers meaningless.
+        Assert.Equal(6, run.EarnedLevel);
+        Assert.True(run.Experience < run.NextLevelAt);
+        Assert.DoesNotContain(run.Ready, one => one.Level >= 6);
+    }
+
+    [Fact]
+    public void ButTheOneWhoJoinedALevelBehindCatchesUp()
+    {
+        var run = Fought();
+        run.Collect();
+
+        // Merrin is a wizard 5 in a party of sixes. A shared pool means the shortfall closes
+        // by itself, which is what a shared pool is for.
+        var merrin = Assert.Single(run.Ready);
+        Assert.Equal("Merrin", merrin.Name);
+        Assert.Equal("Wizard 5", merrin.Description);
+
+        Assert.True(run.LevelUp(merrin));
+
+        Assert.Equal("Wizard 6", merrin.Description);
+        Assert.Equal(6, merrin.Spells.CasterLevel);
+        Assert.Equal(3, merrin.BaseAttackBonus);
+        Assert.Empty(run.Ready);
+    }
+
+    [Fact]
+    public void NobodyLevelsUpInTheMiddleOfAFight()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+
+        Assert.Empty(run.Ready);
+        Assert.False(run.LevelUp(run.Party[0]));
+    }
+
+    private static Campaign Fought()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
+
+        return run;
+    }
+}
+
 public class CampaignSaveTests
 {
     [Fact]
@@ -282,6 +375,25 @@ public class CampaignSaveTests
         // not quietly hand you a fresh, unwounded party for the next fight.
         Assert.Equal(wounded, restored.Party.Sum(c => c.HitPoints.Damage));
         Assert.All(restored.Party, creature => Assert.NotNull(creature.DefinitionId));
+    }
+
+    [Fact]
+    public void LevelsSurviveASaveSoTheNextOneLandsInTheRightClass()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var restored = Campaign.FromJson(run.ToJson(), ContentFiles.Default);
+        var valeria = restored.Party.Single(c => c.Name == "Valeria");
+
+        // Without the levels coming back, another one would open a second Fighter entry and
+        // she would be "Fighter 6 / Fighter 1" — six plus one base attack instead of seven.
+        Assert.Equal("Fighter 6", valeria.Description);
+        Assert.Equal(run.Experience, restored.Experience);
+
+        Ironbound.Rules.Classes.Levelling.Gain(
+            valeria, ContentFiles.Default.GetClass("fighter")!);
+
+        Assert.Equal("Fighter 7", valeria.Description);
+        Assert.Equal(7, valeria.BaseAttackBonus);
     }
 
     [Fact]

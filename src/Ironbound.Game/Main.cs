@@ -89,6 +89,7 @@ public partial class Main : Node3D
 	private OptionButton _stash;
 	private OptionButton _bearer;
 	private Button _give;
+	private Button _levelUp;
 	private HFlowContainer _between;
 	private RichTextLabel _roster;
 	private PanelContainer _logPanel;
@@ -249,8 +250,9 @@ public partial class Main : Node3D
 
 		var usable = between && loot.Count > 0;
 		_stash.Disabled = !usable;
-		_bearer.Disabled = !usable;
+		_bearer.Disabled = !between;
 		_give.Disabled = !usable;
+		_levelUp.Disabled = !between || !_campaign.Ready.Any();
 	}
 
 	private void OnTake()
@@ -272,6 +274,26 @@ public partial class Main : Node3D
 		}
 
 		_log.AddText($"— {bearer.Name} takes the {item.Name} —\n");
+		RefreshControls();
+		UpdateStatus();
+	}
+
+	private void OnLevelUp()
+	{
+		if (_bearer.Selected < 0 || _bearer.Selected >= _campaign.Party.Count)
+		{
+			return;
+		}
+
+		var creature = _campaign.Party[_bearer.Selected];
+
+		if (!_campaign.LevelUp(creature))
+		{
+			Refuse($"{creature.Name} has not earned a level yet.");
+			return;
+		}
+
+		_log.AddText($"— {creature.Name} is now {creature.Description} —\n");
 		RefreshControls();
 		UpdateStatus();
 	}
@@ -921,6 +943,7 @@ public partial class Main : Node3D
 		Check(nameof(_stash), _stash);
 		Check(nameof(_bearer), _bearer);
 		Check(nameof(_give), _give);
+		Check(nameof(_levelUp), _levelUp);
 		Check(nameof(_rest), _rest);
 		Check(nameof(_press), _press);
 
@@ -1082,6 +1105,10 @@ public partial class Main : Node3D
 		_give = new Button { Text = "Take" };
 		_give.Pressed += OnTake;
 		_between.AddChild(_give);
+
+		_levelUp = new Button { Text = "Level up" };
+		_levelUp.Pressed += OnLevelUp;
+		_between.AddChild(_levelUp);
 
 		_rest = new Button { Text = "Rest" };
 		_rest.Pressed += OnRest;
@@ -1313,9 +1340,13 @@ public partial class Main : Node3D
 			? $"   ·   {turn.Budget}"
 			: string.Empty;
 
+		var earned = _campaign.NextLevelAt is { } next
+			? $"   ·   xp {_campaign.Experience:n0} / {next:n0}"
+			: $"   ·   xp {_campaign.Experience:n0}";
+
 		_status.Text = $"{_campaign.Definition.Name}   ·   "
 			+ $"chapter {_campaign.Chapter} of {_campaign.Definition.Encounters.Count}   ·   "
-			+ $"rests {_campaign.RestsRemaining}   ·   round {_battle.Round}{budget}";
+			+ $"rests {_campaign.RestsRemaining}{earned}   ·   round {_battle.Round}{budget}";
 
 		_roster.Text = standing;
 	}
@@ -1380,6 +1411,15 @@ public partial class Main : Node3D
 
 			_campaign.Collect();
 			GD.Print($"--- taken from the fallen: {Sack()} ---");
+			GD.Print($"--- experience {_campaign.Experience:n0}"
+				+ $" (level {_campaign.EarnedLevel}, next at {_campaign.NextLevelAt:n0}) ---");
+
+			// Merrin joined a level behind the fighters, so a shared pool closes the gap.
+			foreach (var ready in _campaign.Ready.ToList())
+			{
+				_campaign.LevelUp(ready);
+				GD.Print($"--- {ready.Name} is now {ready.Description} ---");
+			}
 
 			// The point of the whole layer: the sergeant's silvered blade is the answer to what
 			// is waiting in the clearing, and it only exists because somebody was carrying it.

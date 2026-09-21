@@ -79,7 +79,7 @@ public sealed class HitPoints
 
     public RuleOptions Rules { get; }
 
-    public int HitDice { get; }
+    public int HitDice { get; private set; }
 
     public AbilityScore Constitution { get; }
 
@@ -92,6 +92,22 @@ public sealed class HitPoints
             ArgumentOutOfRangeException.ThrowIfNegative(value);
             _base = value;
         }
+    }
+
+    /// <summary>
+    /// Adds a hit die and what it rolled, as gaining a level does.
+    /// </summary>
+    /// <remarks>
+    /// Damage is untouched on purpose: a wounded character who levels up is a wounded character
+    /// with a higher ceiling, not a healed one. The Constitution contribution follows the new
+    /// die count by itself, because <see cref="Maximum"/> was never stored.
+    /// </remarks>
+    public void GainHitDie(int rolled)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(rolled);
+
+        HitDice++;
+        Base += rolled;
     }
 
     /// <summary>Never below 1, however ruinous the Constitution penalty.</summary>

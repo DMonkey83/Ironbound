@@ -115,6 +115,7 @@ public static class GameSave
         creature.BaseAttacksOfOpportunity,
         [.. creature.Feats.Select(feat => feat.Id)],
         [.. creature.Equipment.Worn.Select(entry => new SavedItem(entry.Item.Id, entry.Slot))],
+        [.. creature.Levels.Select(level => new SavedClassLevel(level.Class.Id, level.Level))],
         [.. AbilityInfo.All.Select(a => CaptureAbility(creature.Abilities[a]))],
         new SavedHitPoints(
             creature.HitPoints.Base,
@@ -313,6 +314,17 @@ public static class GameSave
         // Equipment, like feats, comes back by identity only: its bonuses were captured with
         // the modifier stacks and its weapon with the attack list. A weapon item is paired back
         // up with its attack by name, so that taking the thing off later removes the right one.
+        // Levels come back by identity, like feats and equipment: everything they produced —
+        // base attack, saves, hit dice — was captured as numbers. What would be missing without
+        // them is the ability to gain another one and have it land in the right class.
+        foreach (var taken in saved.Levels)
+        {
+            var definition = library.GetClass(taken.ClassId) ?? throw new InvalidDataException(
+                $"The save has a level of '{taken.ClassId}', which no content file defines.");
+
+            creature.Levels.Add(new Classes.ClassLevel(definition, taken.Level));
+        }
+
         foreach (var carried in saved.Items)
         {
             var item = library.GetItem(carried.Id) ?? throw new InvalidDataException(

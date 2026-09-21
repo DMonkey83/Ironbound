@@ -1,4 +1,5 @@
 using Ironbound.Rules.Abilities;
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Defense;
@@ -160,6 +161,25 @@ public sealed class Creature
 
     /// <summary>How many times a full attack lets it swing.</summary>
     public int AttacksPerFullAttack => Iteratives.Count(BaseAttackBonus);
+
+    /// <summary>
+    /// What it has levels in.
+    /// </summary>
+    /// <remarks>
+    /// Kept on the creature as well as in the definition it was built from, because levelling
+    /// up happens to somebody who already exists. Without it a live character has only the
+    /// numbers its classes produced and no way to say what produced them — which is enough to
+    /// fight with and not enough to grow.
+    /// </remarks>
+    public IList<ClassLevel> Levels { get; } = [];
+
+    /// <summary>Total character level, or its hit dice when it has no classes at all.</summary>
+    public int Level => Levels.Count > 0 ? Progression.TotalLevel(Levels) : HitPoints.HitDice;
+
+    /// <summary>What it has learnt to do, as a sheet would print it: "Fighter 6".</summary>
+    public string Description => Levels.Count > 0
+        ? string.Join(" / ", Levels)
+        : $"{CreatureSizes.Name(Size)} creature";
 
     /// <summary>
     /// What it has learnt to do. Feats hand out their static bonuses once, when the creature is

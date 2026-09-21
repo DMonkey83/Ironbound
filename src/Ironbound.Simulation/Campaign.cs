@@ -1,4 +1,5 @@
 using Ironbound.Rules;
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Items;
@@ -55,6 +56,18 @@ public sealed class Campaign
         RestsRemaining = definition.Rests;
     }
 
+    /// <summary>
+    /// What the party has earned. A shared pool rather than a tally each: the roster is fixed,
+    /// so splitting it would be the same numbers with more arithmetic.
+    /// </summary>
+    public int Experience { get; private set; }
+
+    /// <summary>The level that much experience is worth.</summary>
+    public int EarnedLevel => Levelling.LevelFor(Experience);
+
+    /// <summary>What the next level costs, or null once the table runs out.</summary>
+    public int? NextLevelAt => Levelling.NextThreshold(Experience);
+
     public static Campaign Begin(
         ContentLibrary library,
         string campaignId,
@@ -68,6 +81,11 @@ public sealed class Campaign
 
         var campaign = new Campaign(library, definition, seed, rules);
         campaign.Advance();
+
+        // Start them where their levels say they already are, or the opening fight would read
+        // as though six levels of experience had never happened.
+        campaign.Experience = Levelling.ThresholdFor(
+            campaign.Party.Count == 0 ? 1 : campaign.Party.Max(one => one.Level));
 
         return campaign;
     }
@@ -159,6 +177,12 @@ public sealed class Campaign
         _lootedChapter = Chapter;
         var taken = 0;
 
+        // Experience comes off the same moment: the chapter is over, and this is taking stock
+        // of it. Awarded for anyone put down, whether or not they were carrying anything.
+        Experience += Battle.Foes
+            .Where(foe => !foe.IsConscious)
+            .Sum(Levelling.Award);
+
         // Anyone who cannot stop you, not only the outright dead. A hobgoblin bleeding out at
         // -12 is in no position to object, and leaving his sword on him because the rules call
         // him "dying" rather than "dead" would be a distinction the player would read as a bug.
@@ -232,6 +256,38 @@ public sealed class Campaign
         return true;
     }
 
+    /// <summary>Whether somebody has fallen behind what the party has earned.</summary>
+    public bool CanLevel(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        return State != CampaignState.Fighting
+            && Party.Contains(creature)
+            && creature.Levels.Count > 0
+            && creature.Level < EarnedLevel;
+    }
+
+    /// <summary>Anyone who could take a level right now.</summary>
+    public IEnumerable<Creature> Ready => Party.Where(CanLevel);
+
+    /// <summary>
+    /// Takes one level, in the class they already have most of.
+    /// </summary>
+    /// <remarks>
+    /// Automatic rather than a choice, which is a simplification and not a small one: picking a
+    /// class, a feat and a spell is most of what levelling up <em>is</em> in this ruleset. It
+    /// wants a screen of its own, and the arithmetic underneath it has to work first.
+    /// </remarks>
+    public bool LevelUp(Creature creature)
+    {
+        if (!CanLevel(creature))
+        {
+            return false;
+        }
+
+        return Levelling.Gain(creature, creature.Levels.MaxBy(level => level.Level).Class, _rules);
+    }
+
     /// <summary>Moves on to the next fight, carrying the party into it as they are.</summary>
     public bool Advance()
     {
@@ -262,7 +318,8 @@ public sealed class Campaign
                 RestsRemaining,
                 _seed,
                 [.. _stash.Select(item => item.Id)],
-                _lootedChapter)));
+                _lootedChapter,
+                Experience)));
 
     /// <summary>
     /// Reads one back. Refuses a save with no campaign in it rather than inventing one.
@@ -289,7 +346,8 @@ public sealed class Campaign
             save.Rules,
             Battle.Restore(save, library),
             state.Stash,
-            state.LootedChapter);
+            state.LootedChapter,
+            state.Experience);
     }
 
     /// <summary>Puts a campaign back where a save left it, around an already-restored fight.</summary>
@@ -302,7 +360,8 @@ public sealed class Campaign
         RuleOptions? rules,
         Battle battle,
         IReadOnlyList<string> stash,
-        int lootedChapter)
+        int lootedChapter,
+        int experience)
     {
         var campaign = new Campaign(library, definition, seed, rules)
         {
@@ -310,6 +369,7 @@ public sealed class Campaign
             RestsRemaining = restsRemaining,
             Battle = battle,
             _lootedChapter = lootedChapter,
+            Experience = experience,
         };
 
         foreach (var id in stash)
