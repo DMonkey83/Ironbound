@@ -90,6 +90,9 @@ public partial class Main : Node3D
 	private OptionButton _bearer;
 	private Button _give;
 	private Button _levelUp;
+	private PanelContainer _sheetPanel;
+	private RichTextLabel _sheet;
+	private Button _showSheet;
 	private HFlowContainer _between;
 	private RichTextLabel _roster;
 	private PanelContainer _logPanel;
@@ -253,6 +256,7 @@ public partial class Main : Node3D
 		_bearer.Disabled = !between;
 		_give.Disabled = !usable;
 		_levelUp.Disabled = !between || !_campaign.Ready.Any();
+		RefreshSheet();
 	}
 
 	private void OnTake()
@@ -902,6 +906,7 @@ public partial class Main : Node3D
 
 		BuildRoster(layer);
 		BuildLog(layer);
+		BuildSheet(layer);
 		BuildControls(layer);
 
 		RefreshLogPanel();
@@ -944,6 +949,9 @@ public partial class Main : Node3D
 		Check(nameof(_bearer), _bearer);
 		Check(nameof(_give), _give);
 		Check(nameof(_levelUp), _levelUp);
+		Check(nameof(_sheetPanel), _sheetPanel);
+		Check(nameof(_sheet), _sheet);
+		Check(nameof(_showSheet), _showSheet);
 		Check(nameof(_rest), _rest);
 		Check(nameof(_press), _press);
 
@@ -998,6 +1006,16 @@ public partial class Main : Node3D
 
 		_showLog.Toggled += _ => RefreshLogPanel();
 		across.AddChild(_showLog);
+
+		_showSheet = new Button
+		{
+			Text = "Sheet",
+			ToggleMode = true,
+			CustomMinimumSize = new Vector2(90, 0),
+		};
+
+		_showSheet.Toggled += _ => RefreshSheet();
+		across.AddChild(_showSheet);
 	}
 
 	/// <summary>The combat log, down the right-hand side and foldable out of the way.</summary>
@@ -1024,6 +1042,100 @@ public partial class Main : Node3D
 		};
 
 		margin.AddChild(_log);
+	}
+
+	/// <summary>
+	/// The character sheet: every derived number beside the parts it was made of.
+	/// </summary>
+	/// <remarks>
+	/// Overlaid on the board rather than docked, because it is read rather than watched — you
+	/// open it, work out why the longsword only hits on a fourteen, and close it again.
+	/// </remarks>
+	private void BuildSheet(CanvasLayer layer)
+	{
+		_sheetPanel = new PanelContainer { Visible = false };
+		layer.AddChild(_sheetPanel);
+
+		_sheetPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		_sheetPanel.AnchorLeft = 0.08f;
+		_sheetPanel.AnchorRight = 0.72f;
+		_sheetPanel.OffsetLeft = 0;
+		_sheetPanel.OffsetRight = 0;
+		_sheetPanel.OffsetTop = 84;
+		_sheetPanel.AnchorBottom = 0.74f;
+		_sheetPanel.OffsetBottom = -8;
+
+		var margin = Padded();
+		_sheetPanel.AddChild(margin);
+
+		_sheet = new RichTextLabel
+		{
+			BbcodeEnabled = true,
+			ScrollFollowing = false,
+			SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+		};
+
+		margin.AddChild(_sheet);
+	}
+
+	/// <summary>Redraws the sheet for whoever the party picker is pointing at.</summary>
+	private void RefreshSheet()
+	{
+		if (_sheetPanel is null || _showSheet is null)
+		{
+			return;
+		}
+
+		_sheetPanel.Visible = _showSheet.ButtonPressed;
+		_showSheet.Text = _showSheet.ButtonPressed ? "Close" : "Sheet";
+
+		if (!_sheetPanel.Visible)
+		{
+			return;
+		}
+
+		var creature = Subject();
+		if (creature is null)
+		{
+			_sheet.Text = "Nobody to look at.";
+			return;
+		}
+
+		var text = new System.Text.StringBuilder();
+		text.Append($"[b]{creature.Name}[/b]\n");
+
+		foreach (var section in CharacterSheet.Of(creature))
+		{
+			if (section.Lines.Count == 0)
+			{
+				continue;
+			}
+
+			text.Append($"\n[b]{section.Heading}[/b]\n");
+			foreach (var line in section.Lines)
+			{
+				text.Append($"  {line}\n");
+			}
+		}
+
+		_sheet.Text = text.ToString();
+	}
+
+	/// <summary>
+	/// Whose sheet to show: whoever the party picker names, else whoever is acting.
+	/// </summary>
+	private Creature Subject()
+	{
+		if (_bearer is not null
+			&& _bearer.Selected >= 0
+			&& _bearer.Selected < _campaign.Party.Count)
+		{
+			return _campaign.Party[_bearer.Selected];
+		}
+
+		return _battle.Encounter.Current is { IsEnded: false } turn
+			? turn.Actor
+			: _campaign.Party.FirstOrDefault();
 	}
 
 	/// <summary>Everything you click to act, along the bottom where it started.</summary>
@@ -1100,6 +1212,7 @@ public partial class Main : Node3D
 		_between.AddChild(new Label { Text = "to" });
 
 		_bearer = new OptionButton { CustomMinimumSize = new Vector2(110, 0) };
+		_bearer.ItemSelected += _ => RefreshSheet();
 		_between.AddChild(_bearer);
 
 		_give = new Button { Text = "Take" };

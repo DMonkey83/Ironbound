@@ -23,6 +23,9 @@ namespace Ironbound.Rules.Combat;
 /// </remarks>
 public static class Maneuvers
 {
+    /// <summary>What everybody has before anything is added to it.</summary>
+    public const int Base = 10;
+
     /// <summary>Failing by this much turns the maneuver back on whoever tried it.</summary>
     public const int BacklashMargin = 10;
 
@@ -96,6 +99,11 @@ public static class Maneuvers
 
         var innate = new ModifierStack();
 
+        // The base ten belongs in the breakdown, exactly as it does for armour class. Left out,
+        // a sheet shows a total of 23 above a sum that reads 13, and the reader is right to
+        // distrust both.
+        innate.Add(Base, BonusType.Untyped, "Base");
+
         if (creature.BaseAttackBonus != 0)
         {
             innate.Add(creature.BaseAttackBonus, BonusType.Untyped, "Base Attack Bonus");
@@ -123,14 +131,14 @@ public static class Maneuvers
         var warding = creature.ArmorClass.Modifiers.TotalWhere(Deflection);
         if (warding != 0)
         {
-            innate.Add(warding, BonusType.Untyped, "Deflection");
+            innate.Add(warding, BonusType.Untyped, "Deflection and dodge");
         }
 
         return ModifierStack.Combine(innate);
     }
 
     /// <summary>Base ten plus the bonuses. The single number a maneuver is rolled against.</summary>
-    public static int Defense(Creature creature) => 10 + DefenseBonus(creature).Total;
+    public static int Defense(Creature creature) => DefenseBonus(creature).Total;
 
     /// <summary>
     /// Rolls one maneuver. No natural-twenty floor: a maneuver check is not an attack roll, so
