@@ -195,6 +195,7 @@ public partial class Main
 				return;
 			}
 
+			Follow(figure);
 			PlayClip(walker, loop: true, "run", "walk");
 
 			var tween = figure.CreateTween();
@@ -270,6 +271,7 @@ public partial class Main
 				return;
 			}
 
+			Follow(to);
 			Turn(from, to.Position.X - from.Position.X, to.Position.Z - from.Position.Z);
 			PlayClip(attacker, loop: false, AttackClips(strike.Weapon));
 
@@ -354,6 +356,7 @@ public partial class Main
 				Turn(from, facing.X - from.Position.X, facing.Z - from.Position.Z);
 			}
 
+			Follow(from);
 			PlayClip(caster, loop: false, SpellClips);
 
 			var beat = from.CreateTween();

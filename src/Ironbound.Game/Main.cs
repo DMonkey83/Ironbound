@@ -155,6 +155,13 @@ public partial class Main : Node3D
 			return;
 		}
 
+		GetViewport().SizeChanged += OnViewportResized;
+
+		if (OS.GetCmdlineUserArgs().Contains("--camera-tour"))
+		{
+			RunCameraTour();
+		}
+
 		ReportInitiative();
 		StartNextTurn();
 	}
@@ -260,6 +267,10 @@ public partial class Main : Node3D
 		}
 
 		_logPanel.Visible = _showLog.ButtonPressed;
+
+		// The log takes a quarter of the screen with it. If the player has not taken the camera,
+		// re-frame the board in what is left.
+		OnViewportResized();
 		_showLog.Text = _showLog.ButtonPressed ? "Hide log" : "Log";
 	}
 
@@ -507,6 +518,13 @@ public partial class Main : Node3D
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
+		// The camera first: wheel, middle-drag and its keys are never a move or an attack. Being
+		// *unhandled* input, a wheel over the log panel has already been eaten by the log.
+		if (CameraInput(@event))
+		{
+			return;
+		}
+
 		if (@event is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
 			|| StageBusy
 			|| SquareUnderCursor() is not { } square)
@@ -796,23 +814,11 @@ public partial class Main : Node3D
 			return null;
 		}
 
-		var mouse = GetViewport().GetMousePosition();
-		var from = _camera.ProjectRayOrigin(mouse);
-		var direction = _camera.ProjectRayNormal(mouse);
-
-		if (Mathf.IsZeroApprox(direction.Y))
+		if (GroundUnder(GetViewport().GetMousePosition()) is not { } hit)
 		{
 			return null;
 		}
 
-		// Straight onto the ground plane. An orthographic camera over flat ground needs no physics.
-		var distance = -from.Y / direction.Y;
-		if (distance < 0)
-		{
-			return null;
-		}
-
-		var hit = from + (direction * distance);
 		var square = new GridSquare(Mathf.FloorToInt(hit.X), Mathf.FloorToInt(hit.Z));
 
 		return field.Contains(square) ? square : null;
@@ -821,6 +827,7 @@ public partial class Main : Node3D
 	public override void _Process(double delta)
 	{
 		PlayStage(delta);
+		CameraKeys(delta);
 
 		if (_cursor is null)
 		{
@@ -1168,15 +1175,11 @@ public partial class Main : Node3D
 		// One Godot unit is one five-foot square, so rules coordinates need no conversion.
 		var centre = new Vector3(width / 2f, 0, height / 2f);
 
-		_camera = new Camera3D
-		{
-			Projection = Camera3D.ProjectionType.Orthogonal,
-			Size = Mathf.Max(width, height) * 1.3f,
-		};
-
+		_camera = new Camera3D { Projection = Camera3D.ProjectionType.Orthogonal };
 		_world.AddChild(_camera);
-		_camera.Position = centre + new Vector3(12, 13, 12);
-		_camera.LookAt(centre);
+
+		// Where it sits and how far in is the rig's business, and outlives this node.
+		MountCamera(width, height);
 
 		var light = new DirectionalLight3D { ShadowEnabled = true };
 		_world.AddChild(light);

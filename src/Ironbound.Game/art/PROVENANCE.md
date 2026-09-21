@@ -35,9 +35,17 @@ models are a diff rather than a binary you cannot inspect.
 
 | Variant | Size | Kit | Triangles |
 | --- | --- | --- | --- |
-| `goblin` | Small | notched cleaver, spiked shield, crossed straps on bare hide, one spiked pauldron, fang necklace, ragged loincloth | ~15,100 |
-| `goblin-archer` | Small | shortbow in hand, quiver, sheathed scimitar, studded vest, red headband | ~15,500 |
-| `hobgoblin` | Medium | longsword, heavy shield, chain hauberk, spiked pauldrons, crested helm, red cape | ~15,800 |
+| `goblin` | Small | notched single-edged cleaver, spiked plank shield, crossed straps on bare hide, a layered riveted pauldron, fang necklace, banded wraps, ragged loincloth | ~19,200 |
+| `goblin-archer` | Small | shortbow in hand, quiver, sheathed scimitar, studded vest, banded wraps, red headband | ~18,100 |
+| `hobgoblin` | Medium | longsword, painted heavy shield, mail shirt with hanging skirt panels, gorget, elbow cops, greaves, red tabard, cheek-guarded helm with a horsehair crest, cloak in strips | ~22,400 |
+
+Shape, proportion, palette and kit follow a concept sheet the project owner supplied
+(`Goblin Warrior Game Art Turntable Sheet.png`, an image-generator render used as reference only —
+nothing was extracted from it). What was taken from it: the oversized head, the long cupped ears
+red on the inside, small eyes sunk under a shelf of brow, the hooked nose and underbite, a wiry
+build on a wide bowed stance, olive hide blotched red-brown at the joints, and scavenged rusty
+iron. The hobgoblin is built heavier rather than taller — a separate `bulk` from his height — and
+his hide is slate grey, so one look says he is not another goblin.
 
 **The body is grown, not assembled.** It is one continuous skin converted from metaballs, which
 merge where primitives only touch: the deltoid runs into the arm and the brow into the skull.

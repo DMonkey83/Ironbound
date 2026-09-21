@@ -53,6 +53,22 @@ blender -b --factory-startup --python tools/preview_model.py -- out.glb preview.
 Imports the `.glb` into an empty scene and renders it from two angles. **Use it.** Every one of
 the traps below produced a build log that claimed success.
 
+## The camera
+
+| Input | Does |
+| --- | --- |
+| Mouse wheel | Zoom toward the cursor — what is under the mouse stays under it |
+| Middle-drag | Drag the board |
+| W A S D | Pan |
+| Q / E | Turn 45 degrees about what you are looking at |
+| Home or F | Frame the whole board again |
+
+The board is fitted to whatever shape the window is, in the part of the screen the HUD leaves
+free, until you take the camera; Home gives it back. While a turn plays out the view follows
+anybody acting off-screen.
+
+`-- --camera-tour` drives all of that from a script, for checking it without a hand on the mouse.
+
 ## Seeing it in the game without a screenshot
 
 ```sh
@@ -63,7 +79,19 @@ Add `-- --autoplay` and the party is driven by the same heuristic as the enemy, 
 plays out — or is recorded, with `--write-movie fight.avi` — without a click. That is how the
 animation layer was checked: a recording, and frames pulled out of it with ffmpeg.
 
-Renders frames to disk at the project's own 1920x1080 whatever shape the window is. This is what
+Renders frames to disk at the project's own 1920x1080 — **if** the window really is that shape.
+A tiling window manager will not leave it so: Hyprland tiled the game to 950x1049 and the
+recording came out as a squashed slice with half the HUD missing, which looked exactly like a
+bug in the game. Run it in a private display instead, which also keeps it off your desktop and
+your GPU:
+
+```sh
+env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 1920x1080x24" \
+    godot --display-driver x11 --rendering-driver opengl3 --path src/Ironbound.Game --resolution 1920x1080
+```
+
+and take frames with `import -window root shot.png` from inside the same `xvfb-run`. Any window
+shape can be tested this way; that is how the half-width fit was checked. This is what
 caught the goblins importing with white skin: Blender cannot show you what Godot does with a
 material, and a tiled half-width window clips the far side of the board.
 

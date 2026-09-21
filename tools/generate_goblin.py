@@ -33,7 +33,7 @@ CLOTH = mat("Cloth", (0.16, 0.12, 0.09), 0.0, 1.0)
 # Barely metallic on purpose. The game lights with a flat ambient colour and has no sky to
 # reflect, and a properly metallic surface with nothing to reflect renders as a dark hole.
 METAL = mat("Worn_Metal", (0.46, 0.47, 0.50), 0.30, 0.50)
-CHAIN = mat("Chain_Shirt", (0.38, 0.39, 0.43), 0.25, 0.65)
+CHAIN = mat("Chain_Shirt", (0.25, 0.26, 0.29), 0.25, 0.75)
 WOOD = mat("Shield_Wood", (0.36, 0.17, 0.07), 0.0, 0.9)
 BOW_WOOD = mat("Bow_Wood", (0.62, 0.38, 0.14), 0.0, 0.8)
 BOW_STRING = mat("Bow_String", (0.88, 0.82, 0.62), 0.0, 0.7)
@@ -42,6 +42,9 @@ GOLD = mat("Gold", (0.85, 0.62, 0.15), 0.30, 0.45)
 FLETCH = mat("Fletching", (0.85, 0.82, 0.75), 0.0, 0.9)
 CLAW = mat("Claw", (0.10, 0.09, 0.06), 0.0, 0.6)
 HAIR = mat("Hair", (0.07, 0.045, 0.03), 0.0, 0.9)
+IRON = mat("Rusty_Iron", (0.31, 0.265, 0.235), 0.25, 0.65)
+IRON_EDGE = mat("Ground_Edge", (0.56, 0.55, 0.53), 0.30, 0.45)
+SEAM = mat("Plank_Seam", (0.10, 0.05, 0.02), 0.0, 1.0)
 
 def smooth(obj):
     if obj.type == "MESH":
@@ -137,12 +140,20 @@ def frame(variant):
         "pelvis": P(0, 0.06, 0.80), "belly": P(0, 0.00, 0.98), "ribs": P(0, -0.07, 1.20),
         "back": P(0, 0.10, 1.33), "neck_a": P(0, -0.06, 1.38), "neck_b": P(0, -0.20, 1.50),
         "head": P(0, -0.30, 1.60),
-        "shoulder": P(0.31, -0.02, 1.34), "elbow": P(0.47, -0.10, 1.00),
-        "wrist": P(0.50, -0.30, 0.72), "palm": P(0.50, -0.35, 0.65), "fingertip": P(0.50, -0.44, 0.53),
-        "hip": P(0.14, 0.03, 0.76), "knee": P(0.29, -0.15, 0.43), "ankle": P(0.27, 0.02, 0.11),
-        "foot": P(0.28, -0.08, 0.055), "toe": P(0.28, -0.26, 0.03),
+        "shoulder": P(0.33, -0.02, 1.35), "elbow": P(0.50, -0.10, 1.01),
+        "wrist": P(0.54, -0.31, 0.72), "palm": P(0.54, -0.36, 0.64), "fingertip": P(0.54, -0.46, 0.50),
+        "hip": P(0.15, 0.03, 0.76), "knee": P(0.33, -0.16, 0.43), "ankle": P(0.32, 0.02, 0.11),
+        "foot": P(0.33, -0.09, 0.058), "toe": P(0.34, -0.30, 0.03),
     }
     L["r"] = sr
+
+    # The head is big for the body — a goblin's is nearly a quarter of his height — and that,
+    # with the ears, is most of what the silhouette says before anything else does.
+    L["hs"] = sr * (1.08 if hob else 1.17)
+
+    # How thick the flesh is laid on. The hobgoblin is not a goblin scaled up: he is a soldier,
+    # deep in the chest and heavy in the limb, and that is a different number from his height.
+    L["bulk"] = 1.14 if hob else 1.0
     L["hob"] = hob
     L["lean"] = math.atan2(-(L["ribs"].y - L["pelvis"].y) * 1.3, L["ribs"].z - L["pelvis"].z)
     return L
@@ -175,7 +186,7 @@ def create_body(variant):
         if isinstance(size, (int, float)):
             size = (size,) * 3
         # The surface sits well inside an element's nominal size at this threshold.
-        e.size_x, e.size_y, e.size_z = (v * 1.55 * r for v in size)
+        e.size_x, e.size_y, e.size_z = (v * 1.55 * r * L["bulk"] for v in size)
         e.radius = 1.0
         e.stiffness = 1.6 if negative else 2.0
         e.use_negative = negative
@@ -188,54 +199,71 @@ def create_body(variant):
     def off(base, x, y, z):
         return base + Vector((x, y, z)) * r
 
-    # Torso: stooped, belly slack, a hump of trapezius behind the neck.
-    ball(L["pelvis"], (0.21, 0.16, 0.15))
-    ball(L["belly"], (0.20, 0.17, 0.17))
-    ball(L["ribs"], (0.25, 0.19, 0.21))
-    ball(L["back"], (0.24, 0.15, 0.15))
+    # Torso: stooped and wiry. Broad across the shoulders, narrow at the waist, with the hump
+    # of trapezius behind the neck that a life spent crouching gives you.
+    ball(L["pelvis"], (0.20, 0.155, 0.15))
+    ball(L["belly"], (0.172, 0.150, 0.165))
+    ball(L["ribs"], (0.255, 0.185, 0.215))
+    ball(L["back"], (0.25, 0.15, 0.15))
     for side in (-1, 1):
-        ball(off(L["ribs"], side * 0.11, -0.14, 0.07), (0.115, 0.07, 0.09))     # pectoral
-        ball(off(L["ribs"], side * 0.20, 0.19, 0.02), (0.10, 0.07, 0.14))       # lat
-    chain(L["neck_a"], L["neck_b"], 0.10, 0.09, 2)
+        ball(off(L["ribs"], side * 0.115, -0.145, 0.075), (0.125, 0.072, 0.095))   # pectoral
+        ball(off(L["ribs"], side * 0.215, 0.18, 0.02), (0.10, 0.07, 0.15))         # lat
+        ball(off(L["back"], side * 0.13, 0.02, 0.07), (0.10, 0.08, 0.07))          # trapezius
+        for row in range(3):                                                        # abdominals
+            ball(off(L["belly"], side * 0.05, -0.135 + row * 0.006, 0.10 - row * 0.085), 0.046)
+    chain(L["neck_a"], L["neck_b"], 0.10, 0.085, 2)
 
-    # Head: low skull, heavy brow, hooked nose, underbite.
+    # Head: long low skull, a shelf of brow, a hooked nose, cheekbones, and a jaw that juts.
     H = L["head"]
-    jaw = 1.18 if hob else 1.0
-    ball(H, (0.20, 0.23, 0.185))
-    ball(off(H, 0, -0.13, -0.10), (0.135 * jaw, 0.12, 0.085 * jaw))
-    ball(off(H, 0, -0.22, -0.13), (0.075 * jaw, 0.05, 0.05))
-    ball(off(H, 0, -0.19, 0.065), (0.165, 0.055, 0.045))
-    ball(off(H, 0, -0.245, 0.0), (0.04, 0.07, 0.06))
-    ball(off(H, 0, -0.315, -0.055), (0.05, 0.06, 0.05))
-    ball(off(H, 0, -0.20, -0.16), (0.11 * jaw, 0.06, 0.035))
-    ball(off(H, 0, -0.245, -0.11), (0.085, 0.05, 0.016), negative=True)          # the mouth
-    for side in (-1, 1):
-        ball(off(H, side * 0.125, -0.14, -0.025), 0.062)                          # cheekbone
-        ball(off(H, side * 0.045, -0.285, -0.065), 0.03)                          # nostril
-        ball(off(H, side * 0.085, -0.215, 0.015), (0.05, 0.05, 0.032), negative=True)  # socket
+    hs = L["hs"] / (r * L["bulk"])         # the head keeps its own scale; bulk is for the body
+    jaw = 1.22 if hob else 1.0
 
-    # Arms: long, hanging forward of the body, hands near the knees.
+    def face(x, y, z):
+        return H + Vector((x, y, z)) * L["hs"]
+
+    ball(H, (0.195 * hs, 0.235 * hs, 0.185 * hs))
+    ball(face(0, 0.10, 0.03), (0.17 * hs, 0.16 * hs, 0.16 * hs))                   # back of skull
+    ball(face(0, -0.13, -0.10), (0.130 * hs * jaw, 0.125 * hs, 0.082 * hs * jaw))  # jaw
+    ball(face(0, -0.235, -0.145), (0.062 * hs * jaw, 0.05 * hs, 0.05 * hs))        # chin
+    ball(face(0, -0.215, 0.062), (0.180 * hs, 0.070 * hs, 0.046 * hs))             # brow, overhanging
+    for side in (-1, 1):
+        ball(face(side * 0.10, -0.235, 0.052), (0.075 * hs, 0.05 * hs, 0.036 * hs))   # and scowling
+    ball(face(0, -0.26, 0.0), (0.034 * hs, 0.085 * hs, 0.060 * hs))                # nose bridge
+    ball(face(0, -0.345, -0.045), (0.044 * hs, 0.070 * hs, 0.050 * hs))            # nose tip
+    ball(face(0, -0.385, -0.085), (0.030 * hs, 0.040 * hs, 0.034 * hs))            # the hook
+    ball(face(0, -0.205, -0.165), (0.115 * hs * jaw, 0.06 * hs, 0.034 * hs))       # lower lip
+    ball(face(0, -0.235, -0.115), (0.115 * hs, 0.06 * hs, 0.020 * hs), negative=True)   # mouth
+    for side in (-1, 1):
+        ball(face(side * 0.130, -0.14, -0.02), 0.066 * hs)                         # cheekbone
+        ball(face(side * 0.048, -0.30, -0.065), 0.032 * hs)                        # nostril
+        ball(face(side * 0.088, -0.225, 0.004), (0.044 * hs, 0.05 * hs, 0.026 * hs), negative=True)
+        ball(face(side * 0.10, -0.175, -0.085), (0.03 * hs, 0.03 * hs, 0.06 * hs), negative=True)  # hollow cheek
+
+    # Arms: long and ropey, thickest at the forearm, ending in hands too big for them.
     for side in (-1, 1):
         sh, el, wr, pa = (mirror(L[k], side) for k in ("shoulder", "elbow", "wrist", "palm"))
-        ball(sh, 0.125)
-        chain(off(sh, side * 0.03, -0.01, -0.06), el, 0.085, 0.075)
-        ball(sh.lerp(el, 0.55) + Vector((-side * 0.02, 0.0, 0.02)) * r, (0.085, 0.09, 0.11))
-        chain(el, wr, 0.085, 0.055)
-        ball(pa, (0.065, 0.075, 0.05))
-        for dx in (-0.04, 0.0, 0.04):
-            chain(off(pa, dx, -0.03, 0.0), off(pa, dx * 1.2, -0.09, -0.13), 0.034, 0.026, 3)
-        chain(off(pa, -side * 0.055, 0.01, 0.01), off(pa, -side * 0.10, -0.08, -0.04), 0.036, 0.028, 2)
+        ball(sh, 0.128)
+        chain(off(sh, side * 0.03, -0.01, -0.06), el, 0.082, 0.070)
+        ball(sh.lerp(el, 0.50) + Vector((-side * 0.02, -0.01, 0.02)) * r, (0.082, 0.092, 0.115))   # biceps
+        ball(el, 0.072)
+        chain(el, wr, 0.092, 0.056)
+        ball(el.lerp(wr, 0.28) + Vector((side * 0.015, 0.0, 0.0)) * r, (0.082, 0.085, 0.105))      # forearm
+        ball(pa, (0.078, 0.088, 0.058))
+        for dx in (-0.048, 0.0, 0.048):
+            chain(off(pa, dx, -0.035, 0.0), off(pa, dx * 1.2, -0.105, -0.155), 0.040, 0.029, 3)
+        chain(off(pa, -side * 0.065, 0.01, 0.012), off(pa, -side * 0.12, -0.09, -0.05), 0.042, 0.032, 2)
 
-    # Legs: crouched and bowed.
+    # Legs: short, crouched and bowed, on feet as outsized as the hands.
     for side in (-1, 1):
         hp, kn, an, ft = (mirror(L[k], side) for k in ("hip", "knee", "ankle", "foot"))
-        chain(hp, kn, 0.125, 0.085)
-        ball(off(kn, 0, -0.02, -0.01), 0.075)
-        chain(kn, an, 0.08, 0.05)
-        ball(kn.lerp(an, 0.4) + Vector((0, 0.07, 0)) * r, (0.075, 0.085, 0.11))   # calf
-        ball(ft, (0.085, 0.16, 0.05))
-        for dx in (-0.05, 0.0, 0.05):
-            ball(off(ft, dx, -0.165, -0.015), (0.028, 0.045, 0.03))
+        chain(hp, kn, 0.125, 0.082)
+        ball(hp.lerp(kn, 0.35) + Vector((side * 0.02, -0.03, 0)) * r, (0.105, 0.11, 0.13))         # quadriceps
+        ball(off(kn, 0, -0.025, -0.01), 0.078)
+        chain(kn, an, 0.078, 0.050)
+        ball(kn.lerp(an, 0.38) + Vector((0, 0.075, 0)) * r, (0.075, 0.088, 0.115))                 # calf
+        ball(ft, (0.098, 0.185, 0.055))
+        for dx in (-0.06, 0.0, 0.06):
+            ball(off(ft, dx, -0.195, -0.018), (0.034, 0.055, 0.034))
 
     bpy.ops.object.select_all(action="DESELECT")
     bpy.context.view_layer.objects.active = meta
@@ -261,43 +289,106 @@ def create_body(variant):
     return parts, L
 
 
+EAR_INNER = {}
+
+
+def create_ear(name, root, sweep, length, side):
+    """A goblin's ear: a long cupped leaf, thick at the root, notched, thin at the tip.
+
+    Built vertex by vertex because nothing in the primitive box is this shape — the cone it
+    replaces read as a horn. The front face is dished in behind the rim, which is what catches
+    the light and makes it an ear; which loops belong to that face is remembered so the painter
+    can make the inside run red.
+    """
+    import bmesh
+
+    S = Vector(sweep).normalized()
+    up = Vector((0, 0, 1))
+    W = (up - S * up.dot(S)).normalized()          # across the ear, roughly upward
+    N = S.cross(W) * side                          # out of its front face
+    if N.y > 0:
+        N = -N                                     # the dished side faces the way he does
+
+    # (along, lower edge, upper edge, thickness) as fractions of the length.
+    stations = [
+        (0.00, -0.13, 0.12, 0.060), (0.10, -0.17, 0.17, 0.050), (0.24, -0.19, 0.21, 0.040),
+        (0.34, -0.18, 0.15, 0.034), (0.40, -0.17, 0.20, 0.030), (0.55, -0.14, 0.20, 0.024),
+        (0.72, -0.09, 0.16, 0.018), (0.88, -0.035, 0.09, 0.012), (1.00, 0.02, 0.03, 0.006),
+    ]
+
+    bm = bmesh.new()
+    rows = []
+    for u, lo, hi, thick in stations:
+        mid = (lo + hi) / 2
+        at = Vector(root) + S * (u * length)
+        rows.append((
+            bm.verts.new(at + W * (lo * length)),                                      # lower rim
+            bm.verts.new(at + W * (hi * length)),                                      # upper rim
+            bm.verts.new(at + W * (mid * length) - N * (thick * length * 0.9)),        # back, bowed out
+            bm.verts.new(at + W * (mid * length) - N * (thick * length * 0.15)),       # front, dished in
+        ))
+
+    front = []
+    for (l0, h0, b0, f0), (l1, h1, b1, f1) in zip(rows, rows[1:]):
+        quads = [(l0, l1, b1, b0), (b0, b1, h1, h0)]
+        dish = [(h0, h1, f1, f0), (f0, f1, l1, l0)]
+        for q in quads + dish:
+            face = bm.faces.new(q if side > 0 else tuple(reversed(q)))
+            if q in dish:
+                front.append(face)
+    bm.faces.new((rows[0][0], rows[0][2], rows[0][1], rows[0][3]) if side > 0 else (rows[0][3], rows[0][1], rows[0][2], rows[0][0]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+
+    mesh = bpy.data.meshes.new(name)
+    front_indices = {f.index for f in front}
+    bm.faces.ensure_lookup_table()
+    bm.to_mesh(mesh)
+    bm.free()
+
+    ear = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(ear)
+    smooth(ear)
+    EAR_INNER[name] = {li for poly in mesh.polygons if poly.index in front_indices for li in poly.loop_indices}
+    return ear
+
+
 def create_head_parts(L):
     """What metaballs cannot hold: anything thin, sharp or bright."""
-    r, hob, H = L["r"], L["hob"], L["head"]
+    r, hob, H, hs = L["r"], L["hob"], L["head"], L["hs"]
     parts = []
 
     def off(x, y, z):
-        return tuple(H + Vector((x, y, z)) * r)
+        return tuple(H + Vector((x, y, z)) * hs)
 
     for side in (-1, 1):
         suffix = "L" if side < 0 else "R"
 
-        length = (0.30 if hob else 0.42) * r
-        bpy.ops.mesh.primitive_cone_add(vertices=12, radius1=0.15 * r, radius2=0.004, depth=length)
-        ear = bpy.context.object
-        ear.name = f"Ear_{suffix}"
-        ear.scale = (1.0, 0.26, 1.0)
-        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        # Out, back and up. The sweep is what separates a goblin's ears from a pair of horns.
+        sweep = (side * 0.66, 0.42, 0.62) if not hob else (side * 0.68, 0.50, 0.50)
+        parts.append(create_ear(f"Ear_{suffix}", off(side * 0.165, 0.01, -0.01), sweep, (0.36 if hob else 0.54) * hs, side))
 
-        # Out, back and up: the sweep is what separates a goblin's ears from a pair of horns.
-        sweep = Vector((side * 0.72, 0.52, 0.46)).normalized()
-        ear.rotation_mode = "QUATERNION"
-        ear.rotation_quaternion = sweep.to_track_quat("Z", "X")
-        root = H + Vector((side * 0.155, 0.03, 0.02)) * r
-        ear.location = root + sweep * (length * 0.5)
-        smooth(ear)
-        parts.append(ear)
+        parts.append(ring(f"Earring_{suffix}", off(side * 0.27, 0.08, 0.02), 0.034 * hs, 0.010 * hs, GOLD, rotation=(math.pi / 2, 0, 0)))
+        # Small, and set back under the brow. Big round eyes are what made him look friendly.
+        parts.append(uv(f"Eye_{suffix}", off(side * 0.088, -0.188, 0.002), (0.025 * hs,) * 3, EYE, 12, 8))
+        parts.append(uv(f"Pupil_{suffix}", off(side * 0.085, -0.209, 0.001), (0.010 * hs, 0.006 * hs, 0.013 * hs), PUPIL, 8, 6))
 
-        parts.append(ring(f"Earring_{suffix}", off(side * 0.235, 0.04, -0.07), 0.04 * r, 0.011 * r, GOLD, rotation=(math.pi / 2, 0, 0)))
-        parts.append(uv(f"Eye_{suffix}", off(side * 0.085, -0.187, 0.013), (0.034 * r,) * 3, EYE, 12, 8))
-        parts.append(uv(f"Pupil_{suffix}", off(side * 0.085, -0.214, 0.013), (0.014 * r, 0.008 * r, 0.02 * r), PUPIL, 8, 6))
-        parts.append(cone(f"Tusk_{suffix}", off(side * 0.062, -0.245, -0.10), 0.02 * r, 0.003, 0.085 * r, TOOTH, (math.radians(-8), 0, side * math.radians(-10)), 8))
+        # The underbite: two fangs up from the lower jaw, outside the lip.
+        fang = 1.4 if hob else 1.0
+        parts.append(cone(f"Tusk_{suffix}", off(side * 0.075 * (1.1 if hob else 1.0), -0.258, -0.105 + 0.02 * (fang - 1)), 0.021 * hs * fang, 0.003, 0.095 * hs * fang, TOOTH, (math.radians(-6), 0, side * math.radians(-9)), 8))
+
+    # A mouthful of small uneven teeth, set in the slit carved for them.
+    for i, x in enumerate((-0.052, -0.030, -0.010, 0.012, 0.033, 0.054)):
+        parts.append(cone(f"Tusk_Upper_{i}", off(x, -0.262, -0.098), 0.011 * hs, 0.002, (0.032 + 0.008 * (i % 2)) * hs, TOOTH, (math.pi, 0, 0), 6))
+    for i, x in enumerate((-0.040, -0.018, 0.004, 0.026, 0.046)):
+        parts.append(cone(f"Tusk_Lower_{i}", off(x, -0.258, -0.128), 0.010 * hs, 0.002, (0.026 + 0.006 * (i % 2)) * hs, TOOTH, vertices=6))
 
     if not hob:
-        for i in range(6):
-            y = -0.13 + i * 0.07
-            z = 0.185 * math.sqrt(max(0.0, 1 - (y / 0.24) ** 2)) * 0.92
-            parts.append(cone(f"Hair_{i}", off(0, y, z + 0.05), 0.04 * r, 0.004, (0.17 - abs(i - 2) * 0.015) * r, HAIR, (math.radians(-18 + i * 9), 0, 0), 6))
+        # A crest of coarse hair, short at the brow and the nape, down the middle of the skull.
+        for i in range(8):
+            y = -0.13 + i * 0.058
+            z = 0.185 * math.sqrt(max(0.0, 1 - (y / 0.27) ** 2)) * 0.93
+            for dx in (-0.018, 0.018):
+                parts.append(cone(f"Hair_{i}_{dx > 0}", off(dx, y, z + 0.012), 0.024 * hs, 0.003, (0.115 - abs(i - 3) * 0.012) * hs, HAIR, (math.radians(-22 + i * 9), dx * 6, 0), 5))
     return parts
 
 
@@ -323,8 +414,6 @@ def paint_skin(parts, L):
     on, so a strap casts its own grime onto the chest beneath it, and the whole result rides in
     the vertex colours — no image, no UVs, nothing for the importer to lose.
     """
-    import random
-
     body = next(o for o in parts if o.name == "Body")
     ears = [o for o in parts if o.name.startswith("Ear_")]
     hide = skin_material()
@@ -336,12 +425,36 @@ def paint_skin(parts, L):
     scene.cycles.samples = 48
     scene.render.bake.target = "VERTEX_COLORS"
 
-    skin = Vector((0.30, 0.40, 0.13))
-    pale = Vector((0.43, 0.47, 0.21))
-    flush = Vector((0.47, 0.22, 0.14))
-    nose = L["head"] + Vector((0, -0.315, -0.055)) * L["r"]
-    chest = L["ribs"].lerp(L["belly"], 0.5)
-    rng = random.Random(7)
+    # Olive going to yellow where the skin is thin, and weathered red-brown where it is worked:
+    # shoulders, elbows, knees, knuckles. Sampled from the reference sheet rather than guessed.
+    olive = Vector((0.345, 0.385, 0.125))
+    pale = Vector((0.520, 0.500, 0.235))
+    ruddy = Vector((0.430, 0.235, 0.120))
+
+    if L["hob"]:
+        # Grey going to slate, the colour of something that lives in a barracks rather than a
+        # burrow. One look should say this is not another goblin.
+        olive = Vector((0.300, 0.315, 0.250))
+        pale = Vector((0.455, 0.450, 0.360))
+        ruddy = Vector((0.330, 0.200, 0.160))
+    flush = Vector((0.560, 0.235, 0.150))
+    grime = Vector((0.150, 0.150, 0.070))
+
+    hs = L["hs"]
+    nose = L["head"] + Vector((0, -0.335, -0.05)) * hs
+    face = L["head"] + Vector((0, -0.20, -0.04)) * hs
+    chest = L["ribs"].lerp(L["belly"], 0.45)
+    worn = [mirror(L[k], s) for k in ("shoulder", "elbow", "knee", "palm") for s in (-1, 1)]
+
+    def near(v, point, radius):
+        d = (v - point).length / radius
+        return max(0.0, 1.0 - d * d)
+
+    def mottle(v):
+        # Smooth and low-frequency. Per-vertex randomness reads as sandpaper; hide is blotchy.
+        a = math.sin(v.x * 9.1 + 1.3) * math.sin(v.y * 7.7 + 0.4) * math.sin(v.z * 8.3 + 2.2)
+        b = math.sin(v.x * 21.0 + v.z * 17.0) * math.sin(v.y * 19.0 - v.z * 13.0)
+        return a * 0.65 + b * 0.35
 
     for obj in [body] + ears:
         mesh = obj.data
@@ -361,28 +474,29 @@ def paint_skin(parts, L):
             print(f"AO bake failed for {obj.name}: {exc}")
             baked = False
 
-        is_ear = obj in ears
+        inner = EAR_INNER.get(obj.name)
         world = obj.matrix_world
-        span = max(v.co.z for v in mesh.vertices) - min(v.co.z for v in mesh.vertices) if is_ear else 1.0
-        base = min(v.co.z for v in mesh.vertices) if is_ear else 0.0
+        root = L["head"]
 
         for poly in mesh.polygons:
             for li in poly.loop_indices:
-                local = mesh.vertices[mesh.loops[li].vertex_index].co
-                v = world @ local
+                v = world @ mesh.vertices[mesh.loops[li].vertex_index].co
                 ao = attr.data[li].color[0] if baked else 1.0
-                tone = skin.copy()
-                if is_ear:
-                    tone = tone.lerp(flush, 0.15 + 0.6 * (local.z - base) / span)
+                tone = olive.copy()
+
+                if inner is not None:
+                    along = min(1.0, (v - root).length / (0.75 * hs))
+                    tone = tone.lerp(flush, 0.80 if li in inner else 0.18 + 0.30 * along)
                 else:
-                    front = max(0.0, min(1.0, (chest.y - v.y) * 4.5)) * max(0.0, 1 - abs(v.z - chest.z) * 2.4)
-                    tone = tone.lerp(pale, front * 0.85)
-                    if (v - nose).length < 0.085 * L["r"]:
-                        tone = tone.lerp(flush, 0.45)
-                    if v.z < 0.09 or (v - mirror(L["palm"], 1 if v.x > 0 else -1)).length < 0.17 * L["r"]:
-                        tone = tone * 0.70
-                tone *= 0.93 + rng.random() * 0.14
-                shade = 0.14 + 0.86 * (ao ** 2.2)
+                    front = max(0.0, min(1.0, (chest.y - v.y) * 5.0)) * max(0.0, 1 - abs(v.z - chest.z) * 2.2)
+                    tone = tone.lerp(pale, front * 0.80 + near(v, face, 0.26 * hs) * 0.45)
+                    tone = tone.lerp(ruddy, max(near(v, p, 0.19 * L["r"]) for p in worn) * 0.55)
+                    tone = tone.lerp(flush, near(v, nose, 0.10 * hs) * 0.55)
+                    tone = tone.lerp(ruddy, max(0.0, mottle(v)) * 0.30)
+                    tone = tone.lerp(grime, max(0.0, 1.0 - v.z / (0.10 * L["r"])) * 0.55)
+
+                tone *= 1.0 + mottle(v * 1.7) * 0.07
+                shade = 0.10 + 0.90 * (ao ** 2.4)
                 attr.data[li].color = (tone.x * shade, tone.y * shade, tone.z * shade, 1.0)
 
     scene.render.engine = engine
@@ -440,9 +554,10 @@ def kit(L):
     tall = (L["neck_a"].z - L["pelvis"].z) / 0.58
     return {
         "c": L["pelvis"].lerp(L["neck_a"], 0.5) + Vector((0, -0.012, 0.02)),
-        "s": Vector((0.285 * r, 0.25 * r, 0.37 * tall)),
+        "s": Vector((0.285 * r * L["bulk"], 0.25 * r * L["bulk"], 0.37 * tall)),
         "lean": L["lean"],
         "r": r,
+        "bulk": L["bulk"],
     }
 
 
@@ -518,19 +633,29 @@ def create_straps(k, material=LEATHER, crossed=True, grow=1.0):
         strap.rotation_euler = (0, math.radians(tilt), 0)
         parts.append(strap)
     place(parts, lean_matrix(k))
-    parts.append(uv("Strap_Boss", on_torso(k, 0.0, 0.02, 1.04, grow), (0.05 * k["r"], 0.03 * k["r"], 0.05 * k["r"]), METAL, 10, 6))
+    if crossed:
+        buckle = ring("Strap_Ring", (0, 0, 0), 0.05 * k["r"], 0.014 * k["r"], IRON, rotation=(math.pi / 2, 0, 0))
+        buckle.matrix_world = Matrix.Translation(on_torso(k, 0.0, 0.0, 1.05, grow)) @ Matrix.Rotation(k["lean"] + math.pi / 2, 4, "X")
+        parts.append(buckle)
     return parts
 
 
-def create_belt(L, k):
+def create_belt(L, k, heavy=False):
     r = k["r"]
     at = L["pelvis"] + Vector((0, 0, 0.07 * r))
-    belt = cyl("Belt", (0, 0, 0), 0.262 * r, 0.10 * r, LEATHER, vertices=24)
+    belt = cyl("Belt", (0, 0, 0), 0.262 * r * k["bulk"], (0.135 if heavy else 0.10) * r, LEATHER, vertices=24)
     belt.scale = (1.0, 0.80, 1.0)
     parts = [belt,
-             cube("Buckle", (0, -0.215 * r, 0), (0.055 * r, 0.02, 0.055 * r), GOLD, 0.01),
-             cube("Pouch", (0.19 * r, 0.13 * r, -0.07 * r), (0.07 * r, 0.05 * r, 0.08 * r), LEATHER_LIGHT, 0.025),
-             cube("Pouch_Small", (-0.20 * r, -0.10 * r, -0.06 * r), (0.05 * r, 0.04 * r, 0.06 * r), LEATHER_LIGHT, 0.02)]
+             cube("Buckle", (0, -0.215 * r * k["bulk"], 0), (0.075 * r, 0.02, 0.07 * r), IRON if heavy else GOLD, 0.01),
+             cube("Buckle_Tongue", (0, -0.232 * r * k["bulk"], 0), (0.045 * r, 0.012, 0.042 * r), LEATHER, 0.006),
+             cube("Pouch", (0.17 * r, 0.155 * r, -0.075 * r), (0.075 * r, 0.05 * r, 0.085 * r), LEATHER_LIGHT, 0.025),
+             cube("Pouch_Flap", (0.17 * r, 0.20 * r, -0.04 * r), (0.072 * r, 0.014, 0.04 * r), LEATHER, 0.01),
+             cube("Pouch_Small", (-0.17 * r, 0.16 * r, -0.065 * r), (0.055 * r, 0.045 * r, 0.065 * r), LEATHER_LIGHT, 0.02)]
+    if heavy:
+        second = cyl("Belt_Second", (0, 0, -0.085 * r), 0.258 * r * k["bulk"], 0.045 * r, LEATHER_LIGHT, vertices=24)
+        second.scale = (1.0, 0.82, 1.0)
+        second.rotation_euler = (0, math.radians(7), 0)
+        parts.append(second)
     return place(parts, Matrix.Translation(at) @ Matrix.Rotation(k["lean"] * 0.5, 4, "X"))
 
 
@@ -555,37 +680,60 @@ def create_loincloth(L, k, material=CLOTH):
     hang = L["pelvis"] + Vector((0, 0, 0.03 * r))
     parts = []
     for i, (dx, length) in enumerate(((-0.10, 0.30), (0.0, 0.40), (0.10, 0.27), (-0.05, 0.22), (0.055, 0.34))):
-        parts.append(rag(f"Loincloth_F{i}", hang + Vector((dx * r, -0.20 * r - 0.004 * i, 0)), length * r, 0.075 * r, material if i < 3 else LEATHER_LIGHT, -0.42))
+        parts.append(rag(f"Loincloth_F{i}", hang + Vector((dx * r, -0.20 * r - 0.004 * i, 0)), length * r, 0.080 * r, LEATHER_LIGHT if i < 3 else LEATHER, -0.42))
     for i, (dx, length) in enumerate(((-0.11, 0.36), (0.0, 0.46), (0.11, 0.33), (0.05, 0.25))):
-        parts.append(rag(f"Loincloth_B{i}", hang + Vector((dx * r, 0.17 * r + 0.004 * i, 0)), length * r, 0.08 * r, material if i < 3 else LEATHER_LIGHT, 0.10))
+        parts.append(rag(f"Loincloth_B{i}", hang + Vector((dx * r, 0.17 * r + 0.004 * i, 0)), length * r, 0.085 * r, LEATHER_LIGHT if i < 3 else LEATHER, 0.10))
     return parts
 
 
-def create_wraps(L, k, arm_material, leg_material, knees=None, greaves=False):
-    r = k["r"]
+def create_wraps(L, k, arm_material, leg_material, knees=None, greaves=False, banded=False):
+    """Forearms and shins: plate for the sergeant, and for the rest strips of hide wound round
+    in separate bands, which is what the reference wears and reads far better than a tube."""
+    r = k["r"] * k["bulk"]
     parts = []
+    spans = ((0.26, 0.44), (0.48, 0.66), (0.70, 0.90)) if banded else ((0.30, 0.92),)
+
     for side in (-1, 1):
         suffix = "L" if side < 0 else "R"
         el, wr, kn, an = (mirror(L[key], side) for key in ("elbow", "wrist", "knee", "ankle"))
-        parts.append(limb(f"Bracer_{suffix}", el.lerp(wr, 0.30), el.lerp(wr, 0.92), 0.083 * r, arm_material))
-        parts.append(limb(f"Boot_{suffix}", kn.lerp(an, 0.30 if not greaves else 0.12), kn.lerp(an, 0.97), (0.082 if greaves else 0.074) * r, leg_material))
+
+        for i, (a, b) in enumerate(spans):
+            material = arm_material if i % 2 == 0 else LEATHER_LIGHT if banded else arm_material
+            parts.append(limb(f"Bracer_{suffix}_{i}", el.lerp(wr, a), el.lerp(wr, b), (0.094 - 0.009 * i) * r, material))
+
+        if greaves:
+            parts.append(limb(f"Boot_{suffix}", kn.lerp(an, 0.12), kn.lerp(an, 0.97), 0.084 * r, leg_material))
+        else:
+            for i, (a, b) in enumerate(spans):
+                material = leg_material if i % 2 == 0 else LEATHER if banded else leg_material
+                parts.append(limb(f"Boot_{suffix}_{i}", kn.lerp(an, a + 0.04), kn.lerp(an, min(0.97, b + 0.06)), (0.082 - 0.008 * i) * r, material))
+
         if knees:
             parts.append(dome(f"KneePad_{suffix}", tuple(kn + Vector((0, -0.075 * r, 0.0))), (0.085 * r, 0.06 * r, 0.085 * r), knees, -0.5, 12, 8))
     return parts
 
 
-def create_pauldrons(L, k, material, sides=(1,), spikes=True, size=1.0):
+def create_pauldrons(L, k, material, sides=(1,), spikes=True, size=1.0, layered=False):
     r = k["r"]
     parts = []
     for side in sides:
         suffix = "L" if side < 0 else "R"
-        at = mirror(L["shoulder"], side) + Vector((side * 0.02, 0.0, 0.035)) * r
-        parts.append(dome(f"Pauldron_{suffix}", tuple(at), (0.165 * r * size, 0.175 * r * size, 0.13 * r * size), material, -0.30, 16, 10))
-        parts.append(ring(f"Pauldron_{suffix}_Rim", tuple(at + Vector((0, 0, -0.035 * r * size))), 0.158 * r * size, 0.016 * r, LEATHER, scale=(1.0, 1.06, 1.0)))
+        at = mirror(L["shoulder"], side) + Vector((side * 0.025, 0.0, 0.04)) * r
+        w = 0.175 * r * size
+        parts.append(dome(f"Pauldron_{suffix}", tuple(at), (w, w * 1.08, 0.135 * r * size), material, -0.30, 16, 10))
+        parts.append(ring(f"Pauldron_{suffix}_Rim", tuple(at + Vector((0, 0, -0.04 * r * size))), w * 0.96, 0.017 * r, LEATHER, scale=(1.0, 1.08, 1.0)))
+
+        if layered:
+            # A second plate lapped over the first, and the rivets that hold the pair together.
+            parts.append(dome(f"Pauldron_{suffix}_Cap", tuple(at + Vector((side * 0.01, 0, 0.045)) * r * size), (w * 0.74, w * 0.80, 0.105 * r * size), material, -0.10, 14, 8))
+            for j in range(7):
+                a = j * 2 * math.pi / 7
+                parts.append(uv(f"Pauldron_{suffix}_Rivet_{j}", tuple(at + Vector((math.cos(a) * w * 0.86, math.sin(a) * w * 0.93, 0.015 * r))), (0.017 * r,) * 3, IRON_EDGE, 6, 4))
+
         if spikes:
-            for j, (dx, dy) in enumerate(((0.0, 0.0), (0.07, -0.07), (0.07, 0.08))):
-                lean_out = side * math.radians(18 + 22 * (j > 0))
-                parts.append(cone(f"Spike_{suffix}_{j}", tuple(at + Vector((side * dx, dy, 0.13 - 0.03 * (j > 0))) * r * size), 0.035 * r, 0.003, 0.13 * r, material, (0, lean_out, 0), 8))
+            for j, (dx, dy) in enumerate(((0.0, 0.0), (0.075, -0.075), (0.075, 0.085))):
+                lean_out = side * math.radians(16 + 24 * (j > 0))
+                parts.append(cone(f"Spike_{suffix}_{j}", tuple(at + Vector((side * dx, dy, 0.17 - 0.045 * (j > 0))) * r * size), 0.036 * r, 0.003, 0.14 * r, IRON_EDGE if layered else material, (0, lean_out, 0), 8))
     return parts
 
 
@@ -618,29 +766,96 @@ def create_blade(prefix, L, k, length, width, cleaver=False):
     return place(parts, aim(palm, at_idle((0.10, -0.42, 0.90), RIGHT_SWING), wide=at_idle((0, -0.90, -0.42), RIGHT_SWING)))
 
 
+def create_cleaver(L, k):
+    """A broad single-edged chopper, widest near the tip, its edge bitten by other men's armour.
+
+    Cut from an outline rather than assembled, because the shape *is* the weapon: a symmetric
+    blade is a sword whatever you call it, and the reference carries a butcher's tool.
+    """
+    import bmesh
+
+    r = k["r"]
+    # (toward the edge, up the blade). Spine first, over the clipped tip, back down the edge.
+    outline = [
+        (-0.030, 0.12), (-0.036, 0.50), (-0.022, 0.76), (0.040, 0.83),
+        (0.112, 0.72), (0.092, 0.685), (0.126, 0.62), (0.104, 0.585), (0.132, 0.52),
+        (0.110, 0.475), (0.122, 0.41), (0.096, 0.34), (0.080, 0.26), (0.054, 0.18), (0.036, 0.12),
+    ]
+    spine = 4          # how many of those points are the blunt back
+
+    bm = bmesh.new()
+    near, far = [], []
+    for i, (x, z) in enumerate(outline):
+        thick = (0.011 if i < spine else 0.003) * r
+        near.append(bm.verts.new((x * r, -thick, z * r)))
+        far.append(bm.verts.new((x * r, thick, z * r)))
+    bm.faces.new(near)
+    bm.faces.new(list(reversed(far)))
+    count = len(outline)
+    for i in range(count):
+        j = (i + 1) % count
+        bm.faces.new((near[j], near[i], far[i], far[j]))
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new("Sword_Blade")
+    bm.to_mesh(mesh)
+    bm.free()
+    chopper = bpy.data.objects.new("Sword_Blade", mesh)
+    bpy.context.collection.objects.link(chopper)
+    apply_mat(chopper, IRON_EDGE)
+
+    parts = [
+        chopper,
+        cyl("Sword_Grip", (0, 0, 0), 0.034 * r, 0.22 * r, LEATHER, vertices=10),
+        ring("Sword_Grip_Wrap", (0, 0, 0.03 * r), 0.036 * r, 0.010 * r, LEATHER_LIGHT),
+        uv("Sword_Pommel", (0, 0, -0.125 * r), (0.04 * r,) * 3, IRON, 10, 6),
+        cube("Sword_Guard", (0.01 * r, 0, 0.115 * r), (0.075 * r, 0.026 * r, 0.016 * r), IRON, 0.006),
+    ]
+
+    palm = mirror(L["palm"], 1) + Vector((0, -0.02, -0.04)) * r
+    blade_dir = at_idle((0.22, -0.80, 0.42), RIGHT_SWING)
+    edge_dir = at_idle((0.0, -0.45, -0.89), RIGHT_SWING)
+    return place(parts, aim(palm, blade_dir, wide=edge_dir))
+
+
 def create_shield(name, L, k, radius, spiked=False, material=WOOD):
     """Built facing forward at the origin, then strapped to the outside of the left forearm."""
     r = k["r"]
     face = (math.pi / 2, 0, 0)
+    iron = IRON if spiked else METAL
     parts = [
         cyl(name, (0, 0, 0), radius, 0.055 * r, material, face, 24),
-        ring(f"{name}_Rim", (0, 0, 0), radius, 0.030 * r, METAL, face),
-        ring(f"{name}_Band", (0, -0.02 * r, 0), radius * 0.60, 0.016 * r, METAL, face),
-        dome(f"{name}_Boss", (0, -0.015 * r, 0), (radius * 0.30,) * 3, METAL, 0.0, 14, 8),
+        ring(f"{name}_Rim", (0, 0, 0), radius, 0.032 * r, iron, face),
+        ring(f"{name}_Band", (0, -0.022 * r, 0), radius * 0.58, 0.015 * r, iron, face),
+        dome(f"{name}_Boss", (0, -0.015 * r, 0), (radius * 0.30,) * 3, iron, 0.0, 14, 8),
     ]
     parts[-1].rotation_euler = (math.pi / 2, 0, 0)
-    for j in range(8):
-        a = j * math.pi / 4
-        parts.append(uv(f"{name}_Rivet_{j}", (radius * 0.80 * math.cos(a), -0.035 * r, radius * 0.80 * math.sin(a)), (0.022 * r,) * 3, METAL, 8, 5))
+
+    # The seams between the planks. A disc of plain brown is a lid; these make it a shield.
+    for j in range(4):
+        seam = cube(f"{name}_Seam_{j}", (0, -0.029 * r, 0), (radius * 0.93, 0.004, 0.007 * r), SEAM)
+        seam.rotation_euler = (0, j * math.pi / 4 + 0.2, 0)
+        parts.append(seam)
+
+    if not spiked:
+        band = cube(f"{name}_Paint", (0, -0.0305 * r, 0), (radius * 0.90, 0.003, 0.055 * r), CLOTH_RED)
+        band.rotation_euler = (0, math.radians(38), 0)
+        parts.append(band)
+
+    studs = 10 if spiked else 8
+    for j in range(studs):
+        a = j * 2 * math.pi / studs
+        parts.append(uv(f"{name}_Rivet_{j}", (radius * 0.80 * math.cos(a), -0.035 * r, radius * 0.80 * math.sin(a)), (0.021 * r,) * 3, IRON_EDGE if spiked else METAL, 8, 5))
         if spiked:
             tip = Vector((math.cos(a), 0, math.sin(a)))
-            spike = cone(f"{name}_Spike_{j}", (0, 0, 0), 0.04 * r, 0.003, 0.13 * r, METAL, vertices=6)
-            spike.matrix_world = aim(tip * (radius + 0.05 * r), tip)
+            spike = cone(f"{name}_Spike_{j}", (0, 0, 0), 0.036 * r, 0.003, 0.10 * r, IRON_EDGE, vertices=6)
+            spike.matrix_world = aim(tip * (radius + 0.035 * r), tip)
             parts.append(spike)
-    fore = mirror(L["elbow"], -1).lerp(mirror(L["wrist"], -1), 0.55)
+
+    fore = mirror(L["elbow"], -1).lerp(mirror(L["wrist"], -1), 0.60)
     # Face mostly forward with the guard up, so it is presented to whoever he is fighting.
-    turn = Matrix.Rotation(LEFT_SWING * 0.55, 4, "X") @ Matrix.Rotation(math.radians(-38), 4, "Z")
-    return place(parts, Matrix.Translation(fore + Vector((-0.10 * r, -0.07 * r, 0.0))) @ turn)
+    turn = Matrix.Rotation(LEFT_SWING * 0.55, 4, "X") @ Matrix.Rotation(math.radians(-42), 4, "Z")
+    return place(parts, Matrix.Translation(fore + Vector((-0.10 * r, -0.08 * r, 0.0))) @ turn)
 
 
 def create_bow(L, k):
@@ -717,24 +932,96 @@ def create_pack(k):
     return place(parts, lean_matrix(k) @ Matrix.Translation((0, sc.y * 1.0 + 0.10 * r, -0.02)))
 
 
+def flap(name, top, width, length, material, swing=0.0, yaw=0.0, thick=0.011):
+    """A flat panel hanging from its top edge: mail skirts, tabards, the strips of a cloak."""
+    o = cube(name, (0, 0, 0), (width / 2, thick, length / 2), material, 0.006)
+    for v in o.data.vertices:
+        v.co.z -= length / 2
+    o.location = top
+    o.rotation_euler = (swing, 0, yaw)
+    return o
+
+
+def create_mail_skirt(L, k):
+    """Mail hanging in panels from the belt instead of a bell. A cone hid his legs entirely and
+    turned him into a chess pawn; panels let them show, and part where he strides."""
+    r, b = k["r"], k["bulk"]
+    hang = L["pelvis"] + Vector((0, 0, 0.02 * r))
+    parts = []
+    for i in range(8):
+        a = i * math.pi / 4
+        at = hang + Vector((0.262 * r * b * math.sin(a), -0.215 * r * b * math.cos(a), 0))
+        parts.append(flap(f"Skirt_Flap_{i}", at, 0.19 * r * b, (0.40 - 0.05 * (i % 2)) * r, CHAIN, -0.20, a))
+    return parts
+
+
+def create_tabard(L, k):
+    r, b = k["r"], k["bulk"]
+    top = L["pelvis"] + Vector((0, -0.235 * r * b, 0.05 * r))
+    return [
+        flap("Tabard", top, 0.19 * r, 0.52 * r, CLOTH_RED, -0.30),
+        flap("Tabard_Trim", top + Vector((0, -0.150 * r, -0.475 * r)), 0.19 * r, 0.045 * r, GOLD, -0.30, thick=0.014),
+    ]
+
+
+def create_gorget(L, k):
+    r = k["r"]
+    at = L["neck_a"] + Vector((0, -0.01 * r, -0.02 * r))
+    collar = ring("Gorget", (0, 0, 0), 0.165 * r, 0.045 * r, METAL, scale=(1.0, 1.1, 0.8))
+    return place([collar], Matrix.Translation(at) @ Matrix.Rotation(k["lean"] + 0.35, 4, "X"))
+
+
+def create_elbow_cops(L, k):
+    r = k["r"] * k["bulk"]
+    parts = []
+    for side in (-1, 1):
+        suffix = "L" if side < 0 else "R"
+        cop = dome(f"ElbowCop_{suffix}", (0, 0, 0), (0.088 * r, 0.088 * r, 0.075 * r), METAL, -0.2, 12, 8)
+        cop.rotation_euler = (math.radians(-100), 0, 0)
+        cop.location = mirror(L["elbow"], side) + Vector((side * 0.01, 0.045, 0.0)) * r
+        parts.append(cop)
+    return parts
+
+
 def create_cape(L, k):
+    """A soldier's cloak in strips of uneven length, fanned a little and hanging away from the
+    back. The single board it replaces looked like he was carrying a door."""
     r, sc = k["r"], k["s"]
-    cape = cube("Cape", (0, 0, -0.42 * r), (sc.x * 0.95, 0.02, 0.62 * r), CLOTH_RED, 0.02)
-    collar = ring("Cape_Collar", (0, -sc.y * 1.05, 0.12 * r), sc.x * 0.72, 0.035 * r, CLOTH_RED, scale=(1.0, 0.9, 1.0))
-    seat = lean_matrix(k) @ Matrix.Translation((0, sc.y * 1.14 + 0.05 * r, sc.z * 0.80)) @ Matrix.Rotation(-k["lean"] - math.radians(9), 4, "X")
-    return place([cape, collar], seat)
+    seat = lean_matrix(k) @ Matrix.Translation((0, sc.y * 1.12 + 0.05 * r, sc.z * 0.78))
+    parts = []
+    widths = 5
+    for i in range(widths):
+        t = (i - (widths - 1) / 2) / ((widths - 1) / 2)             # -1 .. 1 across the back
+        strip = flap(f"Cape_{i}", (t * sc.x * 0.82, abs(t) * -0.03 * r, 0),
+                     sc.x * 0.46, (1.12 - 0.10 * (i % 2) - 0.06 * abs(t)) * r, CLOTH_RED,
+                     0.20 - k["lean"], t * 0.20, thick=0.010)
+        parts.append(strip)
+    parts.append(ring("Cape_Collar", (0, -sc.y * 1.05, 0.10 * r), sc.x * 0.72, 0.038 * r, CLOTH_RED, scale=(1.0, 0.9, 1.0)))
+    parts.append(uv("Cape_Clasp", (0, -sc.y * 1.72, 0.08 * r), (0.04 * r,) * 3, GOLD, 10, 6))
+    return place(parts, seat)
 
 
 def create_helmet(L, k):
-    r, H = k["r"], L["head"]
-    shell = (0.222 * r, 0.255 * r, 0.215 * r)
+    hs, H = L["hs"], L["head"]
+    shell = (0.228 * hs, 0.268 * hs, 0.222 * hs)
     parts = [
-        dome("Helmet", (0, 0, 0), shell, METAL, 0.22, 24, 14),
-        ring("Helmet_Rim", (0, 0, shell[2] * 0.22), shell[0] * 0.975, 0.024 * r, GOLD, scale=(1.0, shell[1] / shell[0], 1.0)),
-        cube("NoseGuard", (0, -shell[1] * 0.97, -0.01 * r), (0.024 * r, 0.018, 0.085 * r), METAL, 0.008),
-        cyl("Crest", (0, 0.03 * r, shell[2] * 0.93), 0.155 * r, 0.035 * r, CLOTH_RED, (0, math.pi / 2, 0), 20),
+        dome("Helmet", (0, 0, 0), shell, METAL, 0.20, 24, 14),
+        ring("Helmet_Rim", (0, 0, shell[2] * 0.20), shell[0] * 0.98, 0.022 * hs, GOLD, scale=(1.0, shell[1] / shell[0], 1.0)),
+        cube("NoseGuard", (0, -shell[1] * 0.98, -0.02 * hs), (0.022 * hs, 0.016, 0.085 * hs), METAL, 0.008),
+        cube("Helmet_Ridge", (0, 0.01 * hs, shell[2] * 0.97), (0.02 * hs, shell[1] * 0.62, 0.022 * hs), GOLD, 0.006),
     ]
-    return place(parts, Matrix.Translation(H + Vector((0, -0.005, 0.035)) * r))
+    for side in (-1, 1):
+        suffix = "L" if side < 0 else "R"
+        parts.append(cube(f"Helmet_Cheek_{suffix}", (side * shell[0] * 0.93, -0.085 * hs, -0.075 * hs), (0.012, 0.062 * hs, 0.095 * hs), METAL, 0.008))
+
+    # Horsehair, standing along the ridge and swept back: tallest in the middle.
+    for i in range(9):
+        t = i / 8
+        y = (-0.55 + 1.15 * t) * shell[1] * 0.62
+        tall = (0.10 + 0.10 * math.sin(t * math.pi)) * hs
+        for dx in (-0.012, 0.012):
+            parts.append(cone(f"Crest_{i}_{dx > 0}", (dx * hs, y, shell[2] * 0.97 + tall * 0.45), 0.026 * hs, 0.004, tall, CLOTH_RED, (math.radians(-14 - 22 * t), 0, 0), 5))
+    return place(parts, Matrix.Translation(H + Vector((0, -0.005, 0.035)) * hs))
 
 
 def create_headband(L, k):
@@ -754,17 +1041,17 @@ def create_equipment(variant, L):
         # Dressed like a raider: hide, straps and scavenged iron, with the body left to show.
         parts += create_straps(k, LEATHER, crossed=True)
         parts += create_necklace(L, k)
-        parts += create_pauldrons(L, k, METAL, sides=(1,), spikes=True)
-        parts += create_wraps(L, k, LEATHER, LEATHER_LIGHT)
-        parts += create_belt(L, k)
+        parts += create_pauldrons(L, k, IRON, sides=(1,), spikes=True, size=1.12, layered=True)
+        parts += create_wraps(L, k, LEATHER, LEATHER_LIGHT, banded=True)
+        parts += create_belt(L, k, heavy=True)
         parts += create_loincloth(L, k)
-        parts += create_blade("Sword", L, k, 0.62, 0.085, cleaver=True)
-        parts += create_shield("Shield", L, k, 0.30 * k["r"], spiked=True)
+        parts += create_cleaver(L, k)
+        parts += create_shield("Shield", L, k, 0.31 * k["r"], spiked=True)
     elif variant == "goblin-archer":
         parts += create_cuirass(k, LEATHER_LIGHT)
         parts += create_studs(k)
         parts += create_straps(k, LEATHER, crossed=False, grow=1.10)
-        parts += create_wraps(L, k, LEATHER, LEATHER)
+        parts += create_wraps(L, k, LEATHER, LEATHER, banded=True)
         parts += create_belt(L, k)
         parts += create_loincloth(L, k)
         parts += create_headband(L, k)
@@ -772,17 +1059,19 @@ def create_equipment(variant, L):
         parts += create_scabbard(L, k)
         parts += create_bow(L, k)
     else:
-        parts += create_cuirass(k, CHAIN, grow=1.12)
-        skirt = cone("Skirt_Chain", (0, 0, 0), 0.40 * k["r"], 0.30 * k["r"], 0.44 * k["r"], CHAIN, vertices=24)
-        skirt.scale = (1.0, 0.86, 1.0)
-        parts += place([skirt], Matrix.Translation(L["pelvis"] + Vector((0, -0.03, -0.12)) * k["r"]) @ Matrix.Rotation(k["lean"] * 0.4, 4, "X"))
-        parts += create_pauldrons(L, k, METAL, sides=(-1, 1), spikes=True, size=1.1)
+        # A soldier, and a sergeant of them: mail under plate at the joints, his rank in red.
+        parts += create_cuirass(k, CHAIN, grow=1.17)
+        parts += create_mail_skirt(L, k)
+        parts += create_tabard(L, k)
+        parts += create_gorget(L, k)
+        parts += create_pauldrons(L, k, METAL, sides=(-1, 1), spikes=True, size=1.12, layered=True)
+        parts += create_elbow_cops(L, k)
         parts += create_wraps(L, k, METAL, METAL, knees=METAL, greaves=True)
-        parts += create_belt(L, k)
+        parts += create_belt(L, k, heavy=True)
         parts += create_helmet(L, k)
         parts += create_cape(L, k)
-        parts += create_blade("Longsword", L, k, 0.90, 0.062)
-        parts += create_shield("HeavyShield", L, k, 0.37 * k["r"], spiked=False)
+        parts += create_blade("Longsword", L, k, 0.92, 0.066)
+        parts += create_shield("HeavyShield", L, k, 0.39 * k["r"], spiked=False)
 
     return parts
 
@@ -883,7 +1172,8 @@ def bind_all(body, equipment, arm):
         ("Cuirass", "chest"), ("Stud_", "chest"), ("Strap_", "chest"),
         ("Pack", "chest"), ("Bedroll", "chest"),
         ("Quiver", "chest"), ("Arrow_", "chest"), ("Fletch_", "chest"),
-        ("Cape", "chest"),
+        ("Cape", "chest"), ("Gorget", "chest"), ("Tabard", "pelvis"),
+        ("ElbowCop_L", "forearm_L"), ("ElbowCop_R", "forearm_R"),
         ("Helmet", "head"), ("Crest", "head"), ("NoseGuard", "head"), ("Headband", "head"),
         ("Belt", "pelvis"), ("Buckle", "pelvis"), ("Pouch", "pelvis"),
         ("Loincloth", "pelvis"), ("Skirt", "pelvis"),
@@ -975,8 +1265,8 @@ def create_animations(arm):
     actions = []
 
     guard = {
-        "upper_arm_R": (0.30, 0.0, 0.0), "forearm_R": (0.75, 0.0, 0.0),
-        "upper_arm_L": (0.35, 0.0, 0.0), "forearm_L": (0.85, 0.0, 0.0),
+        "upper_arm_R": (0.12, 0.0, 0.0), "forearm_R": (0.93, 0.0, 0.0),
+        "upper_arm_L": (0.30, 0.0, 0.0), "forearm_L": (0.90, 0.0, 0.0),
         "chest": (0.0, 0.0, 0.0), "head": (0.0, 0.0, 0.0), "pelvis": (0.0, 0.0, 0.0),
     }
 
