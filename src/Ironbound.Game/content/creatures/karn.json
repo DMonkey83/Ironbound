@@ -2,6 +2,7 @@
   "kind": "creature",
   "id": "karn",
   "name": "Karn",
+  "model": "res://art/karn.glb",
   "abilities": [16, 12, 16, 8, 13, 8],
   "classes": [ { "class": "barbarian", "level": 6 } ],
 

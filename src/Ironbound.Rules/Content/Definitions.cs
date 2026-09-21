@@ -122,6 +122,16 @@ public sealed record CreatureDefinition
 
     public CreatureSize Size { get; init; } = CreatureSize.Medium;
 
+    /// <summary>
+    /// The model to draw it with, or empty for the placeholder shape.
+    /// </summary>
+    /// <remarks>
+    /// A string the rules hold and never open, exactly as <see cref="TerrainDefinition"/>'s are.
+    /// Appearance belongs in the creature's file rather than in a table in the scene code, for
+    /// the same reason its hit dice do: adding a monster should be adding a file.
+    /// </remarks>
+    public string Model { get; init; } = string.Empty;
+
     public int Speed { get; init; } = 30;
 
     public int BaseAttack { get; init; }

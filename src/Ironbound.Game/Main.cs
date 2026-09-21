@@ -84,6 +84,9 @@ public partial class Main : Node3D
 
 	private readonly Dictionary<Creature, Node3D> _figures = new();
 
+	/// <summary>Loaded once and instanced many times, so three goblins are one file read.</summary>
+	private readonly Dictionary<string, PackedScene> _models = new();
+
 	private ContentLibrary _content;
 	private Campaign _campaign;
 	private Battle _battle;
@@ -1254,14 +1257,14 @@ public partial class Main : Node3D
 	{
 		foreach (var creature in creatures)
 		{
-			var scale = ScaleOf(creature.Size);
-			var figure = new MeshInstance3D
-			{
-				Mesh = new CapsuleMesh { Radius = 0.3f * scale, Height = CapsuleHeight(creature) },
-				MaterialOverride = new StandardMaterial3D { AlbedoColor = colour },
-			};
-
+			// A holder whose origin is the ground the creature stands on. Capsules are built
+			// around their middle and models around their feet, and without this every caller
+			// would have to know which of the two it was looking at.
+			var figure = new Node3D();
 			_world.AddChild(figure);
+
+			var body = Model(creature) ?? Placeholder(creature, colour);
+			figure.AddChild(body);
 
 			var nameplate = new Label3D
 			{
@@ -1272,12 +1275,218 @@ public partial class Main : Node3D
 
 				// Above the head rather than a fixed height, or it sits inside the chest of
 				// anything larger than a person.
-				Position = new Vector3(0, (0.6f * CapsuleHeight(creature)) + 0.5f, 0),
+				Position = new Vector3(0, CapsuleHeight(creature) + 0.35f, 0),
+
+				// The models are textured and cannot be tinted by side without ruining them, so
+				// the nameplate carries what the capsule's colour used to: whose turn it serves.
+				Modulate = colour.Lightened(0.35f),
 			};
 
 			figure.AddChild(nameplate);
 			_figures[creature] = figure;
 		}
+	}
+
+	/// <summary>
+	/// Which way a figure is turned: towards the nearest enemy still in the fight.
+	/// </summary>
+	/// <remarks>
+	/// Nearest rather than whoever it last swung at, because it wants an answer on every frame
+	/// and for everybody, including the three creatures who have not acted yet.
+	/// <para>
+	/// Null when there is nobody to face — between chapters, or once one side is finished — and
+	/// the caller keeps whatever the figure was already looking at. Snapping the whole party
+	/// round to due north the moment the last goblin drops looks like a bug.
+	/// </para>
+	/// <para>
+	/// A yaw rather than <see cref="Node3D.LookAt"/>: that aims a node's -Z, and these models
+	/// were built facing the other way. Capsules are round and do not care either way.
+	/// </para>
+	/// </remarks>
+	private float? Facing(Creature creature)
+	{
+		if (_battle.Battlefield is not { } field || field.SquareOf(creature) is not { } here)
+		{
+			return null;
+		}
+
+		GridSquare? quarry = null;
+		var closest = int.MaxValue;
+
+		// Both sides in a fixed order, so two equally close enemies are not a coin toss that
+		// comes up differently on the next frame.
+		foreach (var other in _battle.Party.Concat(_battle.Foes))
+		{
+			if (other.Allegiance == creature.Allegiance
+				|| !other.IsConscious
+				|| field.SquareOf(other) is not { } there
+				|| field.DistanceInFeet(creature, other) is not { } away
+				|| away >= closest)
+			{
+				continue;
+			}
+
+			closest = away;
+			quarry = there;
+		}
+
+		if (quarry is not { } target || (target.X == here.X && target.Y == here.Y))
+		{
+			return null;
+		}
+
+		// A node yawed by this much has its +Z pointing down the line between the squares.
+		return Mathf.Atan2(target.X - here.X, target.Y - here.Y);
+	}
+
+	/// <summary>The grey capsule, for anything whose file names no model.</summary>
+	private static MeshInstance3D Placeholder(Creature creature, Color colour) => new()
+	{
+		Mesh = new CapsuleMesh
+		{
+			Radius = 0.3f * ScaleOf(creature.Size),
+			Height = CapsuleHeight(creature),
+		},
+		MaterialOverride = new StandardMaterial3D { AlbedoColor = colour },
+
+		// Built around its middle, lifted so its base is the holder's origin.
+		Position = new Vector3(0, 0.5f * CapsuleHeight(creature), 0),
+	};
+
+	/// <summary>
+	/// The model a creature's own file names, sized to the square it stands in.
+	/// </summary>
+	/// <remarks>
+	/// A whole scene rather than a bare mesh, because a character brings a skeleton and an
+	/// <see cref="AnimationPlayer"/> with it and both are lost by pulling the mesh out.
+	/// <para>
+	/// Scaled to the height the capsule would have been rather than to a number in the content
+	/// file: the art arrives at whatever size it was modelled at, and the size the game wants is
+	/// already derived from <see cref="CreatureSize"/>. Two sources for one number is one too
+	/// many.
+	/// </para>
+	/// </remarks>
+	private Node3D Model(Creature creature)
+	{
+		if (creature.DefinitionId is not { } id
+			|| _content.GetCreature(id)?.Model is not { Length: > 0 } path)
+		{
+			return null;
+		}
+
+		if (!_models.TryGetValue(path, out var scene))
+		{
+			scene = ResourceLoader.Exists(path) ? GD.Load<PackedScene>(path) : null;
+			if (scene is null)
+			{
+				GD.PushError($"Content: creature '{id}' names {path}, which will not load.");
+			}
+
+			_models[path] = scene;
+		}
+
+		if (scene?.Instantiate() is not Node3D model)
+		{
+			return null;
+		}
+
+		var box = Extent(model, Transform3D.Identity);
+		if (box.Size.Y <= 0)
+		{
+			GD.PushError($"Content: {path} has no geometry to measure.");
+			model.QueueFree();
+			return null;
+		}
+
+		var scale = CapsuleHeight(creature) / box.Size.Y;
+		var middle = box.GetCenter();
+
+		model.Scale = Vector3.One * scale;
+		model.Position = new Vector3(
+			-middle.X * scale, -box.Position.Y * scale, -middle.Z * scale);
+
+		Breathe(model);
+		return model;
+	}
+
+	/// <summary>Every mesh in a scene, in the scene's own space.</summary>
+	private static Aabb Extent(Node node, Transform3D inherited)
+	{
+		var here = node is Node3D spatial ? inherited * spatial.Transform : inherited;
+		var box = new Aabb();
+		var found = false;
+
+		if (node is MeshInstance3D { Mesh: not null } instance)
+		{
+			box = here * instance.Mesh.GetAabb();
+			found = true;
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			var inner = Extent(child, here);
+			if (inner.Size == Vector3.Zero)
+			{
+				continue;
+			}
+
+			box = found ? box.Merge(inner) : inner;
+			found = true;
+		}
+
+		return box;
+	}
+
+	/// <summary>
+	/// Sets a model idling, so a party standing still does not look like a party of statues.
+	/// </summary>
+	/// <remarks>
+	/// One clip, chosen by name and left looping. Matching the animation to what the creature is
+	/// actually doing — swinging, casting, falling over — is a layer of its own, and this is the
+	/// cheapest thing that stops the board looking dead while that layer does not exist.
+	/// </remarks>
+	private static void Breathe(Node model)
+	{
+		if (Animations(model) is not { } player)
+		{
+			return;
+		}
+
+		var clips = player.GetAnimationList();
+		var idle = System.Array.Find(clips, name => name.Contains("idle_combat"))
+			?? System.Array.Find(clips, name => name.Contains("idle"));
+
+		if (idle is null)
+		{
+			return;
+		}
+
+		// glTF brings its clips in one-shot; an idle that plays once and stops is worse than
+		// none at all, because it stops halfway through a breath.
+		if (player.GetAnimation(idle) is { } clip)
+		{
+			clip.LoopMode = Animation.LoopModeEnum.Linear;
+		}
+
+		player.Play(idle);
+	}
+
+	private static AnimationPlayer Animations(Node node)
+	{
+		if (node is AnimationPlayer player)
+		{
+			return player;
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			if (Animations(child) is { } found)
+			{
+				return found;
+			}
+		}
+
+		return null;
 	}
 
 	/// <summary>How tall the capsule standing in for a creature is drawn.</summary>
@@ -2019,23 +2228,27 @@ public partial class Main : Node3D
 
 		foreach (var (creature, figure) in _figures)
 		{
-			// Half the capsule's own height, not a flat 0.7: the mesh is built at
-			// Height = 1.4 * scale, so anything Large or bigger stood buried in the floor —
-			// a Gargantuan creature by a whole unit.
-			var standing = 0.5f * CapsuleHeight(creature);
+			// The holder's origin is the creature's feet, so standing is simply y=0 whatever
+			// the creature is drawn with. Off its feet it needs lifting by half its own girth,
+			// or a body lying down is half sunk into the floor.
+			var lying = 0.3f * ScaleOf(creature.Size);
 
 			if (field?.SquareOf(creature) is { } square)
 			{
 				figure.Position = new Vector3(
 					square.X + 0.5f,
-					creature.IsConscious && !creature.IsProne ? standing : 0.3f,
+					creature.IsConscious && !creature.IsProne ? 0f : lying,
 					square.Y + 0.5f);
 			}
 
 			// Anyone off their feet lies down, whether they chose it or not. Cheap, and it
-			// reads at a glance.
+			// reads at a glance. The yaw carries through it, so a body falls still facing
+			// whatever it was facing rather than spinning round on the way to the floor.
 			var down = !creature.IsConscious || creature.IsProne;
-			figure.Rotation = down ? new Vector3(Mathf.Pi / 2f, 0, 0) : Vector3.Zero;
+			figure.Rotation = new Vector3(
+				down ? Mathf.Pi / 2f : 0f,
+				Facing(creature) ?? figure.Rotation.Y,
+				0f);
 		}
 
 		RefreshTurnMarker();

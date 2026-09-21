@@ -2,6 +2,7 @@
   "kind": "creature",
   "id": "valeria",
   "name": "Valeria",
+  "model": "res://art/valeria.glb",
   // Intelligence 13 is not decoration: it is what Combat Expertise costs, and what Improved
   // Trip costs on top of that. A fighter who wants to trip people pays for it here.
   "abilities": [18, 14, 14, 13, 12, 10],

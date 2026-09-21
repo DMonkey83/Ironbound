@@ -682,6 +682,7 @@ public sealed class ContentLibrary
             HitDice = reader.Int("hitDice", 1),
             Level = reader.Int("level", 1),
             Size = reader.Enum("size", CreatureSize.Medium),
+            Model = reader.StringOr("model", string.Empty),
             Speed = reader.Int("speed", 30),
             BaseAttack = reader.Int("baseAttack"),
             Armour = reader.Int("armour"),

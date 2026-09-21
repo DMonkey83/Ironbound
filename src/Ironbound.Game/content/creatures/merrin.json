@@ -2,6 +2,7 @@
   "kind": "creature",
   "id": "merrin",
   "name": "Merrin",
+  "model": "res://art/merrin.glb",
   "abilities": [8, 14, 12, 18, 13, 10],
 
   // A wizard, so a good Will save and a poor Fortitude — the opposite of what the old

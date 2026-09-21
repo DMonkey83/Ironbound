@@ -201,6 +201,30 @@ public class ContentParsingTests
     }
 
     [Fact]
+    public void ACreatureCanNameTheModelItIsDrawnWith()
+    {
+        var library = From("""
+            { "kind": "creature", "id": "ogre", "name": "Ogre", "size": "Large",
+              "model": "res://art/ogre.glb", "abilities": [21, 8, 15, 6, 10, 7] }
+            """);
+
+        Assert.Equal("res://art/ogre.glb", library.GetCreature("ogre")!.Model);
+    }
+
+    [Fact]
+    public void AndOneThatDoesNotIsDrawnWithWhateverTheGameFallsBackTo()
+    {
+        var library = From("""
+            { "kind": "creature", "id": "rat", "name": "Rat",
+              "abilities": [2, 15, 4, 2, 12, 2] }
+            """);
+
+        // Empty rather than null: the rules have no opinion about what gets drawn instead, and
+        // every creature in the game shipped without a model until now.
+        Assert.Equal(string.Empty, library.GetCreature("rat")!.Model);
+    }
+
+    [Fact]
     public void AnEncounterWithNoTerrainNamesNoneRatherThanFailing()
     {
         var library = From("""
@@ -431,6 +455,46 @@ public class TerrainContentTests
 
         Assert.StartsWith("res://art/", terrain.Ground);
         Assert.StartsWith("res://art/", terrain.Blocked);
+    }
+}
+
+public class CreatureModelTests
+{
+    [Theory]
+    [InlineData("valeria")]
+    [InlineData("karn")]
+    [InlineData("merrin")]
+    public void EveryPartyMemberIsDrawnWithAModel(string id)
+    {
+        var model = TestContent.Library.GetCreature(id)!.Model;
+
+        Assert.StartsWith("res://art/", model);
+        Assert.EndsWith(".glb", model);
+    }
+
+    [Fact]
+    public void AndEverythingElseStillFallsBackToTheCapsule()
+    {
+        // Not a rule, an observation worth pinning: the fallback is the path most creatures in
+        // the game take, so it is the one that must never stop working.
+        Assert.Contains(
+            TestContent.Library.CreatureIds,
+            id => TestContent.Library.GetCreature(id)!.Model.Length == 0);
+    }
+
+    [Fact]
+    public void AModelIsNamedByTheCreatureFileAndNowhereElse()
+    {
+        foreach (var id in TestContent.Library.CreatureIds)
+        {
+            var model = TestContent.Library.GetCreature(id)!.Model;
+
+            // A path that is not a Godot resource path cannot be loaded by the one thing that
+            // ever opens these strings, and nothing else in the library would notice.
+            Assert.True(
+                model.Length == 0 || model.StartsWith("res://", StringComparison.Ordinal),
+                $"creature '{id}' names a model at '{model}', which is not a res:// path.");
+        }
     }
 }
 
