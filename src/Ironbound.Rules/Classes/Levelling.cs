@@ -127,6 +127,15 @@ public static class Levelling
         creature.Spells.CasterLevel = Progression.CasterLevel(creature.Levels);
         creature.HitPoints.GainHitDie(PerLevel(taken, rules));
 
+        // Raised rather than set: a wizard who levels mid-day gets the new slots and keeps the
+        // ones they spent this morning spent.
+        var casting = creature.Abilities[creature.Spells.CastingAbility].Modifier;
+
+        foreach (var (level, count) in Progression.SlotsFor(creature.Levels, casting))
+        {
+            creature.Spells.RaiseSlots(level, count);
+        }
+
         return true;
     }
 

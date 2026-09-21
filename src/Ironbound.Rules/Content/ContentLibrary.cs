@@ -441,6 +441,14 @@ public sealed class ContentLibrary
             }
         }
 
+        var slots = new List<IReadOnlyList<int>>();
+        foreach (var row in reader.Array("spellSlots"))
+        {
+            slots.Add(row.ValueKind == JsonValueKind.Array
+                ? [.. row.EnumerateArray().Select(each => each.TryGetInt32(out var n) ? n : 0)]
+                : []);
+        }
+
         return new ClassDefinition
         {
             Id = id,
@@ -450,6 +458,7 @@ public sealed class ContentLibrary
             GoodSaves = good,
             Casting = reader.Enum("casting", CasterProgression.None),
             CastingAbility = reader.Enum("castingAbility", Ability.Intelligence),
+            SpellSlots = slots,
         };
     }
 

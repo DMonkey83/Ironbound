@@ -47,6 +47,30 @@ public sealed class Spellcasting
         return this;
     }
 
+    /// <summary>
+    /// Raises a level's allowance, granting only the difference.
+    /// </summary>
+    /// <remarks>
+    /// Not <see cref="SetSlots"/>, which refills. Gaining a level should hand over the new
+    /// slots and leave the ones you spent this morning exactly as empty as you left them.
+    /// </remarks>
+    public Spellcasting RaiseSlots(int level, int maximum)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(level);
+        ArgumentOutOfRangeException.ThrowIfNegative(maximum);
+
+        var had = SlotsMaximum(level);
+        if (maximum <= had)
+        {
+            return this;
+        }
+
+        _remaining[level] = SlotsRemaining(level) + (maximum - had);
+        _maximum[level] = maximum;
+
+        return this;
+    }
+
     /// <summary>Which spell levels this caster has slots for at all.</summary>
     public IReadOnlyCollection<int> SlotLevels => _maximum.Keys;
 

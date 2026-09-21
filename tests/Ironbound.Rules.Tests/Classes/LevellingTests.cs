@@ -153,6 +153,86 @@ public class GainingALevelTests
     private static ClassDefinition Wizard => TestContent.Library.GetClass("wizard")!;
 }
 
+public class SpellSlotTests
+{
+    [Theory]
+    [InlineData(0, 1, 0)]
+    [InlineData(4, 1, 1)]
+    [InlineData(4, 4, 1)]
+    [InlineData(4, 5, 0)]     // the bonus stops where the modifier does
+    [InlineData(8, 1, 2)]     // and another for every four points past it
+    [InlineData(8, 4, 2)]
+    [InlineData(8, 5, 1)]
+    public void AHighAbilityIsWorthExtraSpells(int modifier, int spellLevel, int bonus) =>
+        Assert.Equal(bonus, Progression.BonusSlots(modifier, spellLevel));
+
+    [Fact]
+    public void TheClassTableDecidesTheRest()
+    {
+        var wizard = TestContent.Library.GetClass("wizard")!;
+
+        Assert.Equal([1], wizard.SlotsAt(1));
+        Assert.Equal([2, 1], wizard.SlotsAt(3));      // the first second-level slot
+        Assert.Equal([3, 2, 1], wizard.SlotsAt(5));
+        Assert.Empty(wizard.SlotsAt(0));
+        Assert.Empty(wizard.SlotsAt(99));
+    }
+
+    [Fact]
+    public void AFighterHasNoTableAndThereforeNoSlots()
+    {
+        var fighter = TestContent.Library.GetClass("fighter")!;
+
+        Assert.Empty(fighter.SpellSlots);
+        Assert.Empty(Progression.SlotsFor([new ClassLevel(fighter, 20)], 5));
+    }
+
+    [Fact]
+    public void MerrinsSlotsComeFromHerClassRatherThanHerFile()
+    {
+        var merrin = TestContent.Library.BuildCreature("merrin")!;
+
+        // Base 3/2/1 at wizard 5, plus one of each from Intelligence 18.
+        Assert.Equal(4, merrin.Spells.SlotsMaximum(1));
+        Assert.Equal(3, merrin.Spells.SlotsMaximum(2));
+        Assert.Equal(2, merrin.Spells.SlotsMaximum(3));
+        Assert.Equal(0, merrin.Spells.SlotsMaximum(4));
+    }
+
+    [Fact]
+    public void LevellingAWizardGivesNewSlotsWithoutRefillingTheSpentOnes()
+    {
+        var merrin = TestContent.Library.BuildCreature("merrin")!;
+        merrin.Spells.Spend(merrin.Spells.Prepared.First(spell => spell.Level == 3));
+
+        Assert.Equal(1, merrin.Spells.SlotsRemaining(3));
+
+        Levelling.Gain(merrin, TestContent.Library.GetClass("wizard")!);
+
+        // Wizard 6 is 3/3/2 before the bonus, so the third level goes from two slots to three.
+        Assert.Equal(3, merrin.Spells.SlotsMaximum(3));
+
+        // And the one she cast this morning is still gone.
+        Assert.Equal(2, merrin.Spells.SlotsRemaining(3));
+    }
+
+    [Fact]
+    public void AWizardReachingThirdLevelGainsTheirFirstSecondLevelSlot()
+    {
+        var apprentice = new Creature("Apprentice", new AbilityScores(8, 12, 12, 14, 10, 10), 6, 1);
+        var wizard = TestContent.Library.GetClass("wizard")!;
+
+        apprentice.Levels.Add(new ClassLevel(wizard, 1));
+        Levelling.Gain(apprentice, wizard);
+
+        Assert.Equal(0, apprentice.Spells.SlotsMaximum(2));
+
+        Levelling.Gain(apprentice, wizard);
+
+        Assert.Equal(1 + Progression.BonusSlots(2, 2), apprentice.Spells.SlotsMaximum(2));
+    }
+}
+
 public class LevelsOnTheCreatureTests
 {
     [Fact]

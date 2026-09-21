@@ -78,6 +78,20 @@ public sealed record ClassDefinition
         return GoodSaves.Contains(save) ? SaveProgression.Good(level) : SaveProgression.Poor(level);
     }
 
+    /// <summary>
+    /// Spells per day before ability bonuses, by class level then spell level.
+    /// </summary>
+    /// <remarks>
+    /// A table rather than a formula because that is what it is in the rules — the shape of a
+    /// caster's day is designed, not calculated, and a wizard reaching third level and gaining
+    /// their first second-level slot is a moment the arithmetic would flatten.
+    /// </remarks>
+    public IReadOnlyList<IReadOnlyList<int>> SpellSlots { get; init; } = [];
+
+    /// <summary>What this class alone grants at a given level, before any ability bonus.</summary>
+    public IReadOnlyList<int> SlotsAt(int level) =>
+        level >= 1 && level <= SpellSlots.Count ? SpellSlots[level - 1] : [];
+
     public int CasterLevelAt(int level) => Casting switch
     {
         CasterProgression.Full => level,

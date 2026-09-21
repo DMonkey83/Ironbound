@@ -242,9 +242,24 @@ public sealed record CreatureDefinition
         creature.Spells.CasterLevel =
             CasterLevel != 0 ? CasterLevel : Progression.CasterLevel(levels);
 
-        foreach (var slot in Slots)
+        // Written-down slots win, for a monster whose magic is not a class. Otherwise the
+        // class tables decide, which is what lets levelling up change them.
+        if (Slots.Count > 0)
         {
-            creature.Spells.SetSlots(slot.Level, slot.Count);
+            foreach (var slot in Slots)
+            {
+                creature.Spells.SetSlots(slot.Level, slot.Count);
+            }
+        }
+        else if (classed)
+        {
+            var casting = creature.Spells.CastingAbility;
+
+            foreach (var (spellLevel, count) in
+                Progression.SlotsFor(levels, creature.Abilities[casting].Modifier))
+            {
+                creature.Spells.SetSlots(spellLevel, count);
+            }
         }
 
         foreach (var spell in Spells)

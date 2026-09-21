@@ -15,12 +15,6 @@
   "feats": ["iron-will", "improved-initiative"],
   "items": ["light-crossbow", "quarterstaff"],
 
-  // Slots are still written out by hand. A per-class table is a layer of its own.
-  "slots": [
-    { "level": 1, "count": 3 },
-    { "level": 2, "count": 2 },
-    { "level": 3, "count": 1 }
-  ],
   // Order is priority: the AI works down the list, so Cause Fear gets the first-level slot
   // ahead of Magic Missile. A debuff that lasts the fight beats 3d4+3 once.
   "spells": ["fireball", "scorching-ray", "cause-fear", "grease", "magic-missile"]

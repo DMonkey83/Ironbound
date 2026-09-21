@@ -73,6 +73,52 @@ public static class Progression
     }
 
     /// <summary>
+    /// Spells per day: the class tables added up, plus what a high casting ability is worth.
+    /// </summary>
+    /// <remarks>
+    /// The ability bonus is the rule that makes Intelligence matter to a wizard for something
+    /// other than save DCs: one extra slot of every level you can already cast, and another for
+    /// every four points beyond that. It is why an eighteen is worth more than the +4 suggests.
+    /// </remarks>
+    public static IReadOnlyDictionary<int, int> SlotsFor(
+        IEnumerable<ClassLevel> levels, int abilityModifier)
+    {
+        ArgumentNullException.ThrowIfNull(levels);
+
+        var slots = new Dictionary<int, int>();
+
+        foreach (var taken in levels)
+        {
+            var table = taken.Class.SlotsAt(taken.Level);
+
+            for (var spellLevel = 1; spellLevel <= table.Count; spellLevel++)
+            {
+                if (table[spellLevel - 1] <= 0)
+                {
+                    continue;
+                }
+
+                slots[spellLevel] = slots.GetValueOrDefault(spellLevel)
+                    + table[spellLevel - 1]
+                    + BonusSlots(abilityModifier, spellLevel);
+            }
+        }
+
+        return slots;
+    }
+
+    /// <summary>
+    /// Extra spells per day from a high ability: one at every level you can cast, and another
+    /// for each four points past it.
+    /// </summary>
+    public static int BonusSlots(int abilityModifier, int spellLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(spellLevel, 1);
+
+        return abilityModifier < spellLevel ? 0 : ((abilityModifier - spellLevel) / 4) + 1;
+    }
+
+    /// <summary>
     /// Hit points before Constitution: the full die for the character's very first level, and
     /// whatever the rule options say for every level after it, whichever class they were taken in.
     /// </summary>
