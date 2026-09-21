@@ -86,6 +86,9 @@ public partial class Main : Node3D
 	private Button _stand;
 	private Button _press;
 	private Button _rest;
+	private OptionButton _stash;
+	private OptionButton _bearer;
+	private Button _give;
 	private readonly Dictionary<Mode, Button> _modes = new();
 
 	private Mode _mode = Mode.Move;
@@ -128,6 +131,11 @@ public partial class Main : Node3D
 		{
 			if (_battle.BeginTurn() is not { } turn)
 			{
+				if (_campaign.Collect() is > 0 and var taken)
+				{
+					_log.AddText($"— {taken} thing(s) taken from the fallen —\n");
+				}
+
 				Prompt(Verdict());
 				RefreshFigures();
 				RefreshControls();
@@ -171,6 +179,69 @@ public partial class Main : Node3D
 		CampaignState.Lost => "The party is down. The road ends here.",
 		_ => "Nobody left standing.",
 	};
+
+	/// <summary>Fills the two pickers, and greys the lot while anyone is still swinging.</summary>
+	private void RefreshStash()
+	{
+		var between = _campaign.State != CampaignState.Fighting;
+		var loot = _campaign.Stash;
+
+		if (_stash.ItemCount != loot.Count || !between)
+		{
+			_stash.Clear();
+			foreach (var item in loot)
+			{
+				_stash.AddItem(item.Name);
+			}
+
+			if (loot.Count > 0)
+			{
+				_stash.Selected = 0;
+			}
+		}
+
+		if (_bearer.ItemCount != _campaign.Party.Count)
+		{
+			_bearer.Clear();
+			foreach (var creature in _campaign.Party)
+			{
+				_bearer.AddItem(creature.Name);
+			}
+
+			if (_campaign.Party.Count > 0)
+			{
+				_bearer.Selected = 0;
+			}
+		}
+
+		var usable = between && loot.Count > 0;
+		_stash.Disabled = !usable;
+		_bearer.Disabled = !usable;
+		_give.Disabled = !usable;
+	}
+
+	private void OnTake()
+	{
+		if (_stash.Selected < 0 || _bearer.Selected < 0
+			|| _stash.Selected >= _campaign.Stash.Count
+			|| _bearer.Selected >= _campaign.Party.Count)
+		{
+			return;
+		}
+
+		var item = _campaign.Stash[_stash.Selected];
+		var bearer = _campaign.Party[_bearer.Selected];
+
+		if (!_campaign.Give(bearer, item.Id))
+		{
+			Refuse($"{bearer.Name} cannot take the {item.Name}.");
+			return;
+		}
+
+		_log.AddText($"— {bearer.Name} takes the {item.Name} —\n");
+		RefreshControls();
+		UpdateStatus();
+	}
 
 	private void OnPressOn()
 	{
@@ -819,6 +890,18 @@ public partial class Main : Node3D
 		_stand.Pressed += OnStandUp;
 		buttons.AddChild(_stand);
 
+		// The sack, and who gets what out of it. Live only between fights: rummaging through
+		// loot is not something you do while a hobgoblin is swinging at you.
+		_stash = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		buttons.AddChild(_stash);
+
+		_bearer = new OptionButton();
+		buttons.AddChild(_bearer);
+
+		_give = new Button { Text = "Take" };
+		_give.Pressed += OnTake;
+		buttons.AddChild(_give);
+
 		_press = new Button { Text = "Press on" };
 		_press.Pressed += OnPressOn;
 		buttons.AddChild(_press);
@@ -931,6 +1014,7 @@ public partial class Main : Node3D
 		_stand.Disabled = turn is null || !turn.CanTake(new StandUpAction());
 		_press.Disabled = !_campaign.CanAdvance;
 		_rest.Disabled = !_campaign.CanRest;
+		RefreshStash();
 
 		// Being left holding a mode that can no longer do anything is its own small trap. Move
 		// first, because a five-foot step outlives everything else.
@@ -1104,6 +1188,18 @@ public partial class Main : Node3D
 			// their spent slots, walking into the next fight.
 			GD.Print($"--- chapter over with {Remaining()} ---");
 
+			_campaign.Collect();
+			GD.Print($"--- taken from the fallen: {Sack()} ---");
+
+			// The point of the whole layer: the sergeant's silvered blade is the answer to what
+			// is waiting in the clearing, and it only exists because somebody was carrying it.
+			if (_campaign.Stash.FirstOrDefault(item => item.Id == "silvered-longsword") is { } silver)
+			{
+				var bearer = _campaign.Party.First(one => one.IsConscious);
+				_campaign.Give(bearer, silver.Id);
+				GD.Print($"--- {bearer.Name} takes the {silver.Name} ---");
+			}
+
 			// Somebody bleeding out is not a decision, it is an answer. A player gets to weigh
 			// the one rest against what is coming; this is a demonstration, so it takes it.
 			if (_campaign.CanRest && _campaign.Party.Any(one => !one.IsConscious))
@@ -1120,6 +1216,11 @@ public partial class Main : Node3D
 		GD.Print($"--- {_campaign.State} ---");
 		GetTree().Quit();
 	}
+
+	private string Sack() =>
+		_campaign.Stash.Count == 0
+			? "nothing"
+			: string.Join(", ", _campaign.Stash.Select(item => item.Name));
 
 	private string Remaining() => string.Join(
 		", ",

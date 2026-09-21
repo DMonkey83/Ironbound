@@ -1,4 +1,6 @@
+using Ironbound.Rules.Combat;
 using Ironbound.Rules.Content;
+using Ironbound.Rules.Dice;
 using Ironbound.Rules.Magic;
 
 namespace Ironbound.Simulation.Tests;
@@ -120,6 +122,127 @@ public class CampaignTests
             () => Campaign.Begin(ContentFiles.Default, "the-short-road"));
 
         Assert.Contains("the-short-road", error.Message);
+    }
+}
+
+public class LootTests
+{
+    [Fact]
+    public void TheFallenAreStrippedOfWhatTheyCarried()
+    {
+        var run = Fought();
+
+        Assert.True(run.Collect() > 0);
+        Assert.Contains(run.Stash, item => item.Id == "silvered-longsword");
+    }
+
+    [Fact]
+    public void AnyoneWhoCannotObjectCountsAsFallen()
+    {
+        var run = Fought();
+        run.Collect();
+
+        // The sergeant is usually left dying rather than dead. Leaving his sword on him because
+        // the rules call him "dying" would read as a bug, whatever it is called.
+        Assert.All(run.Battle.Foes, foe => Assert.Empty(foe.Equipment.Items));
+    }
+
+    [Fact]
+    public void ChaptersAreLootedOnceHoweverManyTimesAnybodyAsks()
+    {
+        var run = Fought();
+
+        var first = run.Collect();
+        var count = run.Stash.Count;
+
+        Assert.True(first > 0);
+        Assert.Equal(0, run.Collect());
+        Assert.Equal(count, run.Stash.Count);
+    }
+
+    [Fact]
+    public void NothingIsTakenWhileTheFightingIsStillGoingOn()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+
+        Assert.Equal(0, run.Collect());
+        Assert.Empty(run.Stash);
+    }
+
+    [Fact]
+    public void TakingASwordPutsItInYourHandAndTheOldOneBackInTheSack()
+    {
+        var run = Fought();
+        run.Collect();
+
+        var valeria = run.Party.Single(c => c.Name == "Valeria");
+
+        Assert.True(run.Give(valeria, "silvered-longsword"));
+
+        // In her hand, not stowed behind the blade she already had — otherwise she keeps
+        // swinging the wrong thing and the loot does nothing.
+        Assert.Equal("silvered longsword", valeria.PrimaryAttack!.Name);
+        Assert.Contains(run.Stash, item => item.Id == "longsword");
+    }
+
+    [Fact]
+    public void AndTheSilverIsWhatFinallyGetsThroughTheWerewolf()
+    {
+        var run = Fought();
+        run.Collect();
+
+        var valeria = run.Party.Single(c => c.Name == "Valeria");
+        run.Give(valeria, "silvered-longsword");
+        run.Advance();
+
+        var werewolf = run.Battle.Foes.Single();
+        var karn = run.Party.Single(c => c.Name == "Karn");
+
+        // Same roll, same round, two blades. This is what the gate was built for.
+        var axe = Strike.Resolve(karn, karn.PrimaryAttack!, werewolf, new SequenceRandom(true, 15, 4));
+        var silver = Strike.Resolve(
+            valeria, valeria.PrimaryAttack!, werewolf, new SequenceRandom(true, 15, 4));
+
+        Assert.True(axe.Attack.IsHit);
+        Assert.Equal(0, axe.DamageDealt);
+        Assert.True(silver.DamageDealt > 0);
+    }
+
+    [Fact]
+    public void SomethingGivenAwayCanBeTakenBack()
+    {
+        var run = Fought();
+        run.Collect();
+
+        var karn = run.Party.Single(c => c.Name == "Karn");
+        run.Give(karn, "silvered-longsword");
+
+        Assert.True(run.Reclaim(karn, "silvered-longsword"));
+        Assert.Contains(run.Stash, item => item.Id == "silvered-longsword");
+        Assert.False(karn.Equipment.Has("silvered-longsword"));
+    }
+
+    [Fact]
+    public void TheSackSurvivesASaveWithWhatIsStillInIt()
+    {
+        var run = Fought();
+        run.Collect();
+        var carried = run.Stash.Select(item => item.Id).ToList();
+
+        var restored = Campaign.FromJson(run.ToJson(), ContentFiles.Default);
+
+        Assert.Equal(carried, restored.Stash.Select(item => item.Id));
+
+        // And the chapter stays looted, so reloading is not a way to strip the bodies twice.
+        Assert.Equal(0, restored.Collect());
+    }
+
+    private static Campaign Fought()
+    {
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
+
+        return run;
     }
 }
 

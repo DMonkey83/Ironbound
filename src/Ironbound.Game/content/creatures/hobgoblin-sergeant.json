@@ -8,5 +8,7 @@
   "classes": [ { "class": "fighter", "level": 6 } ],
   "speed": 30,
   "feats": ["combat-reflexes", "weapon-specialization"],
-  "items": ["chain-shirt", "heavy-shield", "longsword"]
+  // The silvered blade is on his belt, not in his hand — he has no use for it against
+  // three humans. Kill him and it is the answer to what is waiting in the clearing.
+  "items": ["chain-shirt", "heavy-shield", "longsword", "silvered-longsword"]
 }

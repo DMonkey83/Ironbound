@@ -1,6 +1,7 @@
 using Ironbound.Rules;
 using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
+using Ironbound.Rules.Items;
 using Ironbound.Rules.Persistence;
 
 namespace Ironbound.Simulation;
@@ -40,6 +41,8 @@ public sealed class Campaign
     private readonly RuleOptions? _rules;
     private readonly ulong _seed;
     private readonly Dictionary<string, Creature> _party = new(StringComparer.Ordinal);
+    private readonly List<ItemDefinition> _stash = [];
+    private int _lootedChapter;
 
     private Campaign(
         ContentLibrary library, CampaignDefinition definition, ulong seed, RuleOptions? rules)
@@ -100,6 +103,17 @@ public sealed class Campaign
         }
     }
 
+    /// <summary>
+    /// What has been taken from the fallen and not yet given to anybody.
+    /// </summary>
+    /// <remarks>
+    /// The other half of the wall that damage reduction builds. The rules have been able to say
+    /// "DR 10/silver" for some time and items have been able to answer it, but until something
+    /// put a silvered blade in the party's hands the answer was one the player could never
+    /// reach. Loot is how a gate becomes a puzzle instead of a dead end.
+    /// </remarks>
+    public IReadOnlyList<ItemDefinition> Stash => _stash;
+
     public bool CanRest => RestsRemaining > 0 && State == CampaignState.Between;
 
     public bool CanAdvance => State == CampaignState.Between;
@@ -131,6 +145,93 @@ public sealed class Campaign
         return true;
     }
 
+    /// <summary>
+    /// Strips the fallen of everything they were carrying. Idempotent: a chapter is looted once,
+    /// however many times anybody asks.
+    /// </summary>
+    public int Collect()
+    {
+        if (_lootedChapter >= Chapter || State == CampaignState.Fighting)
+        {
+            return 0;
+        }
+
+        _lootedChapter = Chapter;
+        var taken = 0;
+
+        // Anyone who cannot stop you, not only the outright dead. A hobgoblin bleeding out at
+        // -12 is in no position to object, and leaving his sword on him because the rules call
+        // him "dying" rather than "dead" would be a distinction the player would read as a bug.
+        foreach (var fallen in Battle.Foes.Where(foe => !foe.IsConscious))
+        {
+            // Enumerated into a list first: unequipping walks the same collection.
+            foreach (var item in fallen.Equipment.Items.ToList())
+            {
+                fallen.Equipment.Unequip(item.Id);
+                _stash.Add(item);
+                taken++;
+            }
+        }
+
+        return taken;
+    }
+
+    /// <summary>
+    /// Hands something from the stash to somebody. Refuses mid-fight: rummaging through a sack
+    /// is not a thing you do while a hobgoblin is swinging at you.
+    /// </summary>
+    public bool Give(Creature creature, string itemId)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        if (State == CampaignState.Fighting || !Party.Contains(creature))
+        {
+            return false;
+        }
+
+        var index = _stash.FindIndex(item => string.Equals(item.Id, itemId, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var found = _stash[index];
+        _stash.RemoveAt(index);
+
+        // Taking a sword means putting it in your hand. Without this the better blade is stowed
+        // behind the worse one, the creature keeps swinging the wrong thing, and the player is
+        // left wondering why the silver they went to the trouble of finding does nothing.
+        if (!creature.Equipment.HasRoomFor(found.Slot)
+            && creature.Equipment.InSlot(found.Slot).FirstOrDefault() is { } displaced)
+        {
+            creature.Equipment.Unequip(displaced.Id);
+            _stash.Add(displaced);
+        }
+
+        creature.Equipment.Equip(found, _library.BuildItemWeapon(found));
+
+        return true;
+    }
+
+    /// <summary>Takes something back off somebody and returns it to the sack.</summary>
+    public bool Reclaim(Creature creature, string itemId)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        if (State == CampaignState.Fighting || _library.GetItem(itemId) is not { } item)
+        {
+            return false;
+        }
+
+        if (!creature.Equipment.Unequip(itemId))
+        {
+            return false;
+        }
+
+        _stash.Add(item);
+        return true;
+    }
+
     /// <summary>Moves on to the next fight, carrying the party into it as they are.</summary>
     public bool Advance()
     {
@@ -138,6 +239,8 @@ public sealed class Campaign
         {
             return false;
         }
+
+        Collect();
 
         var encounter = Definition.Encounters[Chapter];
         Chapter++;
@@ -153,7 +256,13 @@ public sealed class Campaign
     public string ToJson() =>
         GameSave.ToJson(GameSave.Capture(
             Battle.Encounter,
-            new SavedCampaign(Definition.Id, Chapter, RestsRemaining, _seed)));
+            new SavedCampaign(
+                Definition.Id,
+                Chapter,
+                RestsRemaining,
+                _seed,
+                [.. _stash.Select(item => item.Id)],
+                _lootedChapter)));
 
     /// <summary>
     /// Reads one back. Refuses a save with no campaign in it rather than inventing one.
@@ -178,7 +287,9 @@ public sealed class Campaign
             state.RestsRemaining,
             state.Seed,
             save.Rules,
-            Battle.Restore(save, library));
+            Battle.Restore(save, library),
+            state.Stash,
+            state.LootedChapter);
     }
 
     /// <summary>Puts a campaign back where a save left it, around an already-restored fight.</summary>
@@ -189,14 +300,23 @@ public sealed class Campaign
         int restsRemaining,
         ulong seed,
         RuleOptions? rules,
-        Battle battle)
+        Battle battle,
+        IReadOnlyList<string> stash,
+        int lootedChapter)
     {
         var campaign = new Campaign(library, definition, seed, rules)
         {
             Chapter = chapter,
             RestsRemaining = restsRemaining,
             Battle = battle,
+            _lootedChapter = lootedChapter,
         };
+
+        foreach (var id in stash)
+        {
+            campaign._stash.Add(library.GetItem(id) ?? throw new InvalidDataException(
+                $"The save has an item '{id}' in the sack, which no content file defines."));
+        }
 
         foreach (var creature in battle.Party)
         {

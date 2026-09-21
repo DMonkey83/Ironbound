@@ -31,11 +31,17 @@ public sealed record SavedGame(
     SavedCombatant[] Order,
     SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 8;
 }
 
 /// <summary>Where a run of encounters had got to.</summary>
-public sealed record SavedCampaign(string Id, int Chapter, int RestsRemaining, ulong Seed);
+public sealed record SavedCampaign(
+    string Id,
+    int Chapter,
+    int RestsRemaining,
+    ulong Seed,
+    string[] Stash,
+    int LootedChapter);
 
 public sealed record SavedBattlefield(
     int Width,
