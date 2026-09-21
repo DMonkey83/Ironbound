@@ -30,11 +30,19 @@ folds a separate alpha mask into the colour texture, recentres on the origin and
 ## `generate_goblin.py` — build a goblin out of primitives
 
 ```sh
-blender -b --factory-startup --python tools/generate_goblin.py
+blender -b --factory-startup --python tools/generate_goblin.py -- <variant> <out.glb>
 ```
 
-Writes `ironbound_goblin.blend` and `.glb` beside the working directory. No source art and
-nothing to licence: the model is the script.
+`variant` is `goblin`, `goblin-archer` or `hobgoblin`. No source art and nothing to licence: the
+model is the script. It prints a self-check parsed back out of the exported GLB — mesh count,
+skinned count, triangles, joints, animation names, bounding box — and ends in PASS or FAIL on
+whether every primitive carries `JOINTS_0`. Trust that, not the absence of a traceback.
+
+Blender API changes that bite this script in particular: the render engine enum is renamed
+between versions and assigning an unknown one throws; `Action.fcurves` moved into
+layers -> strips -> channelbags in 4.4 and was removed in 5.x; and `bpy.ops.object.convert`
+inherits whatever is selected, so deselect before converting a curve or the conversion is
+refused and the object reaches the exporter unweighted.
 
 ## `preview_model.py` — render what actually came out
 
@@ -44,6 +52,20 @@ blender -b --factory-startup --python tools/preview_model.py -- out.glb preview.
 
 Imports the `.glb` into an empty scene and renders it from two angles. **Use it.** Every one of
 the traps below produced a build log that claimed success.
+
+## Seeing it in the game without a screenshot
+
+```sh
+godot --path src/Ironbound.Game --write-movie /tmp/frames/f.png --fixed-fps 30 --quit-after 75
+```
+
+Add `-- --autoplay` and the party is driven by the same heuristic as the enemy, so a whole fight
+plays out — or is recorded, with `--write-movie fight.avi` — without a click. That is how the
+animation layer was checked: a recording, and frames pulled out of it with ffmpeg.
+
+Renders frames to disk at the project's own 1920x1080 whatever shape the window is. This is what
+caught the goblins importing with white skin: Blender cannot show you what Godot does with a
+material, and a tiled half-width window clips the far side of the board.
 
 ## What goes wrong, and why
 

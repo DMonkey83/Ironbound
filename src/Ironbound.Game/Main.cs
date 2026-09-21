@@ -129,6 +129,7 @@ public partial class Main : Node3D
 	private Button _showLog;
 	private readonly Dictionary<Mode, Button> _modes = new();
 
+	private bool _autoplay;
 	private Mode _mode = Mode.Move;
 	private GridSquare? _hovered;
 
@@ -137,6 +138,12 @@ public partial class Main : Node3D
 		_content = GodotContent.Load();
 		_campaign = Campaign.Begin(_content, CampaignId);
 		Begin(_campaign.Battle);
+
+		_instant = DisplayServer.GetName() == "headless";
+
+		// godot --path . -- --autoplay: the party is played by the same heuristic as the enemy,
+		// so a whole fight can be watched — or recorded with --write-movie — without a click.
+		_autoplay = OS.GetCmdlineUserArgs().Contains("--autoplay");
 
 		BuildInterface();
 		BuildSky();
@@ -194,6 +201,7 @@ public partial class Main : Node3D
 			}
 
 			Append($"[round {turn.Round}] {turn.Actor.Name}", turn.Lines);
+			StageTurn(turn.Actor, _battle.IsPartyTurn);
 
 			// Nothing to decide and nobody to ask. The turn still opens, so effects tick and
 			// the dying keep dying, but it closes itself rather than waiting on a click.
@@ -205,7 +213,7 @@ public partial class Main : Node3D
 				continue;
 			}
 
-			if (_battle.NeedsPlayer)
+			if (_battle.NeedsPlayer && !_autoplay)
 			{
 				_hovered = null;
 				SelectSpellsFor(turn.Actor);
@@ -433,6 +441,7 @@ public partial class Main : Node3D
 			}
 
 			Append(null, lines);
+			Stage(_battle.LastResult);
 		}
 
 		_battle.EndTurn();
@@ -463,6 +472,11 @@ public partial class Main : Node3D
 
 	private void OnStandUp()
 	{
+		if (StageBusy)
+		{
+			return;
+		}
+
 		var lines = _battle.Act(new StandUpAction());
 		if (lines.Count == 0)
 		{
@@ -471,6 +485,7 @@ public partial class Main : Node3D
 		}
 
 		Append(null, lines);
+		Stage(_battle.LastResult);
 		RefreshFigures();
 		PromptTurn();
 		RefreshControls();
@@ -479,6 +494,11 @@ public partial class Main : Node3D
 
 	private void OnEndTurn()
 	{
+		if (StageBusy)
+		{
+			return;
+		}
+
 		_battle.EndTurn();
 		StartNextTurn();
 	}
@@ -488,6 +508,7 @@ public partial class Main : Node3D
 	public override void _UnhandledInput(InputEvent @event)
 	{
 		if (@event is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
+			|| StageBusy
 			|| SquareUnderCursor() is not { } square)
 		{
 			return;
@@ -528,6 +549,7 @@ public partial class Main : Node3D
 		}
 
 		Append(null, lines);
+		Stage(_battle.LastResult);
 		RefreshFigures();
 		PromptTurn();
 		RefreshControls();
@@ -555,8 +577,14 @@ public partial class Main : Node3D
 			return;
 		}
 
+		var from = field.SquareOf(walker);
 		field.Remove(walker);
 		field.Place(walker, square);
+
+		if (from is { } start && !_instant)
+		{
+			StageWalk(walker, [start, square]);
+		}
 
 		RefreshFigures();
 		_hovered = null;
@@ -792,6 +820,8 @@ public partial class Main : Node3D
 
 	public override void _Process(double delta)
 	{
+		PlayStage(delta);
+
 		if (_cursor is null)
 		{
 			return;
@@ -799,7 +829,7 @@ public partial class Main : Node3D
 
 		var fighting = _campaign.State == CampaignState.Fighting;
 
-		if ((fighting && !_battle.IsPartyTurn) || SquareUnderCursor() is not { } square)
+		if (StageBusy || (fighting && !_battle.IsPartyTurn) || SquareUnderCursor() is not { } square)
 		{
 			_cursor.Visible = false;
 			return;
@@ -1127,6 +1157,7 @@ public partial class Main : Node3D
 		}
 
 		_figures.Clear();
+		ClearStage();
 		_world = new Node3D();
 		AddChild(_world);
 
@@ -1284,6 +1315,7 @@ public partial class Main : Node3D
 
 			figure.AddChild(nameplate);
 			_figures[creature] = figure;
+			Idle(creature);
 		}
 	}
 
@@ -1405,8 +1437,41 @@ public partial class Main : Node3D
 		model.Position = new Vector3(
 			-middle.X * scale, -box.Position.Y * scale, -middle.Z * scale);
 
+		HonourVertexColours(model);
 		Breathe(model);
 		return model;
+	}
+
+	/// <summary>
+	/// Switches on vertex colour for any surface that carries it.
+	/// </summary>
+	/// <remarks>
+	/// The goblins' hide has no texture: its shading is baked into the vertex colours, and the
+	/// material's own albedo is plain white. Godot's glTF importer brings the colours in and then
+	/// leaves the material ignoring them, so without this every goblin is a chalk statue — and
+	/// nothing on the Blender side of the pipeline can show you that.
+	/// </remarks>
+	private static void HonourVertexColours(Node node)
+	{
+		if (node is MeshInstance3D { Mesh: { } mesh })
+		{
+			for (var surface = 0; surface < mesh.GetSurfaceCount(); surface++)
+			{
+				var painted = mesh.SurfaceGetArrays(surface)[(int)Mesh.ArrayType.Color];
+
+				if (painted.VariantType != Variant.Type.Nil
+					&& painted.AsColorArray().Length > 0
+					&& mesh.SurfaceGetMaterial(surface) is BaseMaterial3D material)
+				{
+					material.VertexColorUseAsAlbedo = true;
+				}
+			}
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			HonourVertexColours(child);
+		}
 	}
 
 	/// <summary>Every mesh in a scene, in the scene's own space.</summary>
@@ -2109,6 +2174,19 @@ public partial class Main : Node3D
 
 	private void Append(string header, IReadOnlyList<string> lines)
 	{
+		// Behind whatever is still playing. The rules are already three goblins further on, and
+		// a log that ran ahead of the board would read out the ending while the fight was on.
+		if (StageBusy)
+		{
+			Enqueue(0.0, () => Write(header, lines));
+			return;
+		}
+
+		Write(header, lines);
+	}
+
+	private void Write(string header, IReadOnlyList<string> lines)
+	{
 		if (header is not null)
 		{
 			_log.AddText($"{header}\n");
@@ -2222,33 +2300,43 @@ public partial class Main : Node3D
 		Prompt($"{turn.Actor.Name}'s turn — {string.Join(", ", left)} remaining.");
 	}
 
+	/// <summary>
+	/// Brings the board into line with the rules — now, or once what is playing has finished.
+	/// </summary>
+	/// <remarks>
+	/// Every caller means "something changed, show it". While beats are queued the showing is
+	/// already in hand, and snapping figures to where the rules have got to would teleport them
+	/// to the end of an animation that has not started yet.
+	/// </remarks>
 	private void RefreshFigures()
+	{
+		if (StageBusy)
+		{
+			_settleWhenDone = true;
+			return;
+		}
+
+		SnapFigures();
+	}
+
+	private void SnapFigures()
 	{
 		var field = _battle.Battlefield;
 
 		foreach (var (creature, figure) in _figures)
 		{
-			// The holder's origin is the creature's feet, so standing is simply y=0 whatever
-			// the creature is drawn with. Off its feet it needs lifting by half its own girth,
-			// or a body lying down is half sunk into the floor.
-			var lying = 0.3f * ScaleOf(creature.Size);
-
 			if (field?.SquareOf(creature) is { } square)
 			{
-				figure.Position = new Vector3(
-					square.X + 0.5f,
-					creature.IsConscious && !creature.IsProne ? 0f : lying,
-					square.Y + 0.5f);
+				figure.Position = new Vector3(square.X + 0.5f, figure.Position.Y, square.Y + 0.5f);
 			}
 
-			// Anyone off their feet lies down, whether they chose it or not. Cheap, and it
-			// reads at a glance. The yaw carries through it, so a body falls still facing
-			// whatever it was facing rather than spinning round on the way to the floor.
-			var down = !creature.IsConscious || creature.IsProne;
 			figure.Rotation = new Vector3(
-				down ? Mathf.Pi / 2f : 0f,
-				Facing(creature) ?? figure.Rotation.Y,
-				0f);
+				figure.Rotation.X, Facing(creature) ?? figure.Rotation.Y, 0f);
+
+			// Up, flat on the floor or dead — by clip where the model has one, by tipping the
+			// holder over where it does not. The origin is the creature's feet, so standing is
+			// y=0 whatever it is drawn with.
+			Assume(creature, figure, PostureOf(creature), instant: true);
 		}
 
 		RefreshTurnMarker();

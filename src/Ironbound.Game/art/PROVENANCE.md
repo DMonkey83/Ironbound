@@ -27,24 +27,36 @@ tiers are Pathfinder's own armour categories, so what a creature wears is a cont
 Roughly 2,000 triangles each. To reskin one, edit the part list and run the script again; to
 repaint one, edit the `.png` Godot extracted beside the `.glb`.
 
-## Goblin — `goblin.glb`
+## Goblins — `goblin.glb`, `goblin-archer.glb`, `hobgoblin.glb`
 
-**Generated**, not downloaded. `tools/generate_goblin.py` builds it out of Blender primitives —
-spheres, cylinders, cones — with its own 18-bone armature, and the game's `goblin` names the
-result. The cleanest provenance in this directory by some way: nothing to licence, and the model
-is a diff rather than a binary you cannot inspect.
+**Generated**, not downloaded. `tools/generate_goblin.py` builds all three, and each creature's
+file names the result. The cleanest provenance in this directory: nothing to licence, and the
+models are a diff rather than a binary you cannot inspect.
 
-Three defects were fixed on the way in, all of them provable by rendering the result: the render
-engine it asked for no longer exists under that name and the script died outright; the belt was
-built twice in the same place; and the sword hung in the air in front of the hip because `side`
-had leaked out of an earlier loop and was multiplying its position by zero.
+| Variant | Size | Kit | Triangles |
+| --- | --- | --- | --- |
+| `goblin` | Small | notched cleaver, spiked shield, crossed straps on bare hide, one spiked pauldron, fang necklace, ragged loincloth | ~15,100 |
+| `goblin-archer` | Small | shortbow in hand, quiver, sheathed scimitar, studded vest, red headband | ~15,500 |
+| `hobgoblin` | Medium | longsword, heavy shield, chain hauberk, spiked pauldrons, crested helm, red cape | ~15,800 |
 
-Known and deliberate: about 6,800 triangles, which is three times the human characters for a
-simpler-looking figure, and the equipment is not weighted to the skeleton. Neither matters until
-the goblins animate — there are no animations in the file at all.
+**The body is grown, not assembled.** It is one continuous skin converted from metaballs, which
+merge where primitives only touch: the deltoid runs into the arm and the brow into the skull.
+The stance — stooped, long-armed, bow-legged — is most of what makes it a goblin at forty pixels.
+Flesh, skeleton and kit are all placed from one table of landmarks (`frame()`), so a bone runs
+down the middle of the limb it moves and a bracer sits on the forearm it was made for.
 
-`goblin-archer` and `hobgoblin-sergeant` are still capsules. The archer carries a bow, and this
-model is a swordsman; drawing him with a sword and shield would be a worse lie than a capsule.
+**The hide has no texture.** Its shading is ambient occlusion baked into vertex colours with the
+kit already on, times a skin tone that pales on the belly and reddens at the ears and nose.
+Godot imports those colours and then ignores them — `Main.HonourVertexColours` switches them on,
+and without it every goblin is a chalk statue.
+
+Held things are aimed for the idle, not the rest pose, because the game plays the idle from the
+first frame and nobody ever sees the rest pose. Every bone is rolled to one convention (+X swings
+forward), which is what lets the animation tables be read by a person. All four clips were
+re-authored for it, and the death now ends on the ground.
+
+The ceiling is a stylised sculpt. Pitted iron, pores and stitched leather come from sculpting and
+painted textures, and no script produces those.
 
 ## Terrain — `Grass_Flat`, `Prop_Tree_Cedar_1`, `Sand_Flat`, `Prop_Cliff_Rock_1`
 

@@ -184,14 +184,28 @@ public sealed class Battle
         return Encounter.Current is { IsEnded: false } turn && turn.CanTake(action);
     }
 
+    /// <summary>
+    /// What the last action that went through actually did, or null if it was refused.
+    /// </summary>
+    /// <remarks>
+    /// The log lines are for reading; this is for showing. A screen that wants to walk a figure
+    /// down the path it took, or drop a body on the blow that killed it, needs the path and the
+    /// blow rather than a sentence about them.
+    /// </remarks>
+    public ActionResult? LastResult { get; private set; }
+
     public IReadOnlyList<string> Act(GameAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
+
+        LastResult = null;
 
         if (Encounter.Current is not { IsEnded: false } turn || turn.Take(action) is not { } result)
         {
             return [];
         }
+
+        LastResult = result;
 
         var lines = Describe(result);
         _log.AddRange(lines);
