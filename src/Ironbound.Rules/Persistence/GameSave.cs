@@ -123,6 +123,7 @@ public static class GameSave
                 || creature.Skills.Modifiers(skill).Total != 0)
             .Select(skill => new SavedSkill(
                 skill, creature.Skills.Ranks(skill), Capture(creature.Skills.Modifiers(skill))))],
+        [.. creature.Stances.Active],
         [.. AbilityInfo.All.Select(a => CaptureAbility(creature.Abilities[a]))],
         new SavedHitPoints(
             creature.HitPoints.Base,
@@ -327,6 +328,13 @@ public static class GameSave
         // Equipment, like feats, comes back by identity only: its bonuses were captured with
         // the modifier stacks and its weapon with the attack list. A weapon item is paired back
         // up with its attack by name, so that taking the thing off later removes the right one.
+        // Identity only, like feats and equipment: the armour-class modifier a stance grants
+        // came back with the stack, and adopting it again would double it.
+        foreach (var stance in saved.Stances)
+        {
+            creature.Stances.Reattach(stance);
+        }
+
         foreach (var skill in saved.Skills)
         {
             creature.Skills.SetRanks(skill.Skill, skill.Ranks);

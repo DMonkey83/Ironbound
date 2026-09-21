@@ -96,6 +96,7 @@ public partial class Main : Node3D
 	private PanelContainer _sheetPanel;
 	private RichTextLabel _sheet;
 	private Button _showSheet;
+	private readonly Dictionary<Stance, Button> _stances = new();
 	private HFlowContainer _between;
 	private RichTextLabel _roster;
 	private PanelContainer _logPanel;
@@ -387,6 +388,29 @@ public partial class Main : Node3D
 		}
 
 		_battle.EndTurn();
+	}
+
+	private void OnStance(Stance stance)
+	{
+		if (_battle.Encounter.Current is not { IsEnded: false } turn)
+		{
+			return;
+		}
+
+		var actor = turn.Actor;
+
+		if (!actor.Stances.Toggle(stance))
+		{
+			Refuse($"{actor.Name} has not the training for {Stances.Name(stance)}.");
+			RefreshControls();
+			return;
+		}
+
+		var now = actor.Stances.IsActive(stance) ? "takes up" : "drops";
+		_log.AddText($"— {actor.Name} {now} {Stances.Name(stance)} —\n");
+
+		RefreshControls();
+		UpdateStatus();
 	}
 
 	private void OnStandUp()
@@ -983,6 +1007,11 @@ public partial class Main : Node3D
 		Check(nameof(_sheetPanel), _sheetPanel);
 		Check(nameof(_sheet), _sheet);
 		Check(nameof(_showSheet), _showSheet);
+
+		foreach (var stance in new[] { Stance.PowerAttack, Stance.CombatExpertise, Stance.FightingDefensively })
+		{
+			Check($"stance {stance}", _stances.GetValueOrDefault(stance));
+		}
 		Check(nameof(_rest), _rest);
 		Check(nameof(_press), _press);
 
@@ -1222,6 +1251,21 @@ public partial class Main : Node3D
 		_endTurn.Pressed += OnEndTurn;
 		turn.AddChild(_endTurn);
 
+		// The dials, beside the turn they apply to. Greyed out for anyone without the training
+		// for them, which is most of the party.
+		foreach (var stance in new[] { Stance.PowerAttack, Stance.CombatExpertise, Stance.FightingDefensively })
+		{
+			var button = new Button
+			{
+				Text = stance == Stance.FightingDefensively ? "Defend" : Stances.Name(stance),
+				ToggleMode = true,
+			};
+
+			button.Pressed += () => OnStance(stance);
+			turn.AddChild(button);
+			_stances[stance] = button;
+		}
+
 		var save = new Button { Text = "Save" };
 		save.Pressed += OnSave;
 		turn.AddChild(save);
@@ -1353,6 +1397,12 @@ public partial class Main : Node3D
 
 		_spells.Disabled = turn is null || _spells.ItemCount == 0;
 		_stand.Disabled = turn is null || !turn.CanTake(new StandUpAction());
+
+		foreach (var (stance, button) in _stances)
+		{
+			button.Disabled = turn is null || !turn.Actor.Stances.CanAdopt(stance);
+			button.ButtonPressed = turn is not null && turn.Actor.Stances.IsActive(stance);
+		}
 		_press.Disabled = !_campaign.CanAdvance;
 		_rest.Disabled = !_campaign.CanRest;
 		RefreshStash();

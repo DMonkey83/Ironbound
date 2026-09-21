@@ -60,6 +60,7 @@ public static class CharacterSheet
         $"Base attack +{creature.BaseAttackBonus}, "
             + $"{creature.AttacksPerFullAttack} attack(s) on a full attack",
         $"Attacks of opportunity {creature.AttacksOfOpportunityPerRound} a round",
+        $"Fighting: {creature.Stances}",
     ]);
 
     private static SheetSection Abilities(Creature creature) => new(

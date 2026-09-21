@@ -1,0 +1,7 @@
+{
+  "kind": "feat",
+  "id": "combat-expertise",
+  "name": "Combat Expertise",
+  "description": "Trade accuracy for armour class. The trade steepens with skill.",
+  "effect": "CombatExpertise"
+}

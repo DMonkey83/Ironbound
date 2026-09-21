@@ -31,7 +31,7 @@ public sealed record SavedGame(
     SavedCombatant[] Order,
     SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 10;
+    public const int CurrentVersion = 11;
 }
 
 /// <summary>Where a run of encounters had got to.</summary>
@@ -162,6 +162,7 @@ public sealed record SavedCreature(
     SavedItem[] Items,
     SavedClassLevel[] Levels,
     SavedSkill[] Skills,
+    Combat.Stance[] Stances,
     SavedAbility[] Abilities,
     SavedHitPoints HitPoints,
     SavedSave[] Saves,

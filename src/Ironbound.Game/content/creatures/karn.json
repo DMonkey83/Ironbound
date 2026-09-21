@@ -10,6 +10,6 @@
     { "skill": "Survival", "ranks": 5 }
   ],
   "speed": 30,
-  "feats": ["improved-initiative", "great-fortitude", "improved-bull-rush"],
+  "feats": ["improved-initiative", "great-fortitude", "improved-bull-rush", "power-attack"],
   "items": ["breastplate", "light-shield", "greataxe"]
 }

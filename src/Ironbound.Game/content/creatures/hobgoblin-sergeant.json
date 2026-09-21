@@ -12,7 +12,7 @@
     { "skill": "Perception", "ranks": 6 }
   ],
   "speed": 30,
-  "feats": ["combat-reflexes", "weapon-specialization"],
+  "feats": ["combat-reflexes", "weapon-specialization", "power-attack"],
   // The silvered blade is on his belt, not in his hand — he has no use for it against
   // three humans. Kill him and it is the answer to what is waiting in the clearing.
   "items": ["chain-shirt", "heavy-shield", "longsword", "silvered-longsword"]

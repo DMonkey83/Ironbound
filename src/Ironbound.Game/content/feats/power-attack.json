@@ -1,0 +1,9 @@
+// The iconic trade, and the one the engine had to grow a new idea for: it is not a number you
+// can add to a stack, it is a decision you make before every swing.
+{
+  "kind": "feat",
+  "id": "power-attack",
+  "name": "Power Attack",
+  "description": "Trade accuracy for damage on melee attacks. The trade steepens with skill.",
+  "effect": "PowerAttack"
+}

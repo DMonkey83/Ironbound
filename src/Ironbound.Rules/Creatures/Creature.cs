@@ -47,6 +47,7 @@ public sealed class Creature
         Saves = new SavingThrows(abilities);
         Spells = new Spellcasting(this);
         Skills = new SkillSet(this);
+        Stances = new Stances(this);
         Equipment = new Equipment(this);
         HitPoints = new HitPoints(baseHitPoints, hitDice, abilities.Constitution, Rules);
     }
@@ -292,6 +293,9 @@ public sealed class Creature
 
     /// <summary>Fortitude, Reflex and Will.</summary>
     public SavingThrows Saves { get; }
+
+    /// <summary>How it has chosen to fight: what it is trading, and for what.</summary>
+    public Stances Stances { get; }
 
     /// <summary>What it is good at that is not hitting people.</summary>
     public SkillSet Skills { get; }

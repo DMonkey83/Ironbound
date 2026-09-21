@@ -46,14 +46,16 @@ public class CampaignTests
     [Fact]
     public void TheSecondChapterRollsItsOwnDiceRatherThanReplayingTheFirst()
     {
-        var first = Campaign.Begin(ContentFiles.Default, "the-long-road");
-        first.Battle.RunToCompletion(Scenarios.AutoPilot(first.Battle));
-        var opening = first.Battle.Log.Count;
+        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle));
+        var opening = run.Battle.Log.ToList();
 
-        first.Advance();
-        first.Battle.RunToCompletion(Scenarios.AutoPilot(first.Battle));
+        run.Advance();
+        run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle));
 
-        Assert.NotEqual(opening, first.Battle.Log.Count);
+        // By content rather than by length: two different fights can happen to produce the
+        // same number of lines, and a test that only counts them says nothing.
+        Assert.NotEqual(opening, run.Battle.Log);
     }
 
     [Fact]
@@ -197,6 +199,10 @@ public class LootTests
 
         var werewolf = run.Battle.Foes.Single();
         var karn = run.Party.Single(c => c.Name == "Karn");
+
+        // Power Attack is itself a partial answer to flat reduction — more raw damage means
+        // more of it survives — so it comes off for a like-for-like comparison.
+        karn.Stances.Clear();
 
         // Same roll, same round, two blades. This is what the gate was built for.
         var axe = Strike.Resolve(karn, karn.PrimaryAttack!, werewolf, new SequenceRandom(true, 15, 4));

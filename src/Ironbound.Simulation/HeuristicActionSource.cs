@@ -172,6 +172,14 @@ public sealed class HeuristicActionSource : IActionSource
             return reposition;
         }
 
+        // Set the dials before swinging. Power Attack is worth it against something whose
+        // armour you were going to beat anyway; against something you can barely hit, giving
+        // up accuracy for damage you will never land is the worst trade in the game.
+        if (playsWell)
+        {
+            SetStance(actor, target, turn.Encounter.Battlefield);
+        }
+
         // Worth stealing a round from anything that swings more than once: the four points of
         // armour class are incidental, the move action it must spend getting up is the prize.
         // Only when the odds are better than even, since failing badly puts you on the floor.
@@ -236,6 +244,39 @@ public sealed class HeuristicActionSource : IActionSource
     /// </summary>
     private static WeaponAttack? InClose(Creature actor) =>
         actor.MeleeAttack ?? actor.PrimaryAttack;
+
+    /// <summary>
+    /// Decides whether to trade accuracy for damage against this particular target.
+    /// </summary>
+    /// <remarks>
+    /// The threshold is "still better than even odds after the penalty". Below that the
+    /// arithmetic turns: two more points of damage on a swing that now misses more often than
+    /// it lands is a loss, and it gets worse the harder the target is to hit.
+    /// </remarks>
+    private static void SetStance(Creature actor, Creature target, Battlefield? field)
+    {
+        if (!actor.Stances.CanAdopt(Stance.PowerAttack) || actor.MeleeAttack is not { } weapon)
+        {
+            return;
+        }
+
+        var severity = actor.Stances.Severity(Stance.PowerAttack);
+        var wasActive = actor.Stances.IsActive(Stance.PowerAttack);
+
+        // Measure the swing without the stance, whichever way it is set right now.
+        if (wasActive)
+        {
+            actor.Stances.Drop(Stance.PowerAttack);
+        }
+
+        var bare = Strike.AttackBonus(actor, weapon, target, field).Total;
+        var worthIt = bare + 11 - severity >= target.ArmorClass.Total;
+
+        if (worthIt)
+        {
+            actor.Stances.Adopt(Stance.PowerAttack);
+        }
+    }
 
     /// <summary>The nearest ally bleeding out within arm's reach, if there is one.</summary>
     private static Creature? Bleedingout(Turn turn, Creature actor)

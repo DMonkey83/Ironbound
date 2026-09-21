@@ -134,6 +134,7 @@ public static class Strike
             Flanking(attacker, target, field),
             AtRange(attacker, weapon, target, field),
             Iterative(iterativePenalty),
+            Stance(attacker, !weapon.IsRanged),
             Derived(attacker, weapon.AttackAbility, modifier => modifier));
     }
 
@@ -145,6 +146,23 @@ public static class Strike
         if (attacker.BaseAttackBonus != 0)
         {
             stack.Add(attacker.BaseAttackBonus, BonusType.Untyped, "Base Attack Bonus");
+        }
+
+        return stack;
+    }
+
+    /// <summary>
+    /// What the creature has chosen to give up. Power Attack is melee only, which is why this
+    /// has to happen where the weapon is known rather than on the creature's own stack.
+    /// </summary>
+    private static ModifierStack Stance(Creature attacker, bool melee)
+    {
+        var stack = new ModifierStack();
+        var penalty = attacker.Stances.AttackPenalty(melee);
+
+        if (penalty != 0)
+        {
+            stack.Add(penalty, BonusType.Untyped, attacker.Stances.ToString());
         }
 
         return stack;
@@ -249,9 +267,18 @@ public static class Strike
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
 
+        var stance = new ModifierStack();
+        var bonus = attacker.Stances.DamageBonus(!weapon.IsRanged);
+
+        if (bonus != 0)
+        {
+            stance.Add(bonus, BonusType.Untyped, Combat.Stances.Name(Combat.Stance.PowerAttack));
+        }
+
         return ModifierStack.Combine(
             attacker.DamageModifiers,
             weapon.DamageModifiers,
+            stance,
             Derived(attacker, weapon.DamageAbility, weapon.ScaleDamage));
     }
 

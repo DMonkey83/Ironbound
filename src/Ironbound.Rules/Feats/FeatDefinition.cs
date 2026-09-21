@@ -29,6 +29,12 @@ public enum FeatEffect
 
     /// <summary>The same, for shoving people about.</summary>
     ImprovedBullRush,
+
+    /// <summary>Lets a creature trade accuracy for damage.</summary>
+    PowerAttack,
+
+    /// <summary>Lets a creature trade accuracy for armour class.</summary>
+    CombatExpertise,
 }
 
 /// <summary>
