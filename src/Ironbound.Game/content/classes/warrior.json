@@ -6,5 +6,6 @@
   "name": "Warrior",
   "hitDie": 10,
   "attack": "Full",
-  "goodSaves": ["Fortitude"]
+  "goodSaves": ["Fortitude"],
+  "classSkills": ["Climb", "Intimidate", "Survival", "Swim"]
 }

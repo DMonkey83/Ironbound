@@ -7,6 +7,7 @@ using Ironbound.Rules.Items;
 using Ironbound.Rules.Magic;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
+using Ironbound.Rules.Skills;
 
 namespace Ironbound.Rules.Content;
 
@@ -90,6 +91,9 @@ public sealed record WeaponDefinition
 /// </remarks>
 public readonly record struct ReductionDefinition(int Amount, DamageBypass BypassedBy, BypassMode Mode);
 
+/// <summary>Points spent in one skill.</summary>
+public readonly record struct SkillRankDefinition(Skill Skill, int Ranks);
+
 /// <summary>So many levels of a class, named by id until the library can resolve it.</summary>
 public readonly record struct ClassLevelDefinition(string ClassId, int Level);
 
@@ -138,6 +142,9 @@ public sealed record CreatureDefinition
 
     /// <summary>What it shrugs off, and what gets through anyway.</summary>
     public IReadOnlyList<ReductionDefinition> Reductions { get; init; } = [];
+
+    /// <summary>What it has trained at.</summary>
+    public IReadOnlyList<SkillRankDefinition> SkillRanks { get; init; } = [];
 
     public Ability? CastingAbility { get; init; }
 
@@ -214,6 +221,11 @@ public sealed record CreatureDefinition
             }
         }
 
+        foreach (var rank in SkillRanks)
+        {
+            creature.Skills.SetRanks(rank.Skill, rank.Ranks);
+        }
+
         foreach (var reduction in Reductions)
         {
             creature.Defenses.Reduce(reduction.Amount, reduction.BypassedBy, reduction.Mode);
@@ -283,7 +295,8 @@ public readonly record struct PlacementDefinition(
     int X,
     int Y,
     bool Party,
-    string? Name = null);
+    string? Name = null,
+    bool Hidden = false);
 
 /// <summary>
 /// A run of fights, in order, and how much respite there is along the way.

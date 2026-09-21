@@ -8,6 +8,12 @@
   // hand-written numbers said, and the correct way round.
   "classes": [ { "class": "wizard", "level": 5 } ],
 
+  "skills": [
+    { "skill": "Perception", "ranks": 3 },
+    { "skill": "Knowledge", "ranks": 8 },
+    { "skill": "Spellcraft", "ranks": 8 }
+  ],
+
   "speed": 30,
 
   // Crossbow first, staff second: the same order the goblin archer uses, and the reason a

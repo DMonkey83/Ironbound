@@ -5,5 +5,6 @@
   "name": "Barbarian",
   "hitDie": 12,
   "attack": "Full",
-  "goodSaves": ["Fortitude"]
+  "goodSaves": ["Fortitude"],
+  "classSkills": ["Acrobatics", "Climb", "Intimidate", "Survival", "Swim"]
 }

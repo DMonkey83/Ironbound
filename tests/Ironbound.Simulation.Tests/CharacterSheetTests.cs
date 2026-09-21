@@ -13,7 +13,7 @@ public class CharacterSheetTests
         var sheet = CharacterSheet.Of(ContentFiles.Default.BuildCreature("valeria")!);
 
         Assert.Equal(
-            ["Who", "Abilities", "Defence", "Saving throws", "Attacks", "Gear and training", "Magic", "Conditions"],
+            ["Who", "Abilities", "Defence", "Saving throws", "Attacks", "Skills", "Gear and training", "Magic", "Conditions"],
             sheet.Select(section => section.Heading));
     }
 

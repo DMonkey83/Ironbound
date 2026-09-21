@@ -10,6 +10,7 @@ using Ironbound.Rules.Items;
 using Ironbound.Rules.Magic;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
+using Ironbound.Rules.Skills;
 
 namespace Ironbound.Rules.Content;
 
@@ -441,6 +442,19 @@ public sealed class ContentLibrary
             }
         }
 
+        var classSkills = new List<Skill>();
+        foreach (var entry in reader.Array("classSkills"))
+        {
+            if (System.Enum.TryParse<Skill>(entry.GetString(), true, out var skill))
+            {
+                classSkills.Add(skill);
+            }
+            else
+            {
+                reader.Problem("classSkills", $"'{entry.GetString()}' is not a skill.");
+            }
+        }
+
         var slots = new List<IReadOnlyList<int>>();
         foreach (var row in reader.Array("spellSlots"))
         {
@@ -458,6 +472,7 @@ public sealed class ContentLibrary
             GoodSaves = good,
             Casting = reader.Enum("casting", CasterProgression.None),
             CastingAbility = reader.Enum("castingAbility", Ability.Intelligence),
+            ClassSkills = classSkills,
             SpellSlots = slots,
         };
     }
@@ -572,6 +587,14 @@ public sealed class ContentLibrary
             slots.Add(new SlotDefinition(slot.Int("level"), slot.Int("count")));
         }
 
+        var ranks = new List<SkillRankDefinition>();
+        foreach (var entry in reader.Array("skills"))
+        {
+            var written = new Reader(entry, reader.Source, _problems);
+            ranks.Add(new SkillRankDefinition(
+                written.Enum("skill", Skill.Perception), written.Int("ranks")));
+        }
+
         var reductions = new List<ReductionDefinition>();
         foreach (var entry in reader.Array("reduction"))
         {
@@ -620,6 +643,7 @@ public sealed class ContentLibrary
             Feats = [.. reader.Array("feats").Select(e => e.GetString() ?? string.Empty)],
             Items = [.. reader.Array("items").Select(e => e.GetString() ?? string.Empty)],
             Reductions = reductions,
+            SkillRanks = ranks,
             CastingAbility = reader.Has("castingAbility")
                 ? reader.Enum("castingAbility", Ability.Intelligence)
                 : null,
@@ -659,7 +683,8 @@ public sealed class ContentLibrary
                 placement.Int("x"),
                 placement.Int("y"),
                 placement.Bool("party"),
-                placement.Has("name") ? placement.StringOr("name", string.Empty) : null));
+                placement.Has("name") ? placement.StringOr("name", string.Empty) : null,
+                placement.Bool("hidden")));
         }
 
         return new EncounterDefinition

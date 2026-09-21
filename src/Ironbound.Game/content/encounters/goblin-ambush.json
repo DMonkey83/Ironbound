@@ -12,13 +12,15 @@
     { "x": 7, "y": 7 }
   ],
 
+  // They are called an ambush, and now they are one: one Stealth check between them against
+  // each of the party's Perception, and whoever fails loses their first turn.
   "placements": [
     { "creature": "valeria", "x": 3, "y": 4, "party": true },
     { "creature": "karn",    "x": 3, "y": 6, "party": true },
     { "creature": "merrin",  "x": 2, "y": 5, "party": true },
-    { "creature": "goblin",        "x": 10, "y": 3, "name": "Goblin 1" },
-    { "creature": "goblin",        "x": 10, "y": 5, "name": "Goblin 2" },
-    { "creature": "goblin-archer", "x": 12, "y": 7, "name": "Goblin Archer" },
-    { "creature": "hobgoblin-sergeant", "x": 11, "y": 5, "name": "Sergeant Grask" }
+    { "creature": "goblin",        "x": 10, "y": 3, "name": "Goblin 1", "hidden": true },
+    { "creature": "goblin",        "x": 10, "y": 5, "name": "Goblin 2", "hidden": true },
+    { "creature": "goblin-archer", "x": 12, "y": 7, "name": "Goblin Archer", "hidden": true },
+    { "creature": "hobgoblin-sergeant", "x": 11, "y": 5, "name": "Sergeant Grask", "hidden": true }
   ]
 }

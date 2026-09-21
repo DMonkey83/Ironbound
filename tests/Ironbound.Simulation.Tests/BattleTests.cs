@@ -149,7 +149,12 @@ public class BattleTests
         var turns = battle.RunToCompletion(source);
 
         Assert.NotEmpty(battle.Log);
-        Assert.Equal(turns.SelectMany(turn => turn.Lines), battle.Log);
+
+        // The ambush is resolved before anybody has a turn, so those lines come first and the
+        // turns account for the rest.
+        Assert.Equal(
+            turns.SelectMany(turn => turn.Lines),
+            battle.Log.Skip(battle.Log.Count - turns.Sum(turn => turn.Lines.Count)));
     }
 
     [Fact]
@@ -502,10 +507,18 @@ public class InteractiveTurnTests
     public void AMoveTakenByHandIsLoggedLikeAnyOther()
     {
         var battle = Skirmish();
-        var turn = battle.BeginTurn()!;
         var field = battle.Battlefield!;
-        var target = battle.EnemiesOf(turn.Actor)[0];
 
+        // Past anybody the ambush caught: a surprised combatant is refused every action, so
+        // their turn would produce no lines at all.
+        BattleTurn turn;
+        while ((turn = battle.BeginTurn()!) is not null
+            && !battle.CanAct(MoveAction.Towards(field, turn.Actor, battle.EnemiesOf(turn.Actor)[0])!))
+        {
+            battle.EndTurn();
+        }
+
+        var target = battle.EnemiesOf(turn.Actor)[0];
         var lines = battle.Act(MoveAction.Towards(field, turn.Actor, target)!);
 
         Assert.NotEmpty(lines);

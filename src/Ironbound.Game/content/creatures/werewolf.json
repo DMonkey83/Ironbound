@@ -8,6 +8,11 @@
   "name": "Werewolf",
   "abilities": [19, 15, 17, 10, 12, 10],
   "classes": [ { "class": "warrior", "level": 5 } ],
+
+  "skills": [
+    { "skill": "Stealth", "ranks": 5 },
+    { "skill": "Perception", "ranks": 8 }
+  ],
   "speed": 30,
   "naturalArmour": 4,
   "goodSave": "Fortitude",

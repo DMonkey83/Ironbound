@@ -63,6 +63,14 @@ public sealed class HeuristicActionSource : IActionSource
 
         var playsWell = Competence == 100 || _random.Next(0, 100) < Competence;
 
+        // Standing at exactly nought, anything strenuous reopens the wound and drops you. The
+        // only move that costs nothing is not making one, so a creature that intends to still
+        // be here next round makes none.
+        if (playsWell && actor.HitPoints.State == HitPointState.Disabled)
+        {
+            return null;
+        }
+
         // On the floor. Getting up costs the move action and a free swing from anyone standing
         // over you; staying down costs -4 to hit and -4 to armour class against all of them,
         // every round. Standing is almost always the cheaper of the two.

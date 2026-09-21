@@ -5,6 +5,7 @@ using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Items;
 using Ironbound.Rules.Saves;
+using Ironbound.Rules.Skills;
 
 namespace Ironbound.Simulation;
 
@@ -41,6 +42,7 @@ public static class CharacterSheet
             Defence(creature),
             Saves(creature),
             Attacks(creature),
+            Training(creature),
             Gear(creature),
             Magic(creature),
             Afflictions(creature),
@@ -119,6 +121,13 @@ public static class CharacterSheet
 
         return new SheetSection("Attacks", lines);
     }
+
+    private static SheetSection Training(Creature creature) => new(
+        "Skills",
+        [.. creature.Skills.Trained.Select(skill =>
+            $"{SkillInfo.Name(skill)} {creature.Skills.Total(skill):+0;-0;+0}"
+            + (creature.Skills.IsClassSkill(skill) ? " (class)" : string.Empty)
+            + $" — {creature.Skills.Explain(skill)}")]);
 
     private static SheetSection Gear(Creature creature)
     {

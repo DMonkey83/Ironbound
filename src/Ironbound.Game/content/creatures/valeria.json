@@ -8,6 +8,11 @@
   // and cannot drift out of step with each other.
   "classes": [ { "class": "fighter", "level": 6 } ],
 
+  "skills": [
+    { "skill": "Perception", "ranks": 4 },
+    { "skill": "Intimidate", "ranks": 6 }
+  ],
+
   "speed": 30,
   // A fighter's feats: quick on her feet, punishes anyone who walks past her, and knows
   // how to put somebody on the floor without opening her guard.

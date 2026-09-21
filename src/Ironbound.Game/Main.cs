@@ -127,6 +127,18 @@ public partial class Main : Node3D
 		_enemies = Scenarios.AutoPilot(_battle);
 	}
 
+	/// <summary>
+	/// Whatever the fight logged before anybody had a turn — which is the ambush, if there was
+	/// one. It is the reason half the party is about to lose a round, so it had better be said.
+	/// </summary>
+	private void ReportOpening()
+	{
+		foreach (var line in _battle.Log)
+		{
+			_log.AddText($"{line}\n");
+		}
+	}
+
 	// ---- whose turn it is ----
 
 	/// <summary>
@@ -313,6 +325,7 @@ public partial class Main : Node3D
 		RebuildWorld();
 
 		_log.AddText($"\n— chapter {_campaign.Chapter}: {CurrentChapterName()} —\n");
+		ReportOpening();
 		ReportInitiative();
 		StartNextTurn();
 	}
@@ -1432,8 +1445,16 @@ public partial class Main : Node3D
 		var standing = string.Join("    ", _battle.Encounter.Order.Select(combatant =>
 		{
 			var creature = combatant.Creature;
-			var wrong = string.Join(", ", creature.Conditions);
-			var note = wrong.Length > 0 ? $" ({wrong})" : string.Empty;
+
+			// Hit points alone do not explain a werewolf on nought still swinging at you, so
+			// the state that does gets said out loud beside them.
+			var trouble = creature.Conditions.Select(condition => condition.ToString()).ToList();
+			if (creature.HitPoints.State != HitPointState.Healthy)
+			{
+				trouble.Insert(0, creature.HitPoints.State.ToString().ToLowerInvariant());
+			}
+
+			var note = trouble.Count > 0 ? $" ({string.Join(", ", trouble)})" : string.Empty;
 			var acting = _battle.Encounter.Current is { IsEnded: false } open
 				&& ReferenceEquals(open.Actor, creature);
 
@@ -1481,6 +1502,11 @@ public partial class Main : Node3D
 		if (_battle.Party.FirstOrDefault() is { } anybody)
 		{
 			SelectSpellsFor(anybody);
+		}
+
+		foreach (var line in _battle.Log)
+		{
+			GD.Print($"  {line}");
 		}
 
 		GD.Print("--- initiative ---");

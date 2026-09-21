@@ -31,7 +31,7 @@ public sealed record SavedGame(
     SavedCombatant[] Order,
     SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 9;
+    public const int CurrentVersion = 10;
 }
 
 /// <summary>Where a run of encounters had got to.</summary>
@@ -64,6 +64,8 @@ public sealed record SavedCombatant(
     int OpportunitiesUsed,
     bool HasMoved,
     bool HasTakenFiveFootStep,
+    bool HasActed,
+    bool IsUnaware,
     bool HasStandard,
     bool HasMove,
     bool HasSwift);
@@ -98,6 +100,9 @@ public sealed record SavedSpellcasting(
     string[] Prepared);
 
 public sealed record SavedDamageComponent(string Amount, DamageType Type, bool MultipliedOnCritical);
+
+/// <summary>Ranks in one skill, and anything else stacked on it.</summary>
+public sealed record SavedSkill(Skills.Skill Skill, int Ranks, SavedModifier[] Modifiers);
 
 /// <summary>So many levels of a class, by id.</summary>
 public sealed record SavedClassLevel(string ClassId, int Level);
@@ -156,6 +161,7 @@ public sealed record SavedCreature(
     string[] Feats,
     SavedItem[] Items,
     SavedClassLevel[] Levels,
+    SavedSkill[] Skills,
     SavedAbility[] Abilities,
     SavedHitPoints HitPoints,
     SavedSave[] Saves,

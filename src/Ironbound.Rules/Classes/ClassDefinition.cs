@@ -1,5 +1,6 @@
 using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Saves;
+using Ironbound.Rules.Skills;
 
 namespace Ironbound.Rules.Classes;
 
@@ -77,6 +78,11 @@ public sealed record ClassDefinition
 
         return GoodSaves.Contains(save) ? SaveProgression.Good(level) : SaveProgression.Poor(level);
     }
+
+    /// <summary>
+    /// The skills this class counts as its own, worth three extra once a rank is spent.
+    /// </summary>
+    public IReadOnlyList<Skill> ClassSkills { get; init; } = [];
 
     /// <summary>
     /// Spells per day before ability bonuses, by class level then spell level.

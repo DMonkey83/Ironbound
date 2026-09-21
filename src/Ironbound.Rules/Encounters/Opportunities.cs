@@ -64,7 +64,8 @@ public static class Opportunities
                 encounter.Random,
                 DefenseOptions.None,
                 encounter.Rules,
-                field));
+                field,
+                flatFooted: encounter.IsFlatFooted(mover)));
 
             // Dropped before it could get away. Nobody else gets a swing at a falling target.
             if (!mover.IsConscious)

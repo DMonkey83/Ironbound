@@ -69,7 +69,8 @@ public sealed class FullAttackAction : GameAction
                     DefenderState,
                     context.Rules,
                     context.Encounter.Battlefield,
-                    penalty));
+                    penalty,
+                    context.Encounter.IsFlatFooted(Target)));
 
                 // No point hacking at something already down, and stopping keeps the random
                 // stream where a replay expects to find it.

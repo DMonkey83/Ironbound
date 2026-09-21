@@ -6,6 +6,7 @@
   "hitDie": 6,
   "attack": "Half",
   "goodSaves": ["Will"],
+  "classSkills": ["Knowledge", "Spellcraft", "SenseMotive"],
   "casting": "Full",
   "castingAbility": "Intelligence",
 

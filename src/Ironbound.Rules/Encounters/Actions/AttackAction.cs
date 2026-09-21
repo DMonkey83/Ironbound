@@ -54,7 +54,8 @@ public sealed class AttackAction : GameAction
                 context.Random,
                 DefenderState,
                 context.Rules,
-                context.Encounter.Battlefield),
+                context.Encounter.Battlefield,
+                flatFooted: context.Encounter.IsFlatFooted(Target)),
             opportunities);
     }
 

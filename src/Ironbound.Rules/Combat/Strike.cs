@@ -49,7 +49,8 @@ public static class Strike
         DefenseOptions defenderState = DefenseOptions.None,
         RuleOptions? rules = null,
         Battlefield? field = null,
-        int iterativePenalty = 0)
+        int iterativePenalty = 0,
+        bool flatFooted = false)
     {
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
@@ -62,6 +63,11 @@ public static class Strike
         // Stunned or blinded denies Dexterity just as being flat-footed does, and the caller
         // should not have to remember which conditions do that.
         if (target.DeniesDexterity)
+        {
+            defenderState |= DefenseOptions.DexterityDenied;
+        }
+
+        if (flatFooted)
         {
             defenderState |= DefenseOptions.DexterityDenied;
         }

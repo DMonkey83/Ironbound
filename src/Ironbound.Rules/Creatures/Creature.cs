@@ -9,6 +9,7 @@ using Ironbound.Rules.Items;
 using Ironbound.Rules.Magic;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
+using Ironbound.Rules.Skills;
 using Ironbound.Rules.Dice;
 
 namespace Ironbound.Rules.Creatures;
@@ -45,6 +46,7 @@ public sealed class Creature
         Effects = new EffectCollection(this);
         Saves = new SavingThrows(abilities);
         Spells = new Spellcasting(this);
+        Skills = new SkillSet(this);
         Equipment = new Equipment(this);
         HitPoints = new HitPoints(baseHitPoints, hitDice, abilities.Constitution, Rules);
     }
@@ -290,6 +292,9 @@ public sealed class Creature
 
     /// <summary>Fortitude, Reflex and Will.</summary>
     public SavingThrows Saves { get; }
+
+    /// <summary>What it is good at that is not hitting people.</summary>
+    public SkillSet Skills { get; }
 
     /// <summary>What it can cast and how much of it is left.</summary>
     public Spellcasting Spells { get; }

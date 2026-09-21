@@ -62,8 +62,9 @@ public sealed class Turn
         ArgumentNullException.ThrowIfNull(action);
 
         // Dazed or stunned refuses everything, including the free actions: being unable to act
-        // is the absence of a turn rather than a penalty on one.
+        // is the absence of a turn rather than a penalty on one. So does being surprised.
         return !IsEnded
+            && !Combatant.IsUnaware
             && Actor.CanAct
             && action.CanPerform(new ActionContext(this))
             && Budget.CanAfford(action.Cost);
@@ -80,9 +81,21 @@ public sealed class Turn
             return null;
         }
 
+        // Whether the effort will cost blood has to be decided before the action is taken,
+        // because the action may well be what changes the answer.
+        var strenuous = action.Cost is ActionCost.Standard or ActionCost.FullRound
+            && Actor.HitPoints.State == HitPointState.Disabled;
+
         Budget.Spend(action.Cost);
         var result = action.Perform(new ActionContext(this));
         _taken.Add(result);
+
+        // At nought hit points anything strenuous opens the wound again. It is the rule that
+        // makes standing at zero a decision rather than a free extra round.
+        if (strenuous && Actor.IsAlive)
+        {
+            Actor.HitPoints.Take(1);
+        }
 
         return result;
     }
@@ -97,6 +110,12 @@ public sealed class Turn
 
         IsEnded = true;
         Budget.SpendAll();
+
+        // Having had a turn, they are no longer caught flat-footed — and whatever they failed
+        // to notice at the start, they have certainly noticed now.
+        Combatant.HasActed = true;
+        Combatant.IsUnaware = false;
+
         Encounter.CompleteTurn(Combatant);
     }
 

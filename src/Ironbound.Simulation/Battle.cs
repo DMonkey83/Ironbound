@@ -4,6 +4,7 @@ using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Encounters.Actions;
 using Ironbound.Rules.Maps;
+using Ironbound.Rules.Skills;
 using Ironbound.Rules.Content;
 using Ironbound.Rules.Persistence;
 
@@ -196,6 +197,53 @@ public sealed class Battle
     }
 
     public void EndTurn() => Encounter.Current?.End();
+
+    /// <summary>
+    /// Resolves an ambush: one Stealth check for those lying in wait, one Perception check each
+    /// for everybody else. Whoever fails walks into it and loses their first turn.
+    /// </summary>
+    /// <remarks>
+    /// The hiders roll once between them rather than each — the check is against the ambush,
+    /// not against each individual goblin, and rolling per hider would mean the more of them
+    /// there were the likelier you were to spot one, which is backwards.
+    /// </remarks>
+    public IReadOnlyList<string> Ambush(IReadOnlyList<Creature> hiding)
+    {
+        ArgumentNullException.ThrowIfNull(hiding);
+
+        if (hiding.Count == 0)
+        {
+            return [];
+        }
+
+        var lines = new List<string>();
+        var stealth = hiding
+            .Select(hider => hider.Skills.Check(Skill.Stealth, Encounter.Random))
+            .MaxBy(check => check.Total)!;
+
+        lines.Add($"{stealth} — lying in wait");
+
+        foreach (var combatant in Encounter.Order)
+        {
+            var creature = combatant.Creature;
+            if (hiding.Contains(creature))
+            {
+                continue;
+            }
+
+            var noticed = creature.Skills.Check(Skill.Perception, Encounter.Random, stealth.Total);
+            lines.Add(noticed.ToString());
+
+            if (noticed.Succeeded != true)
+            {
+                Encounter.Surprise(creature);
+                lines.Add($"  {creature.Name} is taken unawares");
+            }
+        }
+
+        _log.AddRange(lines);
+        return lines;
+    }
 
     /// <summary>Whether the open turn belongs to somebody on the player's side.</summary>
     public bool IsPartyTurn =>

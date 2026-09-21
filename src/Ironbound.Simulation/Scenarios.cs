@@ -90,7 +90,18 @@ public static class Scenarios
             (placement.Party ? party : foes).Add(creature);
         }
 
-        return new Battle(party, foes, new PcgRandom(seed, DiceStream), rules, field);
+        var battle = new Battle(party, foes, new PcgRandom(seed, DiceStream), rules, field);
+
+        // Anybody the encounter says was lying in wait gets one chance to have been missed.
+        var hiding = definition.Placements
+            .Where(placement => placement.Hidden)
+            .Select(placement => field.OccupantOf(new GridSquare(placement.X, placement.Y)))
+            .OfType<Creature>()
+            .ToList();
+
+        battle.Ambush(hiding);
+
+        return battle;
     }
 
     /// <summary>

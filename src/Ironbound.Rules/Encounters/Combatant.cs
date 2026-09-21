@@ -42,6 +42,29 @@ public sealed class Combatant
         IsActive && OpportunitiesUsed < Creature.AttacksOfOpportunityPerRound;
 
     /// <summary>Set by ordinary movement. Bars a five-foot step for the rest of the turn.</summary>
+    /// <summary>
+    /// Whether they have had a turn yet.
+    /// </summary>
+    /// <remarks>
+    /// Until you act you are flat-footed, which is the rule that makes initiative worth caring
+    /// about and Improved Initiative worth a feat. It was simply missing: everybody started a
+    /// fight with their full armour class regardless of who moved first.
+    /// </remarks>
+    public bool HasActed { get; internal set; }
+
+    /// <summary>
+    /// Whether they walked into this without knowing it was happening.
+    /// </summary>
+    /// <remarks>
+    /// Set when somebody's Stealth beat their Perception. An unaware combatant is flat-footed
+    /// and loses their first turn — which is what an ambush <em>is</em>, and what the opening
+    /// encounter has been called since long before it could do it.
+    /// </remarks>
+    public bool IsUnaware { get; internal set; }
+
+    /// <summary>Caught with their guard down: before their first turn, or surprised entirely.</summary>
+    public bool IsFlatFooted => !HasActed || IsUnaware;
+
     public bool HasMoved { get; internal set; }
 
     /// <summary>Set by a five-foot step. Bars ordinary movement for the rest of the turn.</summary>
@@ -54,6 +77,13 @@ public sealed class Combatant
     internal void BeginTurn()
     {
         Budget.Reset();
+
+        // Standing, but only just: at exactly nought hit points you get one action a round.
+        if (Creature.HitPoints.State == HitPointState.Disabled)
+        {
+            Budget.RestrictToSingleAction();
+        }
+
         OpportunitiesUsed = 0;
         HasMoved = false;
         HasTakenFiveFootStep = false;

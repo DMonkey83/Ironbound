@@ -4,6 +4,11 @@
   "name": "Goblin",
   "abilities": [11, 15, 12, 10, 9, 6],
   "classes": [ { "class": "warrior", "level": 1 } ],
+
+  "skills": [
+    { "skill": "Stealth", "ranks": 6 },
+    { "skill": "Perception", "ranks": 2 }
+  ],
   "size": "Small",
   "speed": 20,
   "items": ["studded-leather", "scimitar"]

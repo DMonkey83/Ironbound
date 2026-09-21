@@ -4,5 +4,6 @@
   "name": "Rogue",
   "hitDie": 8,
   "attack": "ThreeQuarters",
-  "goodSaves": ["Reflex"]
+  "goodSaves": ["Reflex"],
+  "classSkills": ["Acrobatics", "Bluff", "Climb", "DisableDevice", "Perception", "SenseMotive", "Stealth"]
 }

@@ -162,6 +162,42 @@ public sealed class Encounter
         return elapsed <= 0 ? [] : Advance(Duration.FromTicks(checked((int)elapsed)));
     }
 
+    /// <summary>Whether somebody is currently caught with their guard down.</summary>
+    public bool IsFlatFooted(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        foreach (var combatant in Order)
+        {
+            if (ReferenceEquals(combatant.Creature, creature))
+            {
+                return combatant.IsFlatFooted;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Marks somebody as having walked into this without knowing. They lose their first turn
+    /// and are flat-footed until they take one.
+    /// </summary>
+    public bool Surprise(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        foreach (var combatant in Order)
+        {
+            if (ReferenceEquals(combatant.Creature, creature))
+            {
+                combatant.IsUnaware = true;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     internal void CompleteTurn(Combatant combatant) =>
         combatant.NextTurnTick += Duration.TicksPerRound;
 

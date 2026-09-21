@@ -4,6 +4,11 @@
   "name": "Karn",
   "abilities": [16, 12, 16, 8, 13, 8],
   "classes": [ { "class": "barbarian", "level": 6 } ],
+
+  "skills": [
+    { "skill": "Perception", "ranks": 6 },
+    { "skill": "Survival", "ranks": 5 }
+  ],
   "speed": 30,
   "feats": ["improved-initiative", "great-fortitude", "improved-bull-rush"],
   "items": ["breastplate", "light-shield", "greataxe"]

@@ -6,6 +6,11 @@
   "name": "Hobgoblin Sergeant",
   "abilities": [15, 13, 14, 10, 10, 8],
   "classes": [ { "class": "fighter", "level": 6 } ],
+
+  "skills": [
+    { "skill": "Stealth", "ranks": 4 },
+    { "skill": "Perception", "ranks": 6 }
+  ],
   "speed": 30,
   "feats": ["combat-reflexes", "weapon-specialization"],
   // The silvered blade is on his belt, not in his hand — he has no use for it against

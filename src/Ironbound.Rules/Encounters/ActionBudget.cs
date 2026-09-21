@@ -48,6 +48,17 @@ public static class ActionCosts
 /// </remarks>
 public sealed class ActionBudget
 {
+    /// <summary>
+    /// Whether the creature is down to a single action a round.
+    /// </summary>
+    /// <remarks>
+    /// What being <em>disabled</em> — at exactly zero hit points — costs you. One move or one
+    /// standard action, and no full attack at all. Without it a creature on nought hit points
+    /// fights exactly as well as one on full, which makes the whole death's-door band
+    /// meaningless.
+    /// </remarks>
+    public bool IsSingleAction { get; private set; }
+
     public bool HasStandard { get; private set; } = true;
 
     public bool HasMove { get; private set; } = true;
@@ -56,15 +67,30 @@ public sealed class ActionBudget
 
     public bool IsSpent => !HasStandard && !HasMove && !HasSwift;
 
-    public bool CanAfford(ActionCost cost) => cost switch
+    public bool CanAfford(ActionCost cost)
     {
-        ActionCost.Free => true,
-        ActionCost.Swift => HasSwift,
-        ActionCost.Move => HasMove || HasStandard,
-        ActionCost.Standard => HasStandard,
-        ActionCost.FullRound => HasStandard && HasMove,
-        _ => false,
-    };
+        if (IsSingleAction)
+        {
+            // One thing, then nothing. A full attack is not one thing.
+            return cost switch
+            {
+                ActionCost.Free => true,
+                ActionCost.Swift => HasSwift,
+                ActionCost.Move or ActionCost.Standard => HasStandard && HasMove,
+                _ => false,
+            };
+        }
+
+        return cost switch
+        {
+            ActionCost.Free => true,
+            ActionCost.Swift => HasSwift,
+            ActionCost.Move => HasMove || HasStandard,
+            ActionCost.Standard => HasStandard,
+            ActionCost.FullRound => HasStandard && HasMove,
+            _ => false,
+        };
+    }
 
     /// <summary>Spends the cost if it can be afforded. Returns false and changes nothing if not.</summary>
     public bool Spend(ActionCost cost)
@@ -72,6 +98,14 @@ public sealed class ActionBudget
         if (!CanAfford(cost))
         {
             return false;
+        }
+
+        if (IsSingleAction && cost is ActionCost.Move or ActionCost.Standard)
+        {
+            // Whichever of the two it was, it was the only one.
+            HasStandard = false;
+            HasMove = false;
+            return true;
         }
 
         switch (cost)
@@ -121,7 +155,11 @@ public sealed class ActionBudget
         HasStandard = true;
         HasMove = true;
         HasSwift = true;
+        IsSingleAction = false;
     }
+
+    /// <summary>Cuts the turn down to one action, as being disabled does.</summary>
+    public void RestrictToSingleAction() => IsSingleAction = true;
 
     /// <summary>Gives up whatever is left, as ending a turn early does.</summary>
     public void SpendAll()
@@ -147,6 +185,11 @@ public sealed class ActionBudget
         if (HasSwift)
         {
             parts.Add("swift");
+        }
+
+        if (IsSingleAction && parts.Count > 0)
+        {
+            parts.Add("disabled: one action only");
         }
 
         return parts.Count == 0 ? "nothing left" : string.Join(" + ", parts);

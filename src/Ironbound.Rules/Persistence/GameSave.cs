@@ -95,6 +95,8 @@ public static class GameSave
         combatant.OpportunitiesUsed,
         combatant.HasMoved,
         combatant.HasTakenFiveFootStep,
+        combatant.HasActed,
+        combatant.IsUnaware,
         combatant.Budget.HasStandard,
         combatant.Budget.HasMove,
         combatant.Budget.HasSwift);
@@ -116,6 +118,11 @@ public static class GameSave
         [.. creature.Feats.Select(feat => feat.Id)],
         [.. creature.Equipment.Worn.Select(entry => new SavedItem(entry.Item.Id, entry.Slot))],
         [.. creature.Levels.Select(level => new SavedClassLevel(level.Class.Id, level.Level))],
+        [.. Skills.SkillInfo.All
+            .Where(skill => creature.Skills.Ranks(skill) > 0
+                || creature.Skills.Modifiers(skill).Total != 0)
+            .Select(skill => new SavedSkill(
+                skill, creature.Skills.Ranks(skill), Capture(creature.Skills.Modifiers(skill))))],
         [.. AbilityInfo.All.Select(a => CaptureAbility(creature.Abilities[a]))],
         new SavedHitPoints(
             creature.HitPoints.Base,
@@ -220,6 +227,8 @@ public static class GameSave
                 OpportunitiesUsed = saved.OpportunitiesUsed,
                 HasMoved = saved.HasMoved,
                 HasTakenFiveFootStep = saved.HasTakenFiveFootStep,
+                HasActed = saved.HasActed,
+                IsUnaware = saved.IsUnaware,
             };
 
             combatant.Budget.Restore(saved.HasStandard, saved.HasMove, saved.HasSwift);
@@ -314,6 +323,12 @@ public static class GameSave
         // Equipment, like feats, comes back by identity only: its bonuses were captured with
         // the modifier stacks and its weapon with the attack list. A weapon item is paired back
         // up with its attack by name, so that taking the thing off later removes the right one.
+        foreach (var skill in saved.Skills)
+        {
+            creature.Skills.SetRanks(skill.Skill, skill.Ranks);
+            Fill(creature.Skills.Modifiers(skill.Skill), skill.Modifiers);
+        }
+
         // Levels come back by identity, like feats and equipment: everything they produced —
         // base attack, saves, hit dice — was captured as numbers. What would be missing without
         // them is the ability to gain another one and have it land in the right class.
