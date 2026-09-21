@@ -79,7 +79,28 @@ public partial class Main
 		_camera.Position = _camFocus + (CameraOffset(_camYaw) * CameraDistance);
 		_camera.LookAt(_camFocus);
 		_camera.Size = _camZoom;
+
+		var scale = Vector3.One * LabelScale();
+		foreach (var nameplate in _nameplates.Values)
+		{
+			if (IsInstanceValid(nameplate))
+			{
+				nameplate.Scale = scale;
+			}
+		}
 	}
+
+	/// <summary>
+	/// How big to draw text in the world so that it holds its size on the screen.
+	/// </summary>
+	/// <remarks>
+	/// Nameplates are objects in the scene, so zooming in on a goblin used to zoom in on his
+	/// name as well, until it was bigger than he was. Shrunk in step with the zoom they stay
+	/// the size they are at the fitted view — down to a floor, because past a point a label
+	/// that refuses to grow at all starts to look lost beside the figure it names.
+	/// </remarks>
+	private float LabelScale() =>
+		_fitZoom <= 0 ? 1f : Mathf.Clamp(_camZoom / _fitZoom, 0.30f, 1f);
 
 	// ---- fitting the board to whatever the window is ----
 

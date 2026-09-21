@@ -1321,18 +1321,56 @@ def create_animations(arm):
     # about the floor, and is lifted as it goes so the back lands on the ground, not under it.
     limp = {"upper_arm_R": (0.0, 0.0, 0.0), "forearm_R": (0.2, 0.0, 0.0),
             "upper_arm_L": (0.0, 0.0, 0.0), "forearm_L": (0.2, 0.0, 0.0)}
+
+    # Tipping the skeleton over backwards about its feet lays the body out *behind* where it
+    # stood — a whole square behind, on the board. So the root walks forward as it goes over, by
+    # as far as the hips would otherwise travel back, and the body comes to rest on the square
+    # it died in. The root's local Z faces the way the creature does; align_roll saw to that.
+    hips = arm.data.bones["pelvis"].head_local.z
+
+    def fall(tip, lift):
+        return {"root": (0, lift, hips * math.sin(-tip) * 1.15)}
+
     actions.append(add_action(arm, "goblin_death", 20, [
         (1, varied(root=(0.0, 0.0, 0.0), thigh_R=(0.0, 0.0, 0.0), thigh_L=(0.0, 0.0, 0.0)), {"root": (0, 0, 0)}),
         (5, varied(root=(-0.22, 0.0, 0.0), chest=(-0.35, 0.0, 0.0), head=(-0.30, 0.0, 0.0),
-                   upper_arm_R=(1.1, 0.0, 0.0), upper_arm_L=(1.1, 0.0, 0.0)), {"root": (0, 0, 0)}),
+                   upper_arm_R=(1.1, 0.0, 0.0), upper_arm_L=(1.1, 0.0, 0.0)), fall(-0.22, 0.0)),
         (12, dict(limp, root=(-1.05, 0.0, 0.0), chest=(-0.20, 0.0, 0.0), head=(0.15, 0.0, 0.0),
-                  thigh_R=(0.45, 0.0, 0.0), thigh_L=(0.25, 0.0, 0.0)), {"root": (0, 0.14, 0)}),
+                  thigh_R=(0.45, 0.0, 0.0), thigh_L=(0.25, 0.0, 0.0)), fall(-1.05, 0.14)),
         (17, dict(limp, root=(-1.52, 0.0, 0.0), chest=(-0.10, 0.0, 0.0), head=(-0.20, 0.0, 0.0),
                   upper_arm_R=(-0.35, 0.0, -0.55), upper_arm_L=(-0.35, 0.0, 0.55),
-                  thigh_R=(0.30, 0.0, 0.0), thigh_L=(0.10, 0.0, 0.0)), {"root": (0, 0.24, 0)}),
+                  thigh_R=(0.30, 0.0, 0.0), thigh_L=(0.10, 0.0, 0.0)), fall(-1.52, 0.24)),
         (20, dict(limp, root=(-1.50, 0.0, 0.0), chest=(-0.10, 0.0, 0.0), head=(-0.20, 0.0, 0.0),
                   upper_arm_R=(-0.35, 0.0, -0.55), upper_arm_L=(-0.35, 0.0, 0.55),
-                  thigh_R=(0.30, 0.0, 0.0), thigh_L=(0.10, 0.0, 0.0)), {"root": (0, 0.24, 0)}),
+                  thigh_R=(0.30, 0.0, 0.0), thigh_L=(0.10, 0.0, 0.0)), fall(-1.50, 0.24)),
+    ]))
+
+    # A trip: drop, and sweep the weapon arm low across their shins.
+    actions.append(add_action(arm, "goblin_trip", 12, [
+        (1, varied(), {"root": (0, 0, 0)}),
+        (4, varied(pelvis=(0.30, 0.0, 0.0), chest=(0.40, 0.35, 0.0), head=(-0.30, 0.0, 0.0),
+                   upper_arm_R=(-0.55, 0.0, 0.0), forearm_R=(0.35, 0.0, 0.0),
+                   thigh_R=(0.55, 0.0, 0.0), shin_R=(-0.80, 0.0, 0.0), thigh_L=(0.40, 0.0, 0.0), shin_L=(-0.60, 0.0, 0.0)),
+         {"root": (0, -0.13, 0)}),
+        (7, varied(pelvis=(0.35, 0.0, 0.0), chest=(0.60, -0.55, 0.0), head=(-0.35, 0.0, 0.0),
+                   upper_arm_R=(0.95, 0.0, 0.0), forearm_R=(0.15, 0.0, 0.0),
+                   thigh_R=(0.60, 0.0, 0.0), shin_R=(-0.85, 0.0, 0.0), thigh_L=(0.40, 0.0, 0.0), shin_L=(-0.60, 0.0, 0.0)),
+         {"root": (0, -0.15, 0.10)}),
+        (10, varied(chest=(0.20, 0.0, 0.0)), {"root": (0, -0.04, 0.03)}),
+        (12, varied(), {"root": (0, 0, 0)}),
+    ]))
+
+    # A shove: coil behind the shield arm, then the whole body goes into them.
+    actions.append(add_action(arm, "goblin_shove", 12, [
+        (1, varied(), {"root": (0, 0, 0)}),
+        (4, varied(chest=(-0.18, 0.0, 0.0), upper_arm_L=(0.25, 0.0, 0.0), forearm_L=(1.35, 0.0, 0.0),
+                   thigh_R=(0.30, 0.0, 0.0), shin_R=(-0.45, 0.0, 0.0)), {"root": (0, -0.05, -0.05)}),
+        (7, varied(pelvis=(0.22, 0.0, 0.0), chest=(0.50, 0.0, 0.0), head=(-0.25, 0.0, 0.0),
+                   upper_arm_L=(0.95, 0.0, 0.0), forearm_L=(0.95, 0.0, 0.0), upper_arm_R=(-0.30, 0.0, 0.0),
+                   thigh_L=(0.55, 0.0, 0.0), shin_L=(-0.35, 0.0, 0.0), thigh_R=(-0.40, 0.0, 0.0)),
+         {"root": (0, -0.05, 0.20)}),
+        (10, varied(chest=(0.18, 0.0, 0.0)), {"root": (0, 0, 0.06)}),
+        (12, varied(), {"root": (0, 0, 0)}),
     ]))
 
     pose_reset(arm)
@@ -1378,7 +1416,7 @@ def read_glb_json(path):
         raw = f.read(json_chunk_length)
         return json.loads(raw.rstrip(b" \t\r\n\x00").decode("utf-8"))
 
-def validate_glb(path, arm):
+def validate_glb(path, arm, creature="goblin"):
     data = read_glb_json(path)
     meshes = data.get("meshes", [])
     skins = data.get("skins", [])
@@ -1422,12 +1460,8 @@ def validate_glb(path, arm):
                 bbox_max.y = max(bbox_max.y, world.y)
                 bbox_max.z = max(bbox_max.z, world.z)
 
-    expected_names = [
-        "goblin_idle_combat",
-        "goblin_attack_melee",
-        "goblin_run",
-        "goblin_death",
-    ]
+    # The four the game knows how to ask for, under whatever creature's name they were made.
+    expected_names = [f"{creature}_{clip}" for clip in ("idle_combat", "attack_melee", "run", "death")]
     animation_ok = all(any(expected in name for name in animations) for expected in expected_names)
     print(f"Meshes:             {len(exported_mesh_nodes)}")
     print(f"Skinned meshes:     {len(skinned_nodes)}/{len(exported_mesh_nodes)}")

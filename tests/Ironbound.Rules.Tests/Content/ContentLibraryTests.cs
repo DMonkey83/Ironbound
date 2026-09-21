@@ -472,15 +472,11 @@ public class CreatureModelTests
         Assert.EndsWith(".glb", model);
     }
 
-    [Fact]
-    public void AndEverythingElseStillFallsBackToTheCapsule()
-    {
-        // Not a rule, an observation worth pinning: the fallback is the path most creatures in
-        // the game take, so it is the one that must never stop working.
-        Assert.Contains(
-            TestContent.Library.CreatureIds,
-            id => TestContent.Library.GetCreature(id)!.Model.Length == 0);
-    }
+    // There used to be a test here that at least one shipped creature had no model, to keep the
+    // capsule fallback exercised by real content. The werewolf was the last of them. The
+    // fallback is still a supported path — a creature file without "model" is legal, and
+    // AndOneThatDoesNotIsDrawnWithWhateverTheGameFallsBackTo pins that — but "somebody still
+    // has no art" was an observation about the cast, not a rule, and it has stopped being true.
 
     [Fact]
     public void AModelIsNamedByTheCreatureFileAndNowhereElse()

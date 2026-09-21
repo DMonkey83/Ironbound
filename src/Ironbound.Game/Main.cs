@@ -83,6 +83,7 @@ public partial class Main : Node3D
 		[Mode.Move, Mode.Attack, Mode.Full, Mode.Trip, Mode.Shove, Mode.Help, Mode.Cast];
 
 	private readonly Dictionary<Creature, Node3D> _figures = new();
+	private readonly Dictionary<Creature, Label3D> _nameplates = new();
 
 	/// <summary>Loaded once and instanced many times, so three goblins are one file read.</summary>
 	private readonly Dictionary<string, PackedScene> _models = new();
@@ -130,6 +131,7 @@ public partial class Main : Node3D
 	private readonly Dictionary<Mode, Button> _modes = new();
 
 	private bool _autoplay;
+	private bool _passTurns;
 	private Mode _mode = Mode.Move;
 	private GridSquare? _hovered;
 
@@ -144,6 +146,10 @@ public partial class Main : Node3D
 		// godot --path . -- --autoplay: the party is played by the same heuristic as the enemy,
 		// so a whole fight can be watched — or recorded with --write-movie — without a click.
 		_autoplay = OS.GetCmdlineUserArgs().Contains("--autoplay");
+
+		// -- --pass-turns: the party does nothing and ends each turn after a pause. For looking
+		// at the interface on everybody's turn without a hand on the mouse.
+		_passTurns = OS.GetCmdlineUserArgs().Contains("--pass-turns");
 
 		BuildInterface();
 		BuildSky();
@@ -198,7 +204,9 @@ public partial class Main : Node3D
 			{
 				if (_campaign.Collect() is > 0 and var taken)
 				{
-					_log.AddText($"— {taken} thing(s) taken from the fallen —\n");
+					// Through the queue like every other line, or the looting is reported in
+					// round one of a fight that is still being shown.
+					Append($"— {taken} thing(s) taken from the fallen —", []);
 				}
 
 				Prompt(Verdict());
@@ -227,8 +235,27 @@ public partial class Main : Node3D
 				PromptTurn();
 				RefreshFigures();
 				RefreshControls();
+
+				if (_passTurns)
+				{
+					var passing = turn.Actor;
+					GetTree().CreateTimer(2.4).Timeout += () =>
+					{
+						if (_battle.Encounter.Current is { IsEnded: false } still
+							&& ReferenceEquals(still.Actor, passing)
+							&& !StageBusy)
+						{
+							OnEndTurn();
+						}
+					};
+				}
+
 				return;
 			}
+
+			// Say whose turn it is for the enemy too. Left alone, the prompt went on naming the
+			// last player to act all the way through the goblins' round.
+			Prompt($"{turn.Actor.Name} acts.");
 
 			RunEnemyTurn();
 			RefreshFigures();
@@ -451,8 +478,7 @@ public partial class Main : Node3D
 				break;
 			}
 
-			Append(null, lines);
-			Stage(_battle.LastResult);
+			Stage(_battle.LastResult, lines);
 		}
 
 		_battle.EndTurn();
@@ -495,8 +521,7 @@ public partial class Main : Node3D
 			return;
 		}
 
-		Append(null, lines);
-		Stage(_battle.LastResult);
+		Stage(_battle.LastResult, lines);
 		RefreshFigures();
 		PromptTurn();
 		RefreshControls();
@@ -566,8 +591,7 @@ public partial class Main : Node3D
 			return;
 		}
 
-		Append(null, lines);
-		Stage(_battle.LastResult);
+		Stage(_battle.LastResult, lines);
 		RefreshFigures();
 		PromptTurn();
 		RefreshControls();
@@ -1164,6 +1188,7 @@ public partial class Main : Node3D
 		}
 
 		_figures.Clear();
+		_nameplates.Clear();
 		ClearStage();
 		_world = new Node3D();
 		AddChild(_world);
@@ -1318,6 +1343,8 @@ public partial class Main : Node3D
 
 			figure.AddChild(nameplate);
 			_figures[creature] = figure;
+			_nameplates[creature] = nameplate;
+			nameplate.Scale = Vector3.One * LabelScale();
 			Idle(creature);
 		}
 	}
@@ -2148,6 +2175,15 @@ public partial class Main : Node3D
 
 	private void SelectSpellsFor(Creature actor)
 	{
+		// Whose spells are listed is part of whose turn it is, and the board may not have got
+		// there yet: refilling it at once blanked the wizard's list while the goblins were
+		// still being shown taking the turns in between.
+		if (StageBusy)
+		{
+			Enqueue(0.0, () => SelectSpellsFor(actor));
+			return;
+		}
+
 		_spells.Clear();
 		foreach (var spell in actor.Spells.Prepared)
 		{
@@ -2203,7 +2239,15 @@ public partial class Main : Node3D
 
 	private void Prompt(string text)
 	{
-		_prompt.Text = text;
+		if (StageBusy)
+		{
+			Enqueue(0.0, () => _prompt.Text = text);
+		}
+		else
+		{
+			_prompt.Text = text;
+		}
+
 		UpdateStatus();
 	}
 
@@ -2220,6 +2264,14 @@ public partial class Main : Node3D
 
 	private void RefreshControls()
 	{
+		// Which buttons are live is a fact about where the fight has got to, and while beats
+		// are playing the board has not got there yet. The queue calls this again as it drains.
+		if (StageBusy)
+		{
+			_settleWhenDone = true;
+			return;
+		}
+
 		var playing = _battle.IsPartyTurn;
 		var turn = playing && _battle.Encounter.Current is { IsEnded: false } current ? current : null;
 
@@ -2232,7 +2284,9 @@ public partial class Main : Node3D
 		_modes[Mode.Trip].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Shove].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Help].Disabled = turn is null || !turn.Budget.HasStandard;
-		_modes[Mode.Cast].Disabled = turn is null || !turn.Budget.HasStandard || _spells.ItemCount == 0;
+		_modes[Mode.Cast].Disabled = turn is null
+			|| !turn.Budget.HasStandard
+			|| !turn.Actor.Spells.Prepared.Any(turn.Actor.Spells.CanCast);
 		_modes[Mode.Move].Disabled = turn is null || !CanStillMove(turn);
 
 		_spells.Disabled = turn is null || _spells.ItemCount == 0;
@@ -2242,6 +2296,24 @@ public partial class Main : Node3D
 		{
 			button.Disabled = turn is null || !turn.Actor.Stances.CanAdopt(stance);
 			button.ButtonPressed = turn is not null && turn.Actor.Stances.IsActive(stance);
+		}
+
+		// Two different kinds of "no". Out of actions is a fact about this turn, and stays on
+		// screen greyed out so the player can see what they have spent. Never learned it is a
+		// fact about the character, and a button nobody at the table can ever press is clutter:
+		// a fighter has no Cast, and only the one who took the feat has Power Attack. Decided
+		// when somebody's turn begins, and left alone in between so the row does not flicker
+		// every time the enemy moves.
+		if (turn is not null)
+		{
+			var caster = turn.Actor.Spells.Prepared.Count > 0;
+			_modes[Mode.Cast].Visible = caster;
+			_spells.Visible = caster;
+
+			foreach (var (stance, button) in _stances)
+			{
+				button.Visible = turn.Actor.Stances.CanAdopt(stance);
+			}
 		}
 		_press.Disabled = !_campaign.CanAdvance;
 		_rest.Disabled = !_campaign.CanRest;
@@ -2479,10 +2551,25 @@ public partial class Main : Node3D
 			? $"   ·   xp {_campaign.Experience:n0} / {next:n0}"
 			: $"   ·   xp {_campaign.Experience:n0}";
 
-		_status.Text = $"{_campaign.Definition.Name}   ·   "
+		var headline = $"{_campaign.Definition.Name}   ·   "
 			+ $"chapter {_campaign.Chapter} of {_campaign.Definition.Encounters.Count}   ·   "
 			+ $"rests {_campaign.RestsRemaining}{earned}   ·   round {_battle.Round}{budget}";
 
+		// Written down now, shown when the board catches up. The rules are already at the end
+		// of the enemy's turn; a roster that followed them would announce the kill, and then
+		// "chapter won", while the blow that did it was still three beats away.
+		if (StageBusy)
+		{
+			Enqueue(0.0, () =>
+			{
+				_status.Text = headline;
+				_roster.Text = standing;
+			});
+
+			return;
+		}
+
+		_status.Text = headline;
 		_roster.Text = standing;
 	}
 

@@ -66,6 +66,22 @@ re-authored for it, and the death now ends on the ground.
 The ceiling is a stylised sculpt. Pitted iron, pores and stitched leather come from sculpting and
 painted textures, and no script produces those.
 
+## Werewolf — `werewolf.glb`
+
+**Generated**, by `tools/generate_werewolf.py`, which borrows the goblin generator's machinery —
+skeleton, skinning, animation format, export, validation — and supplies only the creature. About
+14,900 triangles in 16 meshes: a hundred locks of fur are merged by the bone that carries them,
+so the pelt is eight draw calls rather than a hundred.
+
+He stands on his toes. The goblin's bone names already fit a wolf's hind leg — thigh forward to
+the knee, shin *back* to a raised hock, a long foot down to the toes — so the same skeleton and
+the same four clip names work and nothing in the game needed to know. His attack is a lunge in
+behind the jaws rather than a swing, because the rules give him a bite.
+
+Shape, stance and palette follow a second concept sheet from the project owner
+(`Werewolf Captain` / `Werewolf`, an image-generator render used as reference only): the
+unarmoured werewolf in its lower half. The armoured Captain above it is an obvious later variant.
+
 ## Terrain — `Grass_Flat`, `Prop_Tree_Cedar_1`, `Sand_Flat`, `Prop_Cliff_Rock_1`
 
 Taken from a "modular terrain collections" pack that shipped **no licence and no readme**. Until

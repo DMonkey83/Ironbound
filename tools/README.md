@@ -44,6 +44,16 @@ layers -> strips -> channelbags in 4.4 and was removed in 5.x; and `bpy.ops.obje
 inherits whatever is selected, so deselect before converting a curve or the conversion is
 refused and the object reaches the exporter unweighted.
 
+## `generate_werewolf.py` — the chapter-two boss
+
+```sh
+blender -b --factory-startup --python tools/generate_werewolf.py -- <out.glb>
+```
+
+Imports `generate_goblin.py` for everything that is not specifically a wolf, so a fix to the
+skeleton, the exporter or the validator lands in both. New creatures should start the same way:
+a `frame()` of landmarks, a body grown from them, and whatever is sharp or bright added on top.
+
 ## `preview_model.py` — render what actually came out
 
 ```sh
@@ -68,6 +78,8 @@ free, until you take the camera; Home gives it back. While a turn plays out the 
 anybody acting off-screen.
 
 `-- --camera-tour` drives all of that from a script, for checking it without a hand on the mouse.
+`-- --pass-turns` has the party end each turn after a pause, which walks the interface through
+everybody's turn — how the per-character button row was checked.
 
 ## Seeing it in the game without a screenshot
 

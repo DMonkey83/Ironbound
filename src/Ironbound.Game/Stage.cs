@@ -89,36 +89,55 @@ public partial class Main
 
 	// ---- turning a result into beats ----
 
-	private void Stage(ActionResult result)
+	/// <summary>
+	/// Shows an action, and says it, in step.
+	/// </summary>
+	/// <remarks>
+	/// The log lines used to be written first and the beats queued after them, so "hit; 13
+	/// slashing; Sergeant Grask 8/52" was on screen before the sword had moved. Each beat now
+	/// writes the text of the thing it shows at the moment it shows it: a strike's line on the
+	/// impact, a spell's results at the burst. The text is the same <c>ToString()</c> the log
+	/// was already built from, so nothing here depends on the order <c>Battle</c> lists things in.
+	/// </remarks>
+	private void Stage(ActionResult result, IReadOnlyList<string> lines)
 	{
 		if (_instant || result is null)
 		{
+			Append(null, lines);
 			return;
 		}
 
 		switch (result)
 		{
 			case MoveActionResult move:
-				StageStrikes(move.Opportunities);
+				Say(move.Description);
+				StageStrikes(move.Opportunities, indent: true);
 				StageWalk(move.Actor, move.Travelled);
 				break;
 
 			case AttackActionResult attack:
-				StageStrikes(attack.Opportunities);
+				StageStrikes(attack.Opportunities, indent: true);
 				if (attack.Strike is { } strike)
 				{
-					StageStrikes([strike]);
+					// For a single attack the description *is* the strike, so it waits for it.
+					StageStrike(strike, PostureOf(strike.Target), attack.Description, indent: false);
+				}
+				else
+				{
+					Say(attack.Description);
 				}
 
 				break;
 
 			case FullAttackResult full:
-				StageStrikes(full.Opportunities);
-				StageStrikes(full.Strikes);
+				Say(full.Description);
+				StageStrikes(full.Opportunities, indent: true);
+				StageStrikes(full.Strikes, indent: true);
 				break;
 
 			case CastSpellResult cast:
-				StageStrikes(cast.Opportunities);
+				Say(cast.Description);
+				StageStrikes(cast.Opportunities, indent: true);
 				if (cast.Cast is { } spell)
 				{
 					StageSpell(spell);
@@ -126,18 +145,38 @@ public partial class Main
 
 				break;
 
-			case ManeuverActionResult maneuver:
-				StageStrikes(maneuver.Opportunities);
-				if (maneuver.Action is ManeuverAction { Target: var shoved })
+			case ManeuverActionResult { Action: ManeuverAction { Target: var victim }, Check: { } check } maneuver:
+				StageStrikes(maneuver.Opportunities, indent: true);
+				if (maneuver.Action is BullRushAction)
 				{
-					StageLunge(maneuver.Actor, shoved);
+					StageShove(maneuver, victim, check);
+				}
+				else
+				{
+					StageTrip(maneuver, victim, check);
 				}
 
+				break;
+
+			default:
+				Append(null, lines);
 				break;
 		}
 
 		StageReconcile();
+
+		// The roster as it stands now that this action is over, queued behind the beats that
+		// show it. This is what makes hit points drop on the blow rather than before it.
+		UpdateStatus();
 	}
+
+	/// <summary>A line of the log, in its place in the queue.</summary>
+	private void Say(string line, bool indent = false) =>
+		Enqueue(0.0, () => WriteLine(line, indent));
+
+	/// <summary>A line of the log, now — for the middle of a beat, where the queue cannot reach.</summary>
+	private void WriteLine(string line, bool indent) =>
+		_log.AddText(indent ? $"        {line}\n" : $"      {line}\n");
 
 	/// <summary>
 	/// Puts everybody where the rules now say they are, and in the posture they are now in.
@@ -240,7 +279,7 @@ public partial class Main
 		});
 	}
 
-	private void StageStrikes(IReadOnlyList<StrikeResult> strikes)
+	private void StageStrikes(IReadOnlyList<StrikeResult> strikes, bool indent)
 	{
 		for (var i = 0; i < strikes.Count; i++)
 		{
@@ -251,11 +290,11 @@ public partial class Main
 			var last = !strikes.Skip(i + 1).Any(later => ReferenceEquals(later.Target, strike.Target));
 			var posture = last ? PostureOf(strike.Target) : Posture.Standing;
 
-			StageStrike(strike, posture);
+			StageStrike(strike, posture, strike.ToString(), indent);
 		}
 	}
 
-	private void StageStrike(StrikeResult strike, Posture after)
+	private void StageStrike(StrikeResult strike, Posture after, string line, bool indent)
 	{
 		var attacker = strike.Attacker;
 		var target = strike.Target;
@@ -286,6 +325,8 @@ public partial class Main
 
 			beat.TweenCallback(Callable.From(() =>
 			{
+				WriteLine(line, indent);
+
 				if (strike.Attack.IsHit)
 				{
 					var dealt = (strike.Applied?.Total ?? 0) + strike.NonlethalDealt;
@@ -304,25 +345,109 @@ public partial class Main
 		});
 	}
 
-	private void StageLunge(Creature actor, Creature target)
+	/// <summary>
+	/// A trip: in low, and whoever loses their feet loses them on the contact.
+	/// </summary>
+	/// <remarks>
+	/// Both postures are written down now, the attacker's as well — a trip that goes badly
+	/// enough puts the one who tried it on the floor instead, and he should fall on the beat
+	/// like anybody else rather than being tidied up afterwards.
+	/// </remarks>
+	private void StageTrip(ManeuverActionResult maneuver, Creature victim, ManeuverResult check)
 	{
-		Enqueue(0.40, () =>
+		var actor = maneuver.Actor;
+		var line = maneuver.Description;
+		var victimAfter = PostureOf(victim);
+		var actorAfter = PostureOf(actor);
+		var clips = new[] { "trip", $"cast_{Grip(actor.PrimaryAttack)}", "attack_melee", "attack" };
+		var seconds = ClipSeconds(actor, 0.45, clips);
+
+		Enqueue(seconds + 0.15, () =>
 		{
-			if (!_figures.TryGetValue(actor, out var from) || !_figures.TryGetValue(target, out var to))
+			if (!_figures.TryGetValue(actor, out var from) || !_figures.TryGetValue(victim, out var to))
 			{
+				WriteLine(line, indent: false);
 				return;
 			}
 
+			Follow(to);
 			Turn(from, to.Position.X - from.Position.X, to.Position.Z - from.Position.Z);
+			PlayClip(actor, loop: false, clips);
 
-			// A shoulder into them and back: no clip exists for grappling, and a body that
-			// visibly goes at the other one says most of what a clip would.
+			// In under their guard and out again, low, while the clip does the sweeping.
 			var home = from.Position;
-			var reach = home.Lerp(to.Position, 0.45f);
 			var tween = from.CreateTween();
-			tween.TweenProperty(from, "position", reach, 0.14f).SetEase(Tween.EaseType.In);
-			tween.TweenCallback(Callable.From(() => Flinch(to, from)));
-			tween.TweenProperty(from, "position", home, 0.20f).SetEase(Tween.EaseType.Out);
+			tween.TweenProperty(from, "position", home.Lerp(to.Position, 0.35f), seconds * 0.5f).SetEase(Tween.EaseType.In);
+			tween.TweenCallback(Callable.From(() =>
+			{
+				WriteLine(line, indent: false);
+
+				if (check.Succeeded)
+				{
+					Float(to, "tripped", CritColour, false);
+					Flinch(to, from);
+					Assume(victim, to, victimAfter, instant: false);
+				}
+				else
+				{
+					Float(to, check.Backfired ? "reversed" : "keeps footing", MissColour, false);
+					Assume(actor, from, actorAfter, instant: false);
+				}
+			}));
+			tween.TweenProperty(from, "position", home, seconds * 0.5f).SetEase(Tween.EaseType.Out);
+			tween.TweenCallback(Callable.From(() => Idle(actor)));
+		});
+	}
+
+	/// <summary>
+	/// A shove: shoulder in, and the one shoved goes back as far as the rules sent them —
+	/// on the contact, pushed by it, rather than sliding off on their own a moment later.
+	/// </summary>
+	private void StageShove(ManeuverActionResult maneuver, Creature victim, ManeuverResult check)
+	{
+		var actor = maneuver.Actor;
+		var line = maneuver.Description;
+		var landing = _battle.Battlefield?.SquareOf(victim);
+		var victimAfter = PostureOf(victim);
+		var clips = new[] { "shove", $"cast_{Grip(actor.PrimaryAttack)}", "attack_melee", "attack" };
+		var seconds = ClipSeconds(actor, 0.45, clips);
+
+		Enqueue(seconds + 0.30, () =>
+		{
+			if (!_figures.TryGetValue(actor, out var from) || !_figures.TryGetValue(victim, out var to))
+			{
+				WriteLine(line, indent: false);
+				return;
+			}
+
+			Follow(to);
+			Turn(from, to.Position.X - from.Position.X, to.Position.Z - from.Position.Z);
+			PlayClip(actor, loop: false, clips);
+
+			var home = from.Position;
+			var tween = from.CreateTween();
+			tween.TweenProperty(from, "position", home.Lerp(to.Position, 0.5f), seconds * 0.45f).SetEase(Tween.EaseType.In);
+			tween.TweenCallback(Callable.From(() =>
+			{
+				WriteLine(line, indent: false);
+
+				if (check.Succeeded && landing is { } square)
+				{
+					Float(to, "driven back", CritColour, false);
+
+					var rest = new Vector3(square.X + 0.5f, to.Position.Y, square.Y + 0.5f);
+					to.CreateTween().TweenProperty(to, "position", rest, 0.25f)
+						.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+					Assume(victim, to, victimAfter, instant: false);
+				}
+				else
+				{
+					Float(to, "holds firm", MissColour, false);
+					Flinch(to, from);
+				}
+			}));
+			tween.TweenProperty(from, "position", home, seconds * 0.55f).SetEase(Tween.EaseType.Out);
+			tween.TweenCallback(Callable.From(() => Idle(actor)));
 		});
 	}
 
@@ -381,6 +506,8 @@ public partial class Main
 
 				foreach (var result in results)
 				{
+					WriteLine(result.ToString(), indent: true);
+
 					if (!_figures.TryGetValue(result.Target, out var figure))
 					{
 						continue;
@@ -599,6 +726,7 @@ public partial class Main
 			PixelSize = 0.005f,
 			Modulate = colour,
 			Position = over.Position + new Vector3(0, 2.0f, 0),
+			Scale = Vector3.One * LabelScale(),
 		};
 
 		_world.AddChild(label);
