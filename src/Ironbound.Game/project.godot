@@ -17,6 +17,11 @@ config/icon="res://icon.svg"
 
 [display]
 
+; The layout space the interface is designed in, which "canvas_items" then scales to whatever
+; the monitor actually is. Without these two lines Godot uses its 1152x648 default, so a 4K
+; screen buys no extra room at all and a wide row of controls runs off the edge regardless.
+window/size/viewport_width=1920
+window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 

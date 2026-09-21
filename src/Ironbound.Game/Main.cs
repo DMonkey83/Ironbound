@@ -89,6 +89,10 @@ public partial class Main : Node3D
 	private OptionButton _stash;
 	private OptionButton _bearer;
 	private Button _give;
+	private HFlowContainer _between;
+	private RichTextLabel _roster;
+	private PanelContainer _logPanel;
+	private Button _showLog;
 	private readonly Dictionary<Mode, Button> _modes = new();
 
 	private Mode _mode = Mode.Move;
@@ -180,11 +184,40 @@ public partial class Main : Node3D
 		_ => "Nobody left standing.",
 	};
 
+	/// <summary>A little breathing room inside a panel.</summary>
+	private static MarginContainer Padded()
+	{
+		var margin = new MarginContainer();
+		margin.AddThemeConstantOverride("margin_left", 12);
+		margin.AddThemeConstantOverride("margin_right", 12);
+		margin.AddThemeConstantOverride("margin_top", 6);
+		margin.AddThemeConstantOverride("margin_bottom", 6);
+
+		return margin;
+	}
+
+	/// <summary>Folds the log away, and says so on the button that brings it back.</summary>
+	private void RefreshLogPanel()
+	{
+		if (_logPanel is null || _showLog is null)
+		{
+			return;
+		}
+
+		_logPanel.Visible = _showLog.ButtonPressed;
+		_showLog.Text = _showLog.ButtonPressed ? "Hide log" : "Log";
+	}
+
 	/// <summary>Fills the two pickers, and greys the lot while anyone is still swinging.</summary>
 	private void RefreshStash()
 	{
 		var between = _campaign.State != CampaignState.Fighting;
 		var loot = _campaign.Stash;
+
+		if (_between is not null)
+		{
+			_between.Visible = between;
+		}
 
 		if (_stash.ItemCount != loot.Count || !between)
 		{
@@ -831,43 +864,169 @@ public partial class Main : Node3D
 		_ => 1.0f,
 	};
 
+	/// <summary>
+	/// Builds the heads-up display: a roster along the top, the log down the right where it can
+	/// be folded away, and the controls along the bottom.
+	/// </summary>
+	/// <remarks>
+	/// Laid out in thirds of the screen rather than in pixels, so it holds together from a small
+	/// window up to a 4K one. The previous arrangement put the log and the controls in one
+	/// bottom panel deep enough to bury the half of the battlefield the enemies were standing on.
+	/// </remarks>
 	private void BuildInterface()
 	{
 		var layer = new CanvasLayer();
 		AddChild(layer);
 
-		var panel = new PanelContainer();
-		layer.AddChild(panel);
-		panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomWide);
-		panel.OffsetTop = -320;
+		BuildRoster(layer);
+		BuildLog(layer);
+		BuildControls(layer);
 
-		var margin = new MarginContainer();
-		margin.AddThemeConstantOverride("margin_left", 12);
-		margin.AddThemeConstantOverride("margin_right", 12);
-		margin.AddThemeConstantOverride("margin_top", 8);
-		margin.AddThemeConstantOverride("margin_bottom", 8);
-		panel.AddChild(margin);
+		RefreshLogPanel();
+		VerifyInterface();
+	}
 
-		var rows = new VBoxContainer();
-		margin.AddChild(rows);
+	/// <summary>
+	/// Shouts if the interface was built with a hole in it.
+	/// </summary>
+	/// <remarks>
+	/// Added because a refactor dropped half the controls on the floor and nothing noticed. The
+	/// headless run builds the interface but never touches it, so it passed cleanly and the
+	/// first sign of trouble was a null reference on the opening turn of a real session. This
+	/// runs in both paths and names exactly what is missing.
+	/// </remarks>
+	private void VerifyInterface()
+	{
+		var missing = new List<string>();
+
+		void Check(string name, GodotObject control)
+		{
+			if (control is null)
+			{
+				missing.Add(name);
+			}
+		}
+
+		Check(nameof(_status), _status);
+		Check(nameof(_roster), _roster);
+		Check(nameof(_prompt), _prompt);
+		Check(nameof(_log), _log);
+		Check(nameof(_logPanel), _logPanel);
+		Check(nameof(_showLog), _showLog);
+		Check(nameof(_spells), _spells);
+		Check(nameof(_stand), _stand);
+		Check(nameof(_endTurn), _endTurn);
+		Check(nameof(_load), _load);
+		Check(nameof(_between), _between);
+		Check(nameof(_stash), _stash);
+		Check(nameof(_bearer), _bearer);
+		Check(nameof(_give), _give);
+		Check(nameof(_rest), _rest);
+		Check(nameof(_press), _press);
+
+		foreach (var mode in ModeOrder)
+		{
+			Check($"mode {mode}", _modes.GetValueOrDefault(mode));
+		}
+
+		if (missing.Count > 0)
+		{
+			GD.PushError($"The interface was built without: {string.Join(", ", missing)}");
+		}
+	}
+
+	/// <summary>Who is in the fight and how they are doing, across the top.</summary>
+	private void BuildRoster(CanvasLayer layer)
+	{
+		var bar = new PanelContainer();
+		layer.AddChild(bar);
+		bar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopWide);
+		bar.CustomMinimumSize = new Vector2(0, 72);
+
+		var margin = Padded();
+		bar.AddChild(margin);
+
+		var across = new HBoxContainer();
+		margin.AddChild(across);
+
+		var lines = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		across.AddChild(lines);
 
 		_status = new Label();
-		rows.AddChild(_status);
+		lines.AddChild(_status);
 
-		_prompt = new Label();
-		rows.AddChild(_prompt);
+		_roster = new RichTextLabel
+		{
+			BbcodeEnabled = true,
+			FitContent = true,
+			ScrollActive = false,
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+		};
+
+		lines.AddChild(_roster);
+
+		_showLog = new Button
+		{
+			Text = "Log",
+			ToggleMode = true,
+			ButtonPressed = true,
+			CustomMinimumSize = new Vector2(80, 0),
+		};
+
+		_showLog.Toggled += _ => RefreshLogPanel();
+		across.AddChild(_showLog);
+	}
+
+	/// <summary>The combat log, down the right-hand side and foldable out of the way.</summary>
+	private void BuildLog(CanvasLayer layer)
+	{
+		_logPanel = new PanelContainer();
+		layer.AddChild(_logPanel);
+
+		// The right quarter, between the roster and the controls.
+		_logPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		_logPanel.AnchorLeft = 0.74f;
+		_logPanel.OffsetLeft = 0;
+		_logPanel.OffsetTop = 76;
+		_logPanel.AnchorBottom = 0.74f;
+		_logPanel.OffsetBottom = 0;
+
+		var margin = Padded();
+		_logPanel.AddChild(margin);
 
 		_log = new RichTextLabel
 		{
 			ScrollFollowing = true,
 			SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-			CustomMinimumSize = new Vector2(0, 170),
 		};
 
-		rows.AddChild(_log);
+		margin.AddChild(_log);
+	}
 
-		var buttons = new HBoxContainer();
-		rows.AddChild(buttons);
+	/// <summary>Everything you click to act, along the bottom where it started.</summary>
+	private void BuildControls(CanvasLayer layer)
+	{
+		var panel = new PanelContainer();
+		layer.AddChild(panel);
+		panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomWide);
+		panel.AnchorTop = 0.74f;
+		panel.OffsetTop = 0;
+		panel.CustomMinimumSize = new Vector2(0, 190);
+
+		var margin = Padded();
+		panel.AddChild(margin);
+
+		var rows = new VBoxContainer();
+		margin.AddChild(rows);
+
+		_prompt = new Label();
+		rows.AddChild(_prompt);
+
+		// Grouped by when you reach for them: what to do with this turn, what to do with the
+		// turn itself, and what to do once the fighting has stopped. Flow containers rather
+		// than boxes, so a row wraps instead of running off the edge.
+		var actions = new HFlowContainer();
+		rows.AddChild(actions);
 
 		foreach (var mode in ModeOrder)
 		{
@@ -875,52 +1034,62 @@ public partial class Main : Node3D
 			{
 				Text = mode == Mode.Full ? "Full attack" : mode.ToString(),
 				ToggleMode = true,
-				SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+				CustomMinimumSize = new Vector2(110, 0),
 			};
 
 			button.Pressed += () => ChooseMode(mode);
-			buttons.AddChild(button);
+			actions.AddChild(button);
 			_modes[mode] = button;
 		}
 
-		_spells = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		buttons.AddChild(_spells);
+		_spells = new OptionButton { CustomMinimumSize = new Vector2(220, 0) };
+		actions.AddChild(_spells);
+
+		var turn = new HFlowContainer();
+		rows.AddChild(turn);
 
 		_stand = new Button { Text = "Stand up" };
 		_stand.Pressed += OnStandUp;
-		buttons.AddChild(_stand);
+		turn.AddChild(_stand);
 
-		// The sack, and who gets what out of it. Live only between fights: rummaging through
-		// loot is not something you do while a hobgoblin is swinging at you.
-		_stash = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		buttons.AddChild(_stash);
-
-		_bearer = new OptionButton();
-		buttons.AddChild(_bearer);
-
-		_give = new Button { Text = "Take" };
-		_give.Pressed += OnTake;
-		buttons.AddChild(_give);
-
-		_press = new Button { Text = "Press on" };
-		_press.Pressed += OnPressOn;
-		buttons.AddChild(_press);
-
-		_rest = new Button { Text = "Rest" };
-		_rest.Pressed += OnRest;
-		buttons.AddChild(_rest);
-
-		_endTurn = new Button { Text = "End turn" };
+		_endTurn = new Button { Text = "End turn", CustomMinimumSize = new Vector2(110, 0) };
 		_endTurn.Pressed += OnEndTurn;
-		buttons.AddChild(_endTurn);
+		turn.AddChild(_endTurn);
 
 		var save = new Button { Text = "Save" };
 		save.Pressed += OnSave;
-		buttons.AddChild(save);
+		turn.AddChild(save);
 
 		_load = new Button { Text = "Load", Disabled = !SaveExists() };
 		_load.Pressed += OnLoad;
-		buttons.AddChild(_load);
+		turn.AddChild(_load);
+
+		// Hidden outright while anyone is still swinging rather than merely greyed: these are
+		// not choices you have during a fight, and a row of dead controls is just clutter.
+		_between = new HFlowContainer { Visible = false };
+		rows.AddChild(_between);
+
+		_between.AddChild(new Label { Text = "Spoils" });
+
+		_stash = new OptionButton { CustomMinimumSize = new Vector2(260, 0) };
+		_between.AddChild(_stash);
+
+		_between.AddChild(new Label { Text = "to" });
+
+		_bearer = new OptionButton { CustomMinimumSize = new Vector2(110, 0) };
+		_between.AddChild(_bearer);
+
+		_give = new Button { Text = "Take" };
+		_give.Pressed += OnTake;
+		_between.AddChild(_give);
+
+		_rest = new Button { Text = "Rest" };
+		_rest.Pressed += OnRest;
+		_between.AddChild(_rest);
+
+		_press = new Button { Text = "Press on", CustomMinimumSize = new Vector2(110, 0) };
+		_press.Pressed += OnPressOn;
+		_between.AddChild(_press);
 
 		ChooseMode(Mode.Move);
 	}
@@ -1120,7 +1289,7 @@ public partial class Main : Node3D
 
 	private void UpdateStatus()
 	{
-		var standing = string.Join("   ", _battle.Encounter.Order.Select(combatant =>
+		var standing = string.Join("    ", _battle.Encounter.Order.Select(combatant =>
 		{
 			var creature = combatant.Creature;
 			var wrong = string.Join(", ", creature.Conditions);
@@ -1128,16 +1297,27 @@ public partial class Main : Node3D
 			var acting = _battle.Encounter.Current is { IsEnded: false } open
 				&& ReferenceEquals(open.Actor, creature);
 
-			return (acting ? "> " : string.Empty)
-				+ $"{creature.Name} {creature.HitPoints.Current}/{creature.HitPoints.Maximum}{note}";
+			// Dimmed once they are out of it, so a glance up tells you who is still standing.
+			var colour = !creature.IsConscious ? "888888"
+				: _battle.SideOf(creature) == Ironbound.Simulation.Side.Party ? "8ad4ff"
+				: "ff9a5a";
+
+			var text = $"{creature.Name} {creature.HitPoints.Current}/{creature.HitPoints.Maximum}{note}";
+
+			return acting
+				? $"[b][color=#{colour}]> {text}[/color][/b]"
+				: $"[color=#{colour}]{text}[/color]";
 		}));
 
 		var budget = _battle.Encounter.Current is { IsEnded: false } turn
-			? $"    [{turn.Budget}]"
+			? $"   ·   {turn.Budget}"
 			: string.Empty;
 
-		_status.Text = $"Chapter {_campaign.Chapter}/{_campaign.Definition.Encounters.Count}"
-			+ $"  rests {_campaign.RestsRemaining}    Round {_battle.Round}{budget}    {standing}";
+		_status.Text = $"{_campaign.Definition.Name}   ·   "
+			+ $"chapter {_campaign.Chapter} of {_campaign.Definition.Encounters.Count}   ·   "
+			+ $"rests {_campaign.RestsRemaining}   ·   round {_battle.Round}{budget}";
+
+		_roster.Text = standing;
 	}
 
 	// ---- the headless proof ----
@@ -1149,6 +1329,16 @@ public partial class Main : Node3D
 	/// </summary>
 	private void RunHeadlessAndQuit()
 	{
+		// Exercised rather than merely built: these are the paths a real session hits on its
+		// first turn, and running them here is what turns a broken refactor into a failed run
+		// instead of a crash in front of whoever opened the game.
+		RefreshControls();
+		UpdateStatus();
+		if (_battle.Party.FirstOrDefault() is { } anybody)
+		{
+			SelectSpellsFor(anybody);
+		}
+
 		GD.Print("--- initiative ---");
 		foreach (var combatant in _battle.Encounter.Order)
 		{
