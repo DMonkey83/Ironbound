@@ -66,18 +66,7 @@ public partial class Main
 				continue;
 			}
 
-			if (!_models.TryGetValue(worn.Item.Model, out var scene))
-			{
-				scene = ResourceLoader.Exists(worn.Item.Model) ? GD.Load<PackedScene>(worn.Item.Model) : null;
-				if (scene is null)
-				{
-					GD.PushError($"Content: item '{worn.Item.Id}' names {worn.Item.Model}, which will not load.");
-				}
-
-				_models[worn.Item.Model] = scene;
-			}
-
-			if (scene?.Instantiate() is not Node3D held)
+			if (Scene(worn.Item.Model, $"item '{worn.Item.Id}'")?.Instantiate() is not Node3D held)
 			{
 				continue;
 			}

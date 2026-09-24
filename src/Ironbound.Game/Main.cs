@@ -1424,6 +1424,23 @@ public partial class Main : Node3D
 		Position = new Vector3(0, 0.5f * CapsuleHeight(creature), 0),
 	};
 
+	/// <summary>Loads a model once, and complains once if the content names one that is not there.</summary>
+	private PackedScene Scene(string path, string namedBy)
+	{
+		if (!_models.TryGetValue(path, out var scene))
+		{
+			scene = ResourceLoader.Exists(path) ? GD.Load<PackedScene>(path) : null;
+			if (scene is null)
+			{
+				GD.PushError($"Content: {namedBy} names {path}, which will not load.");
+			}
+
+			_models[path] = scene;
+		}
+
+		return scene;
+	}
+
 	/// <summary>
 	/// The model a creature's own file names, sized to the square it stands in.
 	/// </summary>
@@ -1445,18 +1462,7 @@ public partial class Main : Node3D
 			return null;
 		}
 
-		if (!_models.TryGetValue(path, out var scene))
-		{
-			scene = ResourceLoader.Exists(path) ? GD.Load<PackedScene>(path) : null;
-			if (scene is null)
-			{
-				GD.PushError($"Content: creature '{id}' names {path}, which will not load.");
-			}
-
-			_models[path] = scene;
-		}
-
-		if (scene?.Instantiate() is not Node3D model)
+		if (Scene(path, $"creature '{id}'")?.Instantiate() is not Node3D model)
 		{
 			return null;
 		}

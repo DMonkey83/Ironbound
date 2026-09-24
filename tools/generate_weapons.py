@@ -98,10 +98,10 @@ def bow_limbs(reach, belly, thick):
     parts, points = [], []
     for i in range(9):
         t = (i / 8) * 2 - 1
-        points.append(Vector((0, -belly * (1 - t * t) + belly * 0.0, reach * t)))
+        points.append(Vector((0, -belly * (1 - t * t), reach * t)))
     for a, b in zip(points, points[1:]):
         parts.append(gg.limb("Bow_Limb", a, b, thick, gg.BOW_WOOD))
-    parts.append(gg.limb("Bow_String", points[0] + Vector((0, 0.0, 0)), points[-1], 0.010, gg.BOW_STRING))
+    parts.append(gg.limb("Bow_String", points[0], points[-1], 0.010, gg.BOW_STRING))
     parts.append(gg.cyl("Bow_Grip", tuple(points[4]), thick * 1.5, 0.30, gg.LEATHER, vertices=8))
     # The grip is where the hand is, so it is where the origin is.
     for o in parts:
