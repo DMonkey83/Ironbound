@@ -21,5 +21,9 @@
     { "skill": "Intimidate", "ranks": 2 }
   ],
   "speed": 30,
-  "items": ["studded-leather", "shortspear"]
+  "items": ["studded-leather", "shortspear"],
+
+  // The Bestiary's orc has NPC gear: what it fights with, and a little coin besides.
+  "treasure": "npc-gear",
+  "purse": { "sp": "2d6", "cp": "3d10" }
 }

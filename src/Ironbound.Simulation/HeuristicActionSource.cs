@@ -419,39 +419,34 @@ public sealed class HeuristicActionSource : IActionSource
     public const int DefensiveCastingPercent = 50;
 
     /// <summary>
-    /// A spell, or a power that draws swings as a spell does, made safe if it can be: cast
-    /// defensively when somebody could punish it and the concentration check holds at least
-    /// half the time; else, when a free step puts the caster out of every reach and the spell
-    /// still carries, that step first; else cast anyway and take the swing.
+    /// A spell, or a power that draws swings as a spell does, cast defensively when somebody
+    /// could punish it and the concentration check holds at least half the time; otherwise cast
+    /// as it is, and the swing taken.
     /// </summary>
     /// <remarks>
-    /// The step is the better answer when there is one — it costs nothing and risks nothing —
-    /// but it is tried second, because a caster stepping away from the fight she is meant to
-    /// be in is giving up her place in the line as well.
+    /// Stepping out of reach first would often be better still, and a player will do it. The
+    /// autopilot does not, on purpose: it is measured against the campaigns, and a caster that
+    /// learned to back off would move the balance by more than the rules this was built for.
     /// </remarks>
     private static GameAction Guarded(Turn turn, Creature actor, GameAction action)
     {
-        var (provokes, level, casterLevel, spell, defensive) = action switch
+        var (provokes, level, casterLevel, defensive) = action switch
         {
             CastSpellAction cast => (!cast.Spell.Metamagic.HasFlag(Metamagic.Quicken), cast.Spell.EffectiveLevel,
-                actor.Spells.CasterLevel, cast.Spell, (GameAction)cast.AsDefensive()),
+                actor.Spells.CasterLevel, (GameAction)cast.AsDefensive()),
             UsePowerAction use => (use.Power.Provokes, use.Power.Effect.EffectiveLevel,
-                use.Power.Use == PowerUse.Spell ? actor.Spells.CasterLevel : use.Power.CasterLevel, use.Power.Effect,
-                use.AsDefensive()),
-            _ => (false, 0, 0, null, action),
+                use.Power.Use == PowerUse.Spell ? actor.Spells.CasterLevel : use.Power.CasterLevel, use.AsDefensive()),
+            _ => (false, 0, 0, action),
         };
 
-        if (!provokes || spell is null || turn.Encounter.Battlefield is not { } field || !IsThreatened(turn, actor, field))
+        if (!provokes || turn.Encounter.Battlefield is not { } field || !IsThreatened(turn, actor, field))
         {
             return action;
         }
 
-        if (Concentration.DefensiveChance(actor, casterLevel, level) >= DefensiveCastingPercent && turn.CanTake(defensive))
-        {
-            return defensive;
-        }
-
-        return SafeStep(turn, actor, field, action) ?? action;
+        return Concentration.DefensiveChance(actor, casterLevel, level) >= DefensiveCastingPercent && turn.CanTake(defensive)
+            ? defensive
+            : action;
     }
 
     /// <summary>Whether any foe that could take an attack of opportunity reaches the actor's square.</summary>
@@ -461,68 +456,6 @@ public sealed class HeuristicActionSource : IActionSource
             combatant.Creature.IsEnemyOf(actor)
             && combatant.CanTakeOpportunity
             && field.Threatens(combatant.Creature, square));
-
-    /// <summary>
-    /// A five-foot step to a square no foe threatens, from which the action is still possible —
-    /// in range, in sight — or null if there is none to take.
-    /// </summary>
-    private static GameAction? SafeStep(Turn turn, Creature actor, Battlefield field, GameAction action)
-    {
-        if (turn.Combatant.HasMoved || turn.Combatant.HasTakenFiveFootStep || field.SquareOf(actor) is not { } from)
-        {
-            return null;
-        }
-
-        for (var dy = -1; dy <= 1; dy++)
-        {
-            for (var dx = -1; dx <= 1; dx++)
-            {
-                var square = new GridSquare(from.X + dx, from.Y + dy);
-                if ((dx == 0 && dy == 0) || !field.IsFree(square) || field.IsDifficult(square))
-                {
-                    continue;
-                }
-
-                var watched = turn.Encounter.Order.Any(combatant =>
-                    combatant.Creature.IsEnemyOf(actor)
-                    && combatant.CanTakeOpportunity
-                    && field.Threatens(combatant.Creature, square));
-
-                if (watched || !StillWorks(field, actor, action, square))
-                {
-                    continue;
-                }
-
-                var step = FiveFootStepAction.To(from, square);
-                if (turn.CanTake(step))
-                {
-                    return step;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>Whether a spell or power aimed from <paramref name="from"/> would still reach what it is aimed at.</summary>
-    private static bool StillWorks(Battlefield field, Creature actor, GameAction action, GridSquare from)
-    {
-        var (spell, aim, level) = action switch
-        {
-            CastSpellAction cast => (cast.Spell, cast.Aim, actor.Spells.CasterLevel),
-            UsePowerAction use => (use.Power.Effect, use.Aim, use.Power.CasterLevel),
-            _ => (null, default(SpellAim), 0),
-        };
-
-        if (spell is null || spell.Target is SelfTarget)
-        {
-            return spell is not null;
-        }
-
-        var to = aim.Point ?? (aim.Creature is { } at ? field.SquareOf(at) : null);
-        return to is not { } destination
-            || (spell.Reaches(actor, from, destination, level) && field.HasLineOfSight(from, destination));
-    }
 
     /// <summary>
     /// Whether to fly into a rage now: an enemy in reach, or close enough to charge — twice her

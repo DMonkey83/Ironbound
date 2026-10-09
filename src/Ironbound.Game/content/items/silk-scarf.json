@@ -1,0 +1,6 @@
+// An art object of the first grade: fifty gold.
+{
+  "kind": "item", "id": "silk-scarf", "name": "silk scarf",
+  "type": "valuable", "cost": 50,
+  "description": "Blue silk worked with gold thread along both ends, folded small and kept dry."
+}

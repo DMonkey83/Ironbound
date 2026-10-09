@@ -144,13 +144,24 @@ def black_iron(c):
     vein = _attr(nt, "Vein")
     tone = surface._shade(nt, (0.035, 0.028, 0.028), surface._span(nt, surface._noise(nt, co, 10, 4, 0.6), 0.7, 1.35))
     pits = surface._ramp(nt, surface._voronoi(nt, co, 60, "F1"), [(0.0, 1.0), (0.06, 0.0)])
-    cracks = surface._ramp(nt, surface._voronoi(nt, co, 14), [(0.0, 1.0), (0.018, 0.0)])
-    veins = surface._math(nt, "MULTIPLY", cracks, surface._ramp(nt, vein, [(0.35, 0.0), (0.9, 1.0)]))
-    tone = surface._mix(nt, tone, (0.20, 0.0, 0.0), veins)
-    edge = surface._edges(nt, 3.0)
-    tone = surface._mix(nt, tone, (0.22, 0.20, 0.20), surface._math(nt, "MULTIPLY", edge, 0.5))
-    _emit(nt, bsdf, surface._mix(nt, (0, 0, 0), (0.30, 0.0, 0.0), veins))
-    rough = surface._span(nt, surface._noise(nt, co, 30, 2), 0.32, 0.6)
+    # Veins, not cracks: a cell pattern warped by noise so its lines wander like blood vessels,
+    # fine, and gathered only round the eye.
+    warp = nt.nodes.new("ShaderNodeVectorMath")
+    warp.operation = "MULTIPLY_ADD"
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    nt.links.new(co, noise.inputs[0])
+    noise.inputs["Scale"].default_value = 9 / surface.SCALE
+    noise.inputs["Detail"].default_value = 3.0
+    nt.links.new(noise.outputs["Color"], warp.inputs[0])
+    warp.inputs[1].default_value = (0.09, 0.09, 0.09)
+    nt.links.new(co, warp.inputs[2])
+    cracks = surface._ramp(nt, surface._voronoi(nt, warp.outputs[0], 20), [(0.0, 1.0), (0.008, 0.0)])
+    veins = surface._math(nt, "MULTIPLY", cracks, surface._ramp(nt, vein, [(0.45, 0.0), (0.95, 1.0)]))
+    tone = surface._mix(nt, tone, (0.12, 0.0, 0.0), veins)
+    bevel = surface._ramp(nt, _attr(nt, "Edge"), [(0.55, 0.0), (0.7, 1.0)])
+    tone = surface._mix(nt, tone, (0.40, 0.39, 0.40), bevel)
+    _emit(nt, bsdf, surface._mix(nt, (0, 0, 0), (0.11, 0.0, 0.0), veins))
+    rough = surface._mix(nt, surface._span(nt, surface._noise(nt, co, 30, 2), 0.32, 0.6), 0.2, bevel)
     n = surface._bump(nt, pits, 0.4, 0.004)
     n = surface._bump(nt, cracks, 0.3, 0.006, n)
     surface._finish(nt, bsdf, tone, rough, n, 0.55)
@@ -196,8 +207,9 @@ def gilt(colour):
 NAMED_MATERIALS = {
     # name: (flat colour, metallic, roughness, recipe)
     "HolyBlade": ((0.05, 0.05, 0.06), 0.6, 0.35, holy_blade),
-    "HolyRune": ((0.95, 0.75, 0.35), 0.6, 0.3, glowing((0.95, 0.72, 0.30), (0.55, 0.36, 0.10), 0.25, 0.6, "HolyRune")),
-    "Gilt": ((0.95, 0.70, 0.28), 0.7, 0.3, gilt),
+    "HolyRune": ((0.95, 0.75, 0.35), 0.6, 0.3, glowing((0.95, 0.72, 0.30), (0.62, 0.38, 0.07), 0.25, 0.6, "HolyRune")),
+    "Gilt": ((1.0, 0.78, 0.34), 0.7, 0.3, gilt),
+    "FiligreeSilver": ((0.86, 0.88, 0.92), 0.45, 0.3, lambda c: surface.steel(c, 0.6)),
     "WhiteLeather": ((0.80, 0.76, 0.68), 0.0, 0.7, lambda c: surface.leather(c)),
     "ClearCrystal": ((0.86, 0.93, 1.0), 0.0, 0.04, gem((0.86, 0.93, 1.0), (0.32, 0.28, 0.20), "ClearCrystal")),
     "FlameBlade": ((0.4, 0.2, 0.1), 0.55, 0.35, flame_blade),
@@ -211,7 +223,7 @@ NAMED_MATERIALS = {
     "WhiteCord": ((0.85, 0.88, 0.90), 0.0, 0.9, lambda c: surface.cloth(c)),
     "BrightSilver": ((0.88, 0.92, 0.98), 0.4, 0.1, wf._silver),
     "BlackIron": ((0.04, 0.03, 0.03), 0.55, 0.45, black_iron),
-    "BloodGroove": ((0.12, 0.0, 0.0), 0.3, 0.3, glowing((0.12, 0.0, 0.0), (0.16, 0.0, 0.0), 0.3, 0.3, "BloodGroove")),
+    "BloodGroove": ((0.10, 0.0, 0.0), 0.3, 0.3, glowing((0.10, 0.0, 0.0), (0.10, 0.0, 0.0), 0.3, 0.3, "BloodGroove")),
     "OldBone": ((0.66, 0.58, 0.42), 0.0, 0.55, lambda c: surface.bone(c)),
     "BloodLeather": ((0.20, 0.025, 0.025), 0.0, 0.8, lambda c: surface.leather(c)),
     "DarkWood": ((0.17, 0.09, 0.045), 0.0, 0.7, lambda c: surface.wood(c)),
@@ -220,7 +232,7 @@ NAMED_MATERIALS = {
     "BlueRune": ((0.85, 0.65, 0.25), 0.6, 0.3, glowing((0.85, 0.62, 0.22), (0.16, 0.34, 0.62), 0.25, 0.6, "BlueRune")),
     "NamedGold": ((0.90, 0.66, 0.22), 0.7, 0.3, gilt),
     "BraidLeather": ((0.42, 0.20, 0.06), 0.0, 0.8, lambda c: surface.leather(c)),
-    "PaleAsh": ((0.80, 0.70, 0.53), 0.0, 0.6, lambda c: surface.wood(c, (0.58, 0.47, 0.33))),
+    "PaleAsh": ((0.70, 0.55, 0.36), 0.0, 0.6, lambda c: surface.wood(c, (0.50, 0.38, 0.24))),
     "GreenLeather": ((0.05, 0.20, 0.09), 0.0, 0.8, lambda c: surface.leather(c)),
     "Emerald": ((0.02, 0.40, 0.15), 0.0, 0.04, gem((0.03, 0.42, 0.16), (0.03, 0.42, 0.12), "Emerald")),
     "Oathstring": ((0.92, 0.92, 0.82), 0.0, 0.5, glowing((0.92, 0.92, 0.82), (0.36, 0.48, 0.30), 0.5, 0.0, "Oathstring")),
@@ -294,41 +306,7 @@ def at_angle(obj, root, degrees):
 
 
 def sculpt(stem, elements, material, res=0.006, decimate=0.45):
-    """Metaballs to a mesh: elements are dicts of co, r (a radius or three), neg, rot (degrees)."""
-    name = uniq(stem)
-    mb = bpy.data.metaballs.new(name)
-    mb.resolution = res
-    mb.render_resolution = res
-    mb.threshold = 0.6
-    ob = bpy.data.objects.new(name, mb)
-    bpy.context.collection.objects.link(ob)
-    for el in elements:
-        e = mb.elements.new(type="ELLIPSOID")
-        e.co = Vector(el["co"])
-        r = el["r"]
-        r = (r, r, r) if isinstance(r, (int, float)) else r
-        e.size_x, e.size_y, e.size_z = (v * 1.55 for v in r)
-        e.radius = 1.0
-        e.stiffness = el.get("stiff", 2.0)
-        e.use_negative = el.get("neg", False)
-        if el.get("rot"):
-            e.rotation = Euler([math.radians(a) for a in el["rot"]]).to_quaternion()
-    bpy.ops.object.select_all(action="DESELECT")
-    bpy.context.view_layer.objects.active = ob
-    ob.select_set(True)
-    bpy.ops.object.convert(target="MESH")
-    obj = bpy.context.view_layer.objects.active
-    obj.name = name + "Mesh"
-    for p in obj.data.polygons:
-        p.use_smooth = True
-    obj.data.materials.clear()
-    obj.data.materials.append(material)
-    if decimate and len(obj.data.polygons) > 400:
-        mod = obj.modifiers.new("Thin", "DECIMATE")
-        mod.ratio = decimate
-        bpy.ops.object.modifier_apply(modifier="Thin")
-    obj["role"] = "fitting"
-    return obj
+    return wp.sculpt(uniq(stem), elements, material, res, decimate)
 
 
 def chain_balls(points, radii, per=3):
@@ -724,10 +702,12 @@ def life_drinker(r):
             o = wp.sweep(uniq("Crescent"), list(reversed(pts)), body, lambda s: 0.03, 0.040, iron, (False, True), "point", 3, 0.4)
         o["role"] = "edge"
         set_attr(o, "Vein", lambda p: smoothstep(0.42, 0.12, abs(p.x)) * smoothstep(0.34, 0.08, abs(p.z - zc)))
+        cxa = side * -0.07
+        set_attr(o, "Edge", lambda p, cxa=cxa: smoothstep(R - 0.09, R - 0.005, math.hypot(p.x - cxa, p.z - zc)))
         parts.append(o)
         # The neck joining the crescent to the eye.
         neck = wp.sweep(uniq("Neck"), [(side * 0.05, zc), (side * 0.30, zc)], lambda s: 0.10 + 0.08 * s, lambda s: 0.10 + 0.08 * s, 0.046, iron, (False, False), None, 2, 0.4)
-        set_attr(neck, "Vein", lambda p: 1.0)
+        set_attr(neck, "Vein", lambda p: 0.6)
         parts.append(tag(neck, "head"))
         # Blood grooves: three channels on each face running in from the edge.
         for k, dz in enumerate((-0.17, 0.0, 0.17)):
@@ -751,7 +731,7 @@ def life_drinker(r):
               dict(co=(0, 0.075 * s, z), r=(0.016 * s, 0.03 * s, 0.014 * s)),
               dict(co=(0, -0.075 * s, z), r=(0.016 * s, 0.03 * s, 0.014 * s)),
               dict(co=(0, 0, z), r=(0.05, 0.05, 0.06), neg=True)]
-        parts.append(sculpt("Vertebra", el, bone, 0.0045, 0.45))
+        parts.append(sculpt("Vertebra", el, bone, 0.0055, 0.22))
     # The skull at the foot.
     sk = -0.70
     skull = [dict(co=(0, 0, sk), r=(0.062, 0.068, 0.058)),
@@ -836,7 +816,7 @@ def oathbow(r):
     reach, belly, thick, rec, c = 1.92, 0.50, 0.046, 0.78, 0.80
     row = dict(reach=reach, belly=belly, thick=thick, recurve=rec, contact=c, material="Wood", grip_material="Wrap", ears="Bone")
     parts, info = wf._bow(row)
-    ash, silver, gold = M("PaleAsh"), M("BrightSilver"), M("NamedGold")
+    ash, silver, gold = M("PaleAsh"), M("FiligreeSilver"), M("NamedGold")
     keep = []
     for o in parts:
         if o.name.startswith("Nock"):
@@ -870,7 +850,7 @@ def oathbow(r):
             for k in range(25):
                 t = sgn * (0.13 + 0.72 * k / 24)
                 pts.append((0.026 * math.sin(k * 0.8 + phase), back(t) - 0.002, reach * t))
-            parts += vine(uniq("Filigree"), pts, silver, 0.0055, 14, 0.06)
+            parts += vine(uniq("Filigree"), pts, silver, 0.0075, 14, 0.07)
     # Swans: at each tip a neck rising out of the ear, curving forward, a head and a gilt beak.
     for sgn in (1, -1):
         tip = Vector((0, centre(1.0), sgn * reach))

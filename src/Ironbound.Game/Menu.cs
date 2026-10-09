@@ -68,16 +68,16 @@ public partial class Main
 		var desk = DeskStage(MenuRoot(null), TitleArt);
 
 		// The menu, written on the book's page. The page's rectangle on the picture is fixed by
-		// DESK_PAGE in tools/render_keyart.py: 1230..1860 across, 40..1030 down, the gutter in
-		// shadow on its left.
-		var column = new VBoxContainer { Position = new Vector2(1350, 230) };
+		// DESK_PAGE in tools/render_keyart.py: 1170..1800 across, 40..1030 down, the gutter in
+		// shadow on its left and the bookmarks out of the fore-edge on its right.
+		var column = new VBoxContainer { Position = new Vector2(1290, 230) };
 		column.AddThemeConstantOverride("separation", 18);
 		desk.AddChild(column);
 
 		var saved = SaveExists();
 		column.AddChild(InkButton("Continue", saved, ContinueSaved));
 		column.AddChild(InkButton("New Game", true, ShowAdventures));
-		column.AddChild(InkButton("Load Game", saved, ContinueSaved));
+		column.AddChild(InkButton("Load Game", saved, ShowLoadGame));
 		column.AddChild(InkButton("Quit", true, () => GetTree().Quit()));
 
 		// The title, on the note lying bottom left (DESK_NOTE: centred on 420,815, 660 by 450,
@@ -301,27 +301,33 @@ public partial class Main
 
 		ClearMenu();
 		StartCampaign(Campaign.Begin(_content, campaignId));
+
+		// A new adventure is a game to continue, from its first step.
+		Autosave();
 	}
 
+	/// <summary>The newest save of any kind: the last game played, wherever it was left.</summary>
 	private void ContinueSaved()
 	{
-		if (!SaveExists() || Read() is not { Length: > 0 } json)
+		if (Saves().FirstOrDefault() is { } newest)
 		{
-			return;
+			LoadSave(newest);
 		}
+	}
 
-		try
-		{
-			var restored = Campaign.FromJson(json, _content);
-			ClearMenu();
-			StartCampaign(restored);
-		}
-		catch (System.IO.InvalidDataException problem)
-		{
-			// An old save, or one naming content that has been renamed since. The menu stays
-			// up; a broken save is not a reason to lose the front door.
-			GD.PushError($"Could not load {SavePath}: {problem.Message}");
-		}
+	/// <summary>Every save, written on the book's page where the menu was, newest first.</summary>
+	private void ShowLoadGame()
+	{
+		ClearMenu();
+		var desk = DeskStage(MenuRoot(null), TitleArt);
+
+		var column = new VBoxContainer { Position = new Vector2(1225, 90), Size = new Vector2(540, 900) };
+		column.AddThemeConstantOverride("separation", 10);
+		desk.AddChild(column);
+		column.AddChild(Illuminated("Load Game", 52));
+		column.AddChild(Rule(520));
+		column.AddChild(SaveList(700, card => LoadSave(card)));
+		column.AddChild(InkButton("Back", true, ShowTitle));
 	}
 
 	private void ClearMenu()

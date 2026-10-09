@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Content;
@@ -77,12 +78,15 @@ public partial class Main : Node3D
 		/// <summary>Drive them backwards, out of position and out of your way.</summary>
 		Shove,
 
+		/// <summary>Shout them down: shaken, if the Intimidate check beats their nerve.</summary>
+		Demoralize,
+
 		/// <summary>Kneel beside somebody on the floor and stop the bleeding.</summary>
 		Help,
 	}
 
 	private static readonly Mode[] ModeOrder =
-		[Mode.Move, Mode.Attack, Mode.Full, Mode.Trip, Mode.Shove, Mode.Help, Mode.Cast];
+		[Mode.Move, Mode.Attack, Mode.Full, Mode.Trip, Mode.Shove, Mode.Demoralize, Mode.Help, Mode.Cast];
 
 	private readonly Dictionary<Creature, Node3D> _figures = new();
 	private readonly Dictionary<Creature, Label3D> _nameplates = new();
@@ -107,15 +111,14 @@ public partial class Main : Node3D
 	private Label _status;
 	private Label _prompt;
 	private OptionButton _spells;
+	private CheckButton _castDefensively;
 	private Button _endTurn;
 	private Button _load;
 	private Button _stand;
 	private Button _rage;
 	private Button _press;
 	private Button _rest;
-	private OptionButton _stash;
-	private OptionButton _bearer;
-	private Button _give;
+	private Button _loot;
 	private Button _levelUp;
 	private PanelContainer _sheetPanel;
 	private RichTextLabel _sheet;
@@ -157,6 +160,13 @@ public partial class Main : Node3D
 			return;
 		}
 
+		// -- --menu load: straight to the saved games.
+		if (menu >= 0 && OS.GetCmdlineUserArgs().ElementAtOrDefault(menu + 1) == "load")
+		{
+			ShowLoadGame();
+			return;
+		}
+
 		ShowTitle();
 	}
 
@@ -191,6 +201,14 @@ public partial class Main : Node3D
 		if (OS.GetCmdlineUserArgs().Contains("--camera-tour"))
 		{
 			RunCameraTour();
+		}
+
+		// -- --character: the character window open from the start, for looking at it in a
+		// display nobody can click in.
+		if (OS.GetCmdlineUserArgs().Contains("--character"))
+		{
+			_showSheet.ButtonPressed = true;
+			RefreshSheet();
 		}
 
 		// Walking a level, nobody has rolled for anything yet; the order comes with the first fight.
@@ -233,11 +251,11 @@ public partial class Main : Node3D
 			if (_battle.BeginTurn() is not { } turn)
 			{
 				var finished = _campaign.CurrentArea;
-				if (_campaign.Collect() is > 0 and var taken)
+				if (_campaign.Collect() is > 0 and var left)
 				{
 					// Through the queue like every other line, or the looting is reported in
 					// round one of a fight that is still being shown.
-					Append($"— {taken} thing(s) taken from the fallen —", []);
+					Append($"— the fallen have {left} thing(s) on them: click a body to search it, or press Loot —", []);
 				}
 
 				// Whatever was thrown or dropped is picked up once the fight is over; the
@@ -255,6 +273,12 @@ public partial class Main : Node3D
 					// After the last blow has been shown, not while it is still in the air.
 					Enqueue(0.0, () => AfterLevelFight(finished));
 					return;
+				}
+
+				// A chapter won and its spoils counted: a good place to come back to.
+				if (_campaign.State == CampaignState.Between)
+				{
+					Autosave();
 				}
 
 				Prompt(Verdict());
@@ -351,11 +375,13 @@ public partial class Main : Node3D
 		OnViewportResized();
 	}
 
-	/// <summary>Fills the two pickers, and greys the lot while anyone is still swinging.</summary>
-	private void RefreshStash()
+	/// <summary>
+	/// The camp row, shown once nobody is swinging: whether there is anything to search, anybody
+	/// ready to level, and the screens that hang off it.
+	/// </summary>
+	private void RefreshCamp()
 	{
 		var between = _campaign.State != CampaignState.Fighting;
-		var loot = _campaign.Stash;
 
 		if (_between is not null)
 		{
@@ -367,55 +393,9 @@ public partial class Main : Node3D
 			_hotbar.Visible = false;
 		}
 
-		if (_stash.ItemCount != loot.Count || !between)
-		{
-			_stash.Clear();
-			foreach (var item in loot)
-			{
-				if (ItemIcon(item) is { } icon)
-				{
-					_stash.AddIconItem(icon, item.Name);
-				}
-				else
-				{
-					_stash.AddItem(item.Name);
-				}
-			}
-
-			if (loot.Count > 0)
-			{
-				_stash.Selected = 0;
-			}
-		}
-
-		// What each thing is, and whether whoever would be given it can use it — set every time,
-		// because the answer changes with the bearer picked even when the list does not.
-		var bearer = _bearer.Selected >= 0 && _bearer.Selected < _campaign.Party.Count
-			? _campaign.Party[_bearer.Selected]
-			: null;
-		for (var i = 0; i < loot.Count && i < _stash.ItemCount; i++)
-		{
-			_stash.SetItemTooltip(i, string.Join("\n", _content.DescribeItem(loot[i], bearer)));
-		}
-
-		if (_bearer.ItemCount != _campaign.Party.Count)
-		{
-			_bearer.Clear();
-			foreach (var creature in _campaign.Party)
-			{
-				_bearer.AddItem(creature.Name);
-			}
-
-			if (_campaign.Party.Count > 0)
-			{
-				_bearer.Selected = 0;
-			}
-		}
-
-		var usable = between && loot.Count > 0;
-		_stash.Disabled = !usable;
-		_bearer.Disabled = !between;
-		_give.Disabled = !usable;
+		var spoils = between ? Spoils().Count : 0;
+		_loot.Visible = spoils > 0;
+		_loot.Text = spoils == 1 ? "Loot (1)" : $"Loot ({spoils})";
 		_levelUp.Disabled = !between || !_campaign.Ready.Any();
 
 		// Not a screen you leave open into a fight.
@@ -426,32 +406,6 @@ public partial class Main : Node3D
 
 		RefreshLevelUp();
 		RefreshSheet();
-	}
-
-	private void OnTake()
-	{
-		if (_stash.Selected < 0 || _bearer.Selected < 0
-			|| _stash.Selected >= _campaign.Stash.Count
-			|| _bearer.Selected >= _campaign.Party.Count)
-		{
-			return;
-		}
-
-		var item = _campaign.Stash[_stash.Selected];
-		var bearer = _campaign.Party[_bearer.Selected];
-
-		if (!_campaign.Give(bearer, item.Id))
-		{
-			Refuse($"{bearer.Name} cannot take the {item.Name}.");
-			return;
-		}
-
-		LogText($"— {bearer.Name} takes the {item.Name} —\n");
-
-		// In her hand now, not at the start of the next chapter.
-		Rearm(bearer);
-		RefreshControls();
-		UpdateStatus();
 	}
 
 	/// <summary>Opens the level-up screen rather than levelling on the spot.</summary>
@@ -853,6 +807,21 @@ public partial class Main : Node3D
 					? $"{actor.Name} cannot reach {occupant.Name}, {gap} ft away."
 					: $"{actor.Name} cannot reach {occupant.Name}.";
 
+			case Mode.Demoralize:
+				if (occupant is null || !actor.IsEnemyOf(occupant))
+				{
+					return "There is nobody there to frighten.";
+				}
+
+				if (!field.HasLineOfSight(actor, occupant))
+				{
+					return $"{actor.Name} cannot see {occupant.Name}.";
+				}
+
+				return field.DistanceInFeet(actor, occupant) is { } shout and > DemoralizeAction.RangeFeet
+					? $"{occupant.Name} is {shout} ft away; a threat carries {DemoralizeAction.RangeFeet} ft."
+					: $"{actor.Name} cannot demoralize {occupant.Name} now.";
+
 			case Mode.Attack:
 			case Mode.Full:
 				if (occupant is null)
@@ -928,6 +897,11 @@ public partial class Main : Node3D
 					? new BullRushAction(occupant)
 					: null;
 
+			case Mode.Demoralize:
+				return occupant is not null && actor.IsEnemyOf(occupant)
+					? new DemoralizeAction(occupant)
+					: null;
+
 			case Mode.Help:
 				return occupant is not null && !actor.IsEnemyOf(occupant)
 					? new StabiliseAction(occupant)
@@ -941,18 +915,26 @@ public partial class Main : Node3D
 
 				// A power is aimed as its effect says: at a point, at somebody, or — channel
 				// energy — at the user, by clicking them.
+				// Defensively when the player has said so: no swing drawn, a concentration check
+				// instead, and the spell lost if it fails.
+				var guarded = _castDefensively.Visible && _castDefensively.ButtonPressed;
+
 				if (SelectedPower() is { } power)
 				{
-					return spell.Target is SelfTarget
+					var use = spell.Target is SelfTarget
 						? ReferenceEquals(occupant, actor) ? UsePowerAction.Self(power) : null
 						: spell.NeedsAPoint
 							? UsePowerAction.At(power, square)
 							: occupant is not null ? UsePowerAction.At(power, occupant) : null;
+
+					return guarded && power.Provokes ? use?.AsDefensive() : use;
 				}
 
-				return spell.NeedsAPoint
+				var cast = spell.NeedsAPoint
 					? CastSpellAction.At(spell, square)
 					: occupant is not null ? CastSpellAction.At(spell, occupant) : null;
+
+				return guarded ? cast?.AsDefensive() : cast;
 
 			default:
 				if (field.SquareOf(actor) is not { } from)
@@ -1031,6 +1013,7 @@ public partial class Main : Node3D
 		TendLevel(delta);
 		TendSelection();
 		AnnounceExperience();
+		NoticeThings();
 
 		if (_cursor is null)
 		{
@@ -1060,7 +1043,8 @@ public partial class Main : Node3D
 		// door, a crossing or a chest, which a click goes and uses.
 		if (!fighting)
 		{
-			var usable = _campaign.IsLevel && _campaign.FeatureAt(square) is { } feature && !_campaign.IsUsed(feature.Id);
+			var usable = (_campaign.IsLevel && _campaign.FeatureAt(square) is { } feature && !_campaign.IsUsed(feature.Id))
+				|| _campaign.ContainerAt(square) is { IsEmpty: false };
 			_cursorPaint.AlbedoColor =
 				usable || _battle.Battlefield?.IsFree(square) == true ? LegalColour : IllegalColour;
 			// No path between fights: walking about is not a move anybody has to plan.
@@ -1085,82 +1069,6 @@ public partial class Main : Node3D
 		_cursorPaint.AlbedoColor = CanAct(actor, square) || (_mode == Mode.Move && MovePlan(actor, square, out _, out _) is not null)
 			? LegalColour
 			: IllegalColour;
-	}
-
-	// ---- saving ----
-
-	private static bool SaveExists() => FileAccess.FileExists(SavePath);
-
-	private static void Write(string json)
-	{
-		using var file = FileAccess.Open(SavePath, FileAccess.ModeFlags.Write);
-		if (file is null)
-		{
-			GD.PushError($"Could not write {SavePath}: {FileAccess.GetOpenError()}");
-			return;
-		}
-
-		file.StoreString(json);
-	}
-
-	private static string Read()
-	{
-		using var file = FileAccess.Open(SavePath, FileAccess.ModeFlags.Read);
-		return file?.GetAsText() ?? string.Empty;
-	}
-
-	private void OnSave()
-	{
-		var json = _campaign.ToJson();
-		Write(json);
-
-		LogText($"— saved {json.Length} characters —\n");
-		_load.Disabled = false;
-	}
-
-	private void OnLoad()
-	{
-		if (!SaveExists() || Read() is not { Length: > 0 } json)
-		{
-			return;
-		}
-
-		Campaign restored;
-		try
-		{
-			restored = Campaign.FromJson(json, _content);
-		}
-		catch (System.IO.InvalidDataException problem)
-		{
-			// A save written by an older build, or one naming content that has since been renamed.
-			// Refusing it loudly is deliberate; taking the running fight down with it is not, so
-			// the current battle is left exactly as it was.
-			GD.PushError($"Could not load {SavePath}: {problem.Message}");
-			LogText($"— could not load: {problem.Message} —\n");
-			return;
-		}
-
-		_campaign = restored;
-		Begin(_campaign.Battle);
-
-		// Whatever was walking, picked or being read belongs to the run being replaced.
-		_walkers.Clear();
-		_selection.Clear();
-		_held = false;
-		_page?.QueueFree();
-		_page = null;
-
-		// The bodies were built for the fight that is being replaced, so they go with it.
-		RebuildWorld();
-
-		_log.Clear();
-		LogText("— loaded —\n");
-		if (!Exploring)
-		{
-			ReportInitiative();
-		}
-
-		StartNextTurn();
 	}
 
 	// ---- the scene ----
@@ -1398,6 +1306,7 @@ public partial class Main : Node3D
 
 		_figures.Clear();
 		_nameplates.Clear();
+		_containerNodes.Clear();
 		ClearStage();
 		_world = new Node3D();
 		AddChild(_world);
@@ -1871,9 +1780,7 @@ public partial class Main : Node3D
 		Check(nameof(_endTurn), _endTurn);
 		Check(nameof(_load), _load);
 		Check(nameof(_between), _between);
-		Check(nameof(_stash), _stash);
-		Check(nameof(_bearer), _bearer);
-		Check(nameof(_give), _give);
+		Check(nameof(_loot), _loot);
 		Check(nameof(_levelUp), _levelUp);
 		Check(nameof(_sheetPanel), _sheetPanel);
 		Check(nameof(_sheet), _sheet);
@@ -1884,8 +1791,12 @@ public partial class Main : Node3D
 		Check(nameof(_levelTake), _levelTake);
 		Check(nameof(_levelClose), _levelClose);
 		Check(nameof(_levelDetail), _levelDetail);
+		Check(nameof(_levelFeatFor), _levelFeatFor);
+		Check(nameof(_levelAbility), _levelAbility);
+		Check(nameof(_levelFavoured), _levelFavoured);
+		Check(nameof(_castDefensively), _castDefensively);
 
-		foreach (var stance in new[] { Stance.PowerAttack, Stance.CombatExpertise, Stance.FightingDefensively })
+		foreach (var stance in new[] { Stance.PowerAttack, Stance.CombatExpertise, Stance.FightingDefensively, Stance.DeadlyAim })
 		{
 			Check($"stance {stance}", _stances.GetValueOrDefault(stance));
 		}
@@ -1905,87 +1816,6 @@ public partial class Main : Node3D
 
 	/// <summary>Who is in the fight and how they are doing, across the top.</summary>
 	/// <summary>
-	/// The character sheet: every derived number beside the parts it was made of.
-	/// </summary>
-	/// <remarks>
-	/// Overlaid on the board rather than docked, because it is read rather than watched — you
-	/// open it, work out why the longsword only hits on a fourteen, and close it again.
-	/// </remarks>
-	private void BuildSheet(CanvasLayer layer)
-	{
-		_sheetPanel = new PanelContainer { Visible = false };
-		layer.AddChild(_sheetPanel);
-
-		_sheetPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-		_sheetPanel.AnchorLeft = 0.20f;
-		_sheetPanel.AnchorRight = 0.80f;
-		_sheetPanel.OffsetLeft = 0;
-		_sheetPanel.OffsetRight = 0;
-		_sheetPanel.AnchorTop = 0.05f;
-		_sheetPanel.OffsetTop = 0;
-		_sheetPanel.AnchorBottom = 0.82f;
-		_sheetPanel.OffsetBottom = 0;
-
-		var margin = Padded();
-		_sheetPanel.AddChild(margin);
-
-		_sheet = new RichTextLabel
-		{
-			BbcodeEnabled = true,
-			ScrollFollowing = false,
-			SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-		};
-
-		margin.AddChild(_sheet);
-	}
-
-	/// <summary>Redraws the sheet for whoever the party picker is pointing at.</summary>
-	private void RefreshSheet()
-	{
-		if (_sheetPanel is null || _showSheet is null)
-		{
-			return;
-		}
-
-		_sheetPanel.Visible = _showSheet.ButtonPressed;
-
-		if (!_sheetPanel.Visible)
-		{
-			return;
-		}
-
-		var creature = Subject();
-		if (creature is null)
-		{
-			_sheet.Text = "Nobody to look at.";
-			return;
-		}
-
-		var text = new System.Text.StringBuilder();
-		text.Append($"[b]{creature.Name}[/b]\n");
-
-		foreach (var section in CharacterSheet.Of(creature))
-		{
-			if (section.Lines.Count == 0)
-			{
-				continue;
-			}
-
-			text.Append($"\n[b]{section.Heading}[/b]\n");
-			foreach (var line in section.Lines)
-			{
-				// Fighting with something you were never taught, or in armour you were never
-				// taught to wear, costs on every swing; it should not read like the lines around it.
-				text.Append(line.Contains("not proficient", System.StringComparison.OrdinalIgnoreCase)
-					? $"  [color=#c0392b]{line}[/color]\n"
-					: $"  {line}\n");
-			}
-		}
-
-		_sheet.Text = text.ToString();
-	}
-
-	/// <summary>
 	/// Whose sheet to show: whoever the party picker names, else whoever is acting.
 	/// </summary>
 	private Creature Subject()
@@ -1994,13 +1824,6 @@ public partial class Main : Node3D
 		if (Choosing && Selected().FirstOrDefault() is { } picked)
 		{
 			return picked;
-		}
-
-		if (_bearer is not null
-			&& _bearer.Selected >= 0
-			&& _bearer.Selected < _campaign.Party.Count)
-		{
-			return _campaign.Party[_bearer.Selected];
 		}
 
 		return _battle.Encounter.Current is { IsEnded: false } turn
@@ -2052,12 +1875,31 @@ public partial class Main : Node3D
 		_levelFeat.ItemSelected += _ => RefreshLevelUp();
 		picks.AddChild(_levelFeat);
 
+		// Weapon Focus in what, Skill Focus in what: shown when the feat picked asks.
+		_levelFeatFor = new OptionButton { CustomMinimumSize = new Vector2(160, 0), TooltipText = "What the feat is taken for" };
+		picks.AddChild(_levelFeatFor);
+
 		// What the class itself asks for at this level: a fighter's bonus feat, a weapon group, a
 		// rogue talent or a rage power. Each picker shows only when the level brings it.
 		_levelBonusLabel = new Label { Text = "Bonus feat" };
 		picks.AddChild(_levelBonusLabel);
 		_levelBonus = new OptionButton { CustomMinimumSize = new Vector2(240, 0) };
+		_levelBonus.ItemSelected += _ => RefreshLevelUp();
 		picks.AddChild(_levelBonus);
+		_levelBonusFor = new OptionButton { CustomMinimumSize = new Vector2(160, 0), TooltipText = "What the bonus feat is taken for" };
+		picks.AddChild(_levelBonusFor);
+
+		// Every fourth level, one ability up by one; and a level in the favoured class is worth
+		// a hit point or a skill rank on top.
+		_levelAbilityLabel = new Label { Text = "Raise" };
+		picks.AddChild(_levelAbilityLabel);
+		_levelAbility = new OptionButton { CustomMinimumSize = new Vector2(140, 0) };
+		picks.AddChild(_levelAbility);
+
+		_levelFavouredLabel = new Label { Text = "Favoured class" };
+		picks.AddChild(_levelFavouredLabel);
+		_levelFavoured = new OptionButton { CustomMinimumSize = new Vector2(200, 0) };
+		picks.AddChild(_levelFavoured);
 
 		_levelGroupLabel = new Label { Text = "Weapon group" };
 		picks.AddChild(_levelGroupLabel);
@@ -2113,6 +1955,24 @@ public partial class Main : Node3D
 		ShowPicker(_levelGroupLabel, _levelGroup, needs?.WeaponGroups.Select(Capitalised));
 		ShowPicker(_levelTalentLabel, _levelTalent, needs?.Talents.Select(talent => talent.Name));
 
+		ShowPicker(null, _levelFeatFor, earnsFeat && _levelFeat.Selected >= 0 && _levelFeat.Selected < feats.Count
+			? FeatChoicesFor(creature, feats[_levelFeat.Selected]).Select(Spaced)
+			: null);
+		ShowPicker(null, _levelBonusFor, needs is not null && Pick(needs.BonusFeats, _levelBonus) is { } bonusFeat
+			? FeatChoicesFor(creature, bonusFeat).Select(Spaced)
+			: null);
+
+		var raising = needs is { AbilityIncrease: true };
+		ShowPicker(_levelAbilityLabel, _levelAbility, raising ? Raisable.Select(ability => ability.ToString()) : null);
+		if (raising && _levelAbility.Selected < 0)
+		{
+			_levelAbility.Selected = System.Array.IndexOf(Raisable, needs.DefaultAbility);
+		}
+
+		ShowPicker(_levelFavouredLabel, _levelFavoured, needs is { FavouredClass: true }
+			? FavouredOptions(needs).Select(option => option.Words)
+			: null);
+
 		_levelFeat.Disabled = !earnsFeat || feats.Count == 0;
 		_levelTake.Disabled = false;
 
@@ -2151,9 +2011,9 @@ public partial class Main : Node3D
 			if (barred.Count > 0)
 			{
 				text.Append("\n[b]Not available[/b]\n");
-				foreach (var (name, missing) in barred)
+				foreach (var (name, why) in barred)
 				{
-					text.Append($"  {name} — needs {missing}\n");
+					text.Append($"  {name} — {why}\n");
 				}
 			}
 		}
@@ -2161,14 +2021,61 @@ public partial class Main : Node3D
 		_levelDetail.Text = text.ToString();
 	}
 
-	/// <summary>Feats the creature does not qualify for, and what each one is waiting on.</summary>
-	private IEnumerable<(string Name, string Missing)> WithheldFeats(Creature creature) =>
-		_content.FeatIds
-			.Select(_content.GetFeat)
-			.OfType<FeatDefinition>()
-			.Where(feat => !creature.HasFeat(feat.Id) && feat.Requires.Unmet(creature).Count > 0)
-			.OrderBy(feat => feat.Name, System.StringComparer.Ordinal)
-			.Select(feat => (feat.Name, string.Join(", ", feat.Requires.Unmet(creature))));
+	/// <summary>
+	/// Feats the creature cannot take, and why: what it is short of, or what the game has yet to
+	/// build for the feat at all.
+	/// </summary>
+	private IEnumerable<(string Name, string Why)> WithheldFeats(Creature creature) =>
+		_campaign.WithheldFeats(creature).Select(entry => (entry.Feat.Name, entry.Why));
+
+	/// <summary>The six abilities, in the order a sheet lists them.</summary>
+	private static readonly Ability[] Raisable =
+		[Ability.Strength, Ability.Dexterity, Ability.Constitution, Ability.Intelligence, Ability.Wisdom, Ability.Charisma];
+
+	/// <summary>
+	/// What a feat that asks for something could be taken for, and that this creature could take
+	/// it for: the weapons it carries for Weapon Focus, every skill for Skill Focus.
+	/// </summary>
+	private static List<string> FeatChoicesFor(Creature creature, FeatDefinition feat)
+	{
+		if (feat is null || feat.Takes == FeatChoice.None || feat.Choice is not null)
+		{
+			return [];
+		}
+
+		var options = feat.Takes == FeatChoice.Weapon
+			? creature.Attacks.Select(weapon => weapon.Kind).OfType<string>().Distinct()
+			: FeatChoices.Options(feat.Takes);
+
+		return [.. options.Where(choice => (feat with { Choice = choice }).AvailableTo(creature))];
+	}
+
+	/// <summary>The feat as picked, taken for whatever its own picker names.</summary>
+	private static FeatDefinition WithChoice(Creature creature, FeatDefinition feat, OptionButton picker)
+	{
+		var options = FeatChoicesFor(creature, feat);
+		return picker.Visible && picker.Selected >= 0 && picker.Selected < options.Count
+			? feat with { Choice = options[picker.Selected] }
+			: feat;
+	}
+
+	/// <summary>A hit point, or a rank in one of the skills that still has room for it.</summary>
+	private static List<(string Words, FavouredClassBonus Bonus, Ironbound.Rules.Skills.Skill? Skill)> FavouredOptions(LevelNeeds needs) =>
+	[
+		("+1 hit point", FavouredClassBonus.HitPoint, null),
+		.. needs.FavouredSkills.Select(skill => ($"+1 rank in {Spaced(skill.ToString())}", FavouredClassBonus.SkillRank, (Ironbound.Rules.Skills.Skill?)skill)),
+	];
+
+	/// <summary>"SleightOfHand" as "Sleight of hand".</summary>
+	private static string Spaced(string name) =>
+		Capitalised(System.Text.RegularExpressions.Regex.Replace(name, "(?<=[a-z])([A-Z])", " $1").ToLowerInvariant());
+
+	private OptionButton _levelFeatFor;
+	private OptionButton _levelBonusFor;
+	private Label _levelAbilityLabel;
+	private OptionButton _levelAbility;
+	private Label _levelFavouredLabel;
+	private OptionButton _levelFavoured;
 
 	private Label _levelBonusLabel;
 	private OptionButton _levelBonus;
@@ -2187,7 +2094,11 @@ public partial class Main : Node3D
 	private static void ShowPicker(Label label, OptionButton picker, IEnumerable<string> entries)
 	{
 		var list = entries?.ToList() ?? [];
-		label.Visible = list.Count > 0;
+		if (label is not null)
+		{
+			label.Visible = list.Count > 0;
+		}
+
 		picker.Visible = list.Count > 0;
 		Fill(picker, list);
 	}
@@ -2197,8 +2108,11 @@ public partial class Main : Node3D
 
 	private static void Fill(OptionButton picker, IEnumerable<string> entries)
 	{
+		// Only when the list itself changed, so a pick survives a refresh; by content, not
+		// count, because Weapon Focus and Skill Focus can offer lists of the same length.
 		var wanted = entries.ToList();
-		if (picker.ItemCount == wanted.Count)
+		if (picker.ItemCount == wanted.Count
+			&& Enumerable.Range(0, wanted.Count).All(i => picker.GetItemText(i) == wanted[i]))
 		{
 			return;
 		}
@@ -2233,31 +2147,45 @@ public partial class Main : Node3D
 		var chosen = _campaign.NextLevelGrantsFeat(creature)
 			&& _levelFeat.Selected >= 0
 			&& _levelFeat.Selected < feats.Count
-				? feats[_levelFeat.Selected]
+				? WithChoice(creature, feats[_levelFeat.Selected], _levelFeatFor)
 				: null;
 
 		var taken = classes[_levelClass.Selected];
 		var needs = _campaign.NeedsFor(creature, taken);
+		var favoured = FavouredOptions(needs);
+		var (_, bonusKind, bonusSkill) = needs.FavouredClass && _levelFavoured.Selected >= 0 && _levelFavoured.Selected < favoured.Count
+			? favoured[_levelFavoured.Selected]
+			: favoured[0];
 		var choices = new LevelChoices(
-			BonusFeat: Pick(needs.BonusFeats, _levelBonus),
+			BonusFeat: Pick(needs.BonusFeats, _levelBonus) is { } bonusFeat ? WithChoice(creature, bonusFeat, _levelBonusFor) : null,
 			WeaponGroup: Pick(needs.WeaponGroups, _levelGroup),
-			Talent: Pick(needs.Talents, _levelTalent) is { } talent ? talent.Id : null);
+			Talent: Pick(needs.Talents, _levelTalent) is { } talent ? talent.Id : null,
+			AbilityIncrease: needs.AbilityIncrease && _levelAbility.Selected >= 0 && _levelAbility.Selected < Raisable.Length
+				? Raisable[_levelAbility.Selected]
+				: null,
+			Favoured: needs.FavouredClass ? bonusKind : null,
+			FavouredSkill: needs.FavouredClass ? bonusSkill : null);
 
 		if (!_campaign.LevelUp(creature, taken, chosen, choices))
 		{
-			Refuse($"{creature.Name} cannot take that level.");
+			Refuse(_campaign.LevelRefusal ?? $"{creature.Name} cannot take that level.");
 			return;
 		}
 
 		var learned = new List<string>();
 		if (chosen is not null)
 		{
-			learned.Add(chosen.Name);
+			learned.Add(chosen.Title);
 		}
 
 		if (choices.BonusFeat is { } bonus)
 		{
-			learned.Add(bonus.Name);
+			learned.Add(bonus.Title);
+		}
+
+		if (choices.AbilityIncrease is { } raised)
+		{
+			learned.Add($"+1 {raised}");
 		}
 
 		if (choices.WeaponGroup is { } group)
@@ -2396,6 +2324,48 @@ public partial class Main : Node3D
 			? _castables[_spells.Selected].Spell
 			: null;
 
+	/// <summary>
+	/// Offers casting defensively only when it would make a difference: a spell that draws
+	/// swings, chosen by somebody a foe is standing over. The chance is on the button, because
+	/// whether to take the risk is the whole decision.
+	/// </summary>
+	private void RefreshDefensive()
+	{
+		if (_castDefensively is null)
+		{
+			return;
+		}
+
+		var turn = _battle.IsPartyTurn && _battle.Encounter.Current is { IsEnded: false } current ? current : null;
+		var spell = SelectedSpell();
+		var power = SelectedPower();
+		var provokes = power is not null ? power.Provokes : spell is not null && !spell.Metamagic.HasFlag(Metamagic.Quicken);
+
+		if (_mode != Mode.Cast || turn is null || spell is null || !provokes
+			|| _battle.Battlefield is not { } field || !Threatened(turn.Actor, field))
+		{
+			_castDefensively.Visible = false;
+			return;
+		}
+
+		var actor = turn.Actor;
+		var casterLevel = power is not null && power.Use != PowerUse.Spell ? power.CasterLevel : actor.Spells.CasterLevel;
+		var chance = Concentration.DefensiveChance(actor, casterLevel, spell.EffectiveLevel);
+
+		_castDefensively.Visible = true;
+		_castDefensively.Text = $"Defensively {chance}%";
+		_castDefensively.TooltipText =
+			$"Cast without drawing attacks of opportunity. A concentration check against DC {15 + (2 * spell.EffectiveLevel)} "
+			+ $"holds {chance}% of the time; fail it and the spell is lost.";
+	}
+
+	/// <summary>Whether a foe who could still swing stands over somebody's square.</summary>
+	private bool Threatened(Creature actor, Battlefield field) =>
+		field.SquareOf(actor) is { } square
+		&& _battle.Encounter.Order.Any(one => one.Creature.IsConscious
+			&& one.Creature.IsEnemyOf(actor)
+			&& field.Threatens(one.Creature, square));
+
 	private Power SelectedPower() =>
 		_battle.Encounter.Current is not null && _spells.Selected >= 0 && _spells.Selected < _castables.Count
 			? _castables[_spells.Selected].Power
@@ -2488,6 +2458,7 @@ public partial class Main : Node3D
 		_modes[Mode.Full].Disabled = turn is null || !turn.Budget.CanAfford(ActionCost.FullRound);
 		_modes[Mode.Trip].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Shove].Disabled = turn is null || !turn.Budget.HasStandard;
+		_modes[Mode.Demoralize].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Help].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Cast].Disabled = turn is null
 			|| !((turn.Budget.HasStandard && Castable(turn.Actor).Any(turn.Actor.Spells.CanCast))
@@ -2508,7 +2479,7 @@ public partial class Main : Node3D
 		_press.Disabled = !_campaign.CanAdvance;
 		_press.Visible = !_campaign.IsLevel;
 		_rest.Disabled = !_campaign.CanRest;
-		RefreshStash();
+		RefreshCamp();
 
 		// Being left holding a mode that can no longer do anything is its own small trap. Move
 		// first, because a five-foot step outlives everything else.
@@ -2626,6 +2597,8 @@ public partial class Main : Node3D
 	/// </remarks>
 	private void RefreshReach()
 	{
+		RefreshDefensive();
+
 		if (_reach is null)
 		{
 			return;
@@ -2837,11 +2810,11 @@ public partial class Main : Node3D
 		}
 
 		var json = _campaign.ToJson();
-		Write(json);
+		WriteText(SavePath, json);
 
 		GD.Print($"--- saved {json.Length} characters to {ProjectSettings.GlobalizePath(SavePath)} ---");
 
-		_campaign = Campaign.FromJson(Read(), _content);
+		_campaign = Campaign.FromJson(ReadText(SavePath), _content);
 		Begin(_campaign.Battle);
 
 		GD.Print($"--- reloaded at round {_battle.Round}, tick {_battle.Encounter.Tick} ---");
@@ -2878,11 +2851,18 @@ public partial class Main : Node3D
 
 			// The point of the whole layer: the sergeant's silvered blade is the answer to what
 			// is waiting in the clearing, and it only exists because somebody was carrying it.
-			if (_campaign.Stash.FirstOrDefault(item => item.Id == "silvered-longsword") is { } silver)
+			// Everything the fallen had goes in the bag, and whatever suits somebody better is put on.
+			foreach (var container in _campaign.Containers.Where(one => one.IsOpen && !one.IsEmpty).ToList())
 			{
-				var bearer = _campaign.Party.First(one => one.IsConscious);
-				_campaign.Give(bearer, silver.Id);
-				GD.Print($"--- {bearer.Name} takes the {silver.Name} ---");
+				_campaign.TakeAll(container.Id);
+			}
+
+			foreach (var member in _campaign.Party)
+			{
+				foreach (var line in Outfitter.EquipBest(_campaign, member))
+				{
+					GD.Print($"--- {line} ---");
+				}
 			}
 
 			// Somebody bleeding out is not a decision, it is an answer. A player gets to weigh
@@ -2903,9 +2883,9 @@ public partial class Main : Node3D
 	}
 
 	private string Sack() =>
-		_campaign.Stash.Count == 0
-			? "nothing"
-			: string.Join(", ", _campaign.Stash.Select(item => item.Name));
+		_campaign.Containers.Where(one => !one.IsEmpty).ToList() is { Count: > 0 } left
+			? string.Join("; ", left.Select(one => one.ToString()))
+			: "nothing";
 
 	private string Remaining() => string.Join(
 		", ",

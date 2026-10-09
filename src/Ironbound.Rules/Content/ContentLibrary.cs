@@ -240,6 +240,23 @@ public sealed partial class ContentLibrary
             item, BuildItemWeapon(item, creature.Size), BuildThrownItemWeapon(item, creature.Size));
     }
 
+    /// <summary>
+    /// Puts an item on a creature in a chosen slot — the off hand, the belt — as it was when it
+    /// was put away: a broken blade comes back broken.
+    /// </summary>
+    public bool Equip(Creature creature, ItemDefinition item, EquipmentSlot? slot, bool broken = false)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        ArgumentNullException.ThrowIfNull(item);
+
+        return creature.Equipment.Equip(
+            item,
+            slot,
+            BuildItemWeapon(item, creature.Size),
+            BuildThrownItemWeapon(item, creature.Size),
+            broken);
+    }
+
     public Creature? BuildCreature(string id, RuleOptions? rules = null, string? name = null) =>
         _creatures.GetValueOrDefault(id)?.Build(this, rules, name);
 
@@ -280,7 +297,13 @@ public sealed partial class ContentLibrary
                     break;
 
                 case "item":
-                    Keep(_items, reader, ReadItem(reader), item => item.Id, "item");
+                    if (ReadItem(reader) is { } item)
+                    {
+                        // Worked out now with whatever weapons are already in, and again when
+                        // everything is checked, for a weapon whose file came after.
+                        Keep(_items, reader, Resolve(item), found => found.Id, "item");
+                    }
+
                     break;
 
                 case "weapon":
@@ -344,6 +367,8 @@ public sealed partial class ContentLibrary
     /// <summary>Checks that every id referred to by something actually exists.</summary>
     public void Validate()
     {
+        ResolveItems();
+
         foreach (var creature in _creatures.Values)
         {
             foreach (var weapon in creature.Weapons)
@@ -507,10 +532,10 @@ public sealed partial class ContentLibrary
                     $"no creature called '{placement.CreatureId}'."));
             }
 
-            foreach (var item in encounter.Loot.Where(id => !_items.ContainsKey(id)))
+            foreach (var item in encounter.Loot.Where(found => !_items.ContainsKey(found.ItemId)))
             {
                 _problems.Add(new ContentProblem(
-                    $"encounter '{encounter.Id}'", "loot", $"no item called '{item}'."));
+                    $"encounter '{encounter.Id}'", "loot", $"no item called '{item.ItemId}'."));
             }
         }
     }
@@ -857,6 +882,7 @@ public sealed partial class ContentLibrary
                     _ => new SingleTarget(),
                 },
             Descriptors = [.. reader.Array("descriptors").Select(e => e.GetString() ?? string.Empty)],
+            AllowsResistance = reader.Bool("spellResistance", true),
             Affects = reader.Enum("affects", SpellAffects.Enemies),
             Save = reader.Has("save") ? reader.Enum("save", Save.Reflex) : null,
             OnSave = reader.Enum("onSave", SaveOutcome.Negates),
@@ -1201,6 +1227,76 @@ public sealed partial class ContentLibrary
             MaxDexterity = reader.Has("maxDex") ? reader.Int("maxDex") : null,
             CheckPenalty = reader.Int("checkPenalty"),
             TowerShield = reader.Bool("tower"),
+            WrittenKind = reader.Has("type") ? reader.Enum("type", ItemKind.Wondrous) : null,
+            WrittenStackable = reader.Has("stackable") ? reader.Bool("stackable") : null,
+            Masterwork = reader.Bool("masterwork"),
+            BaseCost = reader.Has("cost") ? (decimal)reader.Number("cost") : null,
+            BaseWeight = reader.Has("weight") ? (decimal)reader.Number("weight") : null,
+        };
+    }
+
+    /// <summary>
+    /// Works out what an item is, weighs and costs from what its file wrote and the weapon it
+    /// names. Run before anything is checked, and safe to run again: it reads only what the file
+    /// said, never what it worked out last time.
+    /// </summary>
+    private void ResolveItems()
+    {
+        foreach (var item in _items.Values.ToList())
+        {
+            _items[item.Id] = Resolve(item);
+        }
+    }
+
+    private ItemDefinition Resolve(ItemDefinition item)
+    {
+        var weapon = item.Weapon is { } id ? _weapons.GetValueOrDefault(id) : null;
+
+        var kind = item.WrittenKind ?? (
+            weapon is { Category: WeaponCategory.Natural } ? ItemKind.Natural
+            : item.Weapon is not null ? ItemKind.Weapon
+            : item.Armour == ArmourCategory.Shield ? ItemKind.Shield
+            : item.IsBodyArmour ? ItemKind.Armour
+            : ItemKind.Wondrous);
+
+        if (kind == ItemKind.Natural)
+        {
+            return item with { Kind = kind, Weight = 0, Price = 0, Stackable = false };
+        }
+
+        var weight = item.BaseWeight ?? (weapon is null ? 0m : (decimal)weapon.Weight);
+        var masterwork = item.Masterwork || item.Enhancement > 0;
+
+        var price = kind switch
+        {
+            ItemKind.Weapon => Pricing.Weapon(
+                item.BaseCost ?? (weapon is null ? 0m : (decimal)weapon.Cost),
+                weapon is null ? WeaponHands.OneHanded
+                    : weapon.Hands == WeaponHands.Ranged ? weapon.Grip ?? WeaponHands.TwoHanded
+                    : weapon.Hands,
+                item.Qualities,
+                item.Enhancement,
+                masterwork),
+            ItemKind.Armour or ItemKind.Shield => Pricing.Armour(item.BaseCost ?? 0m, item.Enhancement, masterwork),
+            _ => Pricing.Copper(item.BaseCost ?? 0m),
+        };
+
+        // Identical plain gear stacks — two daggers are "dagger ×2" — and so do gems and trinkets.
+        // Anything enchanted, and anything worn for what it does, keeps a line of its own.
+        var stackable = item.WrittenStackable ?? kind switch
+        {
+            ItemKind.Valuable => true,
+            ItemKind.Weapon or ItemKind.Armour or ItemKind.Shield => item.Enhancement == 0,
+            _ => false,
+        };
+
+        return item with
+        {
+            Kind = kind,
+            Weight = weight,
+            Price = price,
+            Stackable = stackable,
+            Masterwork = masterwork,
         };
     }
 
@@ -1487,6 +1583,9 @@ public sealed partial class ContentLibrary
             Subtypes = [.. reader.Array("subtypes").Select(e => (e.GetString() ?? string.Empty).ToLowerInvariant())],
             SpellResistance = reader.Int("spellResistance"),
             FavouredClass = reader.Has("favouredClass") ? reader.StringOr("favouredClass", string.Empty) : null,
+            Quadruped = reader.Bool("quadruped"),
+            Purse = ReadPurse(reader),
+            Treasure = ReadTreasure(reader),
         };
     }
 
@@ -1760,8 +1859,110 @@ public sealed partial class ContentLibrary
             Difficult = [.. Squares(reader, "difficult")],
             Placements = placements,
             Intro = reader.StringOr("intro", string.Empty),
-            Loot = [.. reader.Array("loot").Select(e => e.GetString() ?? string.Empty)],
+            Loot = ReadLoot(reader, "loot"),
         };
+    }
+
+    /// <summary>
+    /// A list of things found: each an item id, or <c>{ "item": "dagger", "count": 2 }</c> for
+    /// more than one of it.
+    /// </summary>
+    private List<LootDefinition> ReadLoot(Reader reader, string field)
+    {
+        var loot = new List<LootDefinition>();
+        foreach (var entry in reader.Array(field))
+        {
+            if (entry.ValueKind == JsonValueKind.String)
+            {
+                loot.Add(new LootDefinition(entry.GetString() ?? string.Empty));
+                continue;
+            }
+
+            var written = new Reader(entry, reader.Source, _problems);
+            var count = written.Int("count", 1);
+            if (count < 1)
+            {
+                written.Problem("count", $"{count} of something is not loot.");
+                count = 1;
+            }
+
+            loot.Add(new LootDefinition(written.String("item"), count));
+        }
+
+        return loot;
+    }
+
+    /// <summary>Coins written as <c>{ "gp": 12, "sp": 30, "cp": 4 }</c>.</summary>
+    private static Money ReadCoins(Reader reader, string field)
+    {
+        var coins = reader.Object(field);
+        return new Money(coins.Int("pp"), coins.Int("gp"), coins.Int("sp"), coins.Int("cp"));
+    }
+
+    /// <summary>A creature's pocket money as dice: <c>{ "sp": "2d6", "cp": "3d10" }</c>.</summary>
+    private static PurseDefinition ReadPurse(Reader reader)
+    {
+        var coins = new List<(Coin, string)>();
+        foreach (var (name, value) in reader.Members("purse"))
+        {
+            Coin? coin = name switch
+            {
+                "pp" => Coin.Platinum,
+                "gp" => Coin.Gold,
+                "sp" => Coin.Silver,
+                "cp" => Coin.Copper,
+                _ => null,
+            };
+
+            var dice = value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString() ?? string.Empty,
+                JsonValueKind.Number => value.GetRawText(),
+                _ => string.Empty,
+            };
+
+            if (coin is null)
+            {
+                reader.Problem("purse", $"'{name}' is not a coin: pp, gp, sp or cp.");
+            }
+            else if (!DiceExpression.TryParse(dice, out _))
+            {
+                reader.Problem("purse", $"'{dice}' is not dice.");
+            }
+            else
+            {
+                coins.Add((coin.Value, dice));
+            }
+        }
+
+        return coins.Count == 0 ? PurseDefinition.Empty : new PurseDefinition(coins);
+    }
+
+    private static TreasureKind? ReadTreasure(Reader reader)
+    {
+        if (!reader.Has("treasure"))
+        {
+            return null;
+        }
+
+        var written = reader.StringOr("treasure", string.Empty);
+        TreasureKind? kind = written.ToLowerInvariant() switch
+        {
+            "none" => TreasureKind.None,
+            "incidental" => TreasureKind.Incidental,
+            "standard" => TreasureKind.Standard,
+            "double" => TreasureKind.Double,
+            "triple" => TreasureKind.Triple,
+            "npc-gear" or "npc gear" => TreasureKind.NpcGear,
+            _ => null,
+        };
+
+        if (kind is null)
+        {
+            reader.Problem("treasure", $"'{written}' is not one of none, incidental, standard, double, triple or npc-gear.");
+        }
+
+        return kind;
     }
 
     private TerrainDefinition? ReadTerrain(Reader reader)
@@ -1803,7 +2004,10 @@ public sealed partial class ContentLibrary
                 Height = area.Int("height", 1),
                 Final = area.Bool("final"),
                 Foes = [.. Placements(area, "foes", party: false)],
-                Loot = [.. area.Array("loot").Select(e => e.GetString() ?? string.Empty)],
+                Loot = ReadLoot(area, "loot"),
+                LootAt = area.Has("lootAt")
+                    ? new GridSquare(area.Object("lootAt").Int("x"), area.Object("lootAt").Int("y"))
+                    : null,
                 Experience = area.Int("xp", AreaDefinition.DefaultExperience),
             });
         }
@@ -1813,7 +2017,12 @@ public sealed partial class ContentLibrary
         {
             var feature = new Reader(entry, reader.Source, _problems);
             var featureId = feature.String("id");
-            var kind = feature.Enum("kind", FeatureKind.Cache);
+
+            // "cache" is what a container was called before it could be opened and emptied a
+            // piece at a time; older level files still say it.
+            var kind = feature.StringOr("kind", "container").ToLowerInvariant() == "cache"
+                ? FeatureKind.Container
+                : feature.Enum("kind", FeatureKind.Container);
 
             features.Add(new FeatureDefinition
             {
@@ -1827,7 +2036,11 @@ public sealed partial class ContentLibrary
                 JumpDc = feature.Int("jumpDc", 10),
                 ClimbDc = feature.Int("climbDc", 15),
                 Fall = feature.StringOr("fall", "2d6"),
-                Loot = [.. feature.Array("loot").Select(e => e.GetString() ?? string.Empty)],
+                Loot = ReadLoot(feature, "loot"),
+                Coins = ReadCoins(feature, "coins"),
+                Look = feature.Enum("look", ContainerLook.Crate),
+                Locked = kind == FeatureKind.Container && feature.Has("lockDc"),
+                HiddenDc = feature.Has("hiddenDc") ? feature.Int("hiddenDc") : null,
                 Experience = feature.Int("xp", FeatureDefinition.DefaultExperience(kind)),
             });
         }
@@ -1968,9 +2181,19 @@ public sealed partial class ContentLibrary
                 Stand($"areas.{area.Id}.foes", foe);
             }
 
-            foreach (var item in area.Loot.Where(id => !_items.ContainsKey(id)))
+            foreach (var item in area.Loot.Where(found => !_items.ContainsKey(found.ItemId)))
             {
-                Problem($"areas.{area.Id}.loot", $"no item called '{item}'.");
+                Problem($"areas.{area.Id}.loot", $"no item called '{item.ItemId}'.");
+            }
+
+            foreach (var item in area.Loot.Where(found => _items.GetValueOrDefault(found.ItemId) is { IsNatural: true }))
+            {
+                Problem($"areas.{area.Id}.loot", $"'{item.ItemId}' is a natural weapon, which nobody can pick up.");
+            }
+
+            if (area.LootAt is { } at && (!area.Contains(at) || level.IsBlockedCell(at)))
+            {
+                Problem($"areas.{area.Id}.lootAt", $"{at} is not open floor inside the room.");
             }
 
             if (area.Final && area.Foes.Count == 0)
@@ -2010,10 +2233,13 @@ public sealed partial class ContentLibrary
                     FeatureKind.Door => cell == LevelCell.Door,
                     FeatureKind.Bridge => cell == LevelCell.Chasm,
 
-                    // Furniture is the obvious place, but a cache in a niche in the wall is
-                    // fine too, as long as somebody can stand beside it.
+                    // Furniture is the obvious place, but a container in a niche in the wall is
+                    // fine too, as long as somebody can stand beside it, and so is a sack on the
+                    // open floor. Not in a doorway or over the chasm.
                     _ => cell is LevelCell.Bed or LevelCell.Table or LevelCell.Crate
-                        || (LevelDefinition.IsBlocked(cell) && Beside(level, square)),
+                            or LevelCell.Stone or LevelCell.Grass
+                        || (cell is not (LevelCell.Door or LevelCell.Chasm)
+                            && LevelDefinition.IsBlocked(cell) && Beside(level, square)),
                 };
 
                 if (!inside)
@@ -2032,9 +2258,19 @@ public sealed partial class ContentLibrary
                 Problem($"{field}.fall", $"'{feature.Fall}' is not dice.");
             }
 
-            foreach (var item in feature.Loot.Where(id => !_items.ContainsKey(id)))
+            foreach (var item in feature.Loot.Where(found => !_items.ContainsKey(found.ItemId)))
             {
-                Problem($"{field}.loot", $"no item called '{item}'.");
+                Problem($"{field}.loot", $"no item called '{item.ItemId}'.");
+            }
+
+            if (feature.Kind != FeatureKind.Container && (feature.Loot.Count > 0 || !feature.Coins.IsEmpty))
+            {
+                Problem($"{field}.loot", $"a {feature.Kind.ToString().ToLowerInvariant()} cannot hold anything.");
+            }
+
+            if (feature.Coins.Platinum < 0 || feature.Coins.Gold < 0 || feature.Coins.Silver < 0 || feature.Coins.Copper < 0)
+            {
+                Problem($"{field}.coins", "cannot be fewer than none.");
             }
         }
     }

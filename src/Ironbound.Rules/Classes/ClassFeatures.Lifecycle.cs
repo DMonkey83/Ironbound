@@ -284,7 +284,10 @@ public static partial class ClassFeatures
 
         var bonus = 0;
 
-        if (Has(creature, FeatureIds.FastMovement) && creature.Equipment.ArmourWorn != ArmourCategory.Heavy)
+        // Not in heavy armour, and not under a heavy load either: the book's barbarian runs fast
+        // in anything up to medium armour and a medium load.
+        if (Has(creature, FeatureIds.FastMovement) && creature.Equipment.ArmourWorn != ArmourCategory.Heavy
+            && Encumbrance.Effective(creature) < LoadCategory.Heavy)
         {
             bonus += FastMovementFeet;
         }
@@ -294,8 +297,10 @@ public static partial class ClassFeatures
             bonus += SwiftFootFeet;
         }
 
-        // Fleet is five feet each time it is taken, and nothing at all in medium or heavy armour.
-        if (creature.Equipment.ArmourWorn is not (ArmourCategory.Medium or ArmourCategory.Heavy))
+        // Fleet is five feet each time it is taken, and nothing at all in medium or heavy armour,
+        // or under anything more than a light load.
+        if (creature.Equipment.ArmourWorn is not (ArmourCategory.Medium or ArmourCategory.Heavy)
+            && Encumbrance.Effective(creature) == LoadCategory.Light)
         {
             bonus += Encounters.Movement.FleetFeet * creature.Feats.Count(feat => feat.Effect == FeatEffect.Fleet);
         }
@@ -313,10 +318,12 @@ public static partial class ClassFeatures
 
         var stack = new ModifierStack();
 
+        // The worse of the armour's penalty and the load's, named for whichever it was: the two
+        // do not stack.
         if (SkillInfo.AbilityFor(skill) is Ability.Strength or Ability.Dexterity
-            && Martial.CheckPenalty(creature) is < 0 and var penalty)
+            && Martial.SkillCheckPenalty(creature) is ( < 0 and var penalty, var source))
         {
-            stack.Add(penalty, BonusType.Untyped, "Armour check penalty");
+            stack.Add(penalty, BonusType.Untyped, source);
         }
 
         if (skill == Skill.DisableDevice && RogueDefences.Trapfinding(creature) is > 0 and var finding)

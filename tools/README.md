@@ -105,6 +105,38 @@ for the game to swap for shared ones: about 30 KB a weapon instead of 3 MB. A gl
 enhancement's rune line (`Rune1`…`Rune5`), radium — is its own emissive material and never
 baked. Budgets: 3,000 triangles for a light or one-handed weapon, 150 KB a file.
 
+## `named_weapons.py` — named weapons
+
+The top of the loot ladder, built to a higher standard than the catalogue: Holy Avenger, Flame
+Tongue, Frost Brand, Life-Drinker, Dwarven Thrower, Oathbow (`named-<slug>`). Each is a row in
+`weapon_recipes.py` (family `named`, its `base` the weapon it is in the hand) and a function in
+`named_weapons.py`; `generate_weapons.py` builds them like any other id. Each has a shape no
+mundane weapon has, three to five contrasting materials, glow placed where the eye should go,
+and its ornament as geometry: sculpted pieces (wing arms, swans, a skull, vertebrae) are
+metaballs converted to a mesh — every metaball named uniquely, because Blender melts together
+metaballs whose names share a stem — feathers, flames and filigree are swept curves, stones are
+faceted lathes, runes and knotwork stand proud of the surface. Gradients across a blade (temper
+colours from spine to edge, a white-gold bevel, crack veins near the edge) come from per-vertex
+attributes the materials read: `Edge`, `Along`, `Vein`.
+
+They are baked like the held items, at 2048 and with a fourth atlas: `surface.finish(...,
+emission=strength)` bakes what each material emits (its Emission Color at strength 1, so the
+brightness is in the colour) and the exported material glows with it at the row's `glow`
+strength (glTF `emissiveTexture` and `KHR_materials_emissive_strength`; Godot 4 imports both as
+an emission texture and energy). Keep emissive colours dark (well under 1): multiplied by the
+strength they still have a hue, where a bright one comes out white.
+
+## `weapon_variety.py` — a variety sample
+
+Eighteen scratch weapons, `sample-<id>-a/b/c` for the longsword, dagger, battleaxe, spear, heavy
+mace and shortbow: how far one catalogue weapon can vary between two drops without magic —
+shade, colour, wear, width and profile, handle. Not exported to the game. The handle library they
+use is the swords' own (`_hilt`/`_grip`/`_pommel` in `weapon_families.py`): grips spiral,
+cord, ridged, diamond, crisscross, ray skin under a diamond wrap, wire-wound, ringed, riveted
+scales, with a tassel; pommels wheel, scent-stopper, pear, ball, cap, ring, faceted, claw and
+stone, skull, beast; guards cross, bar, disc, tsuba, recurved, S, swept, knuckle, shell, basket,
+parry, crescent. Blades take twin fullers, a waist, a swell toward the point and nicks.
+
 ## `render_icons.py` — inventory icons
 
 ```sh
@@ -229,6 +261,98 @@ reaches games already in progress the next time they are loaded. It also mended 
 written by a build that was half-way through this change, where every weapon had come out as a
 1d6 club and Sylwen's bow as one too.
 
+## `generate_props.py` — containers and furniture
+
+```sh
+blender -b --factory-startup --python tools/generate_props.py -- src/Ironbound.Game/art/props [id ...]
+```
+
+One `.glb` per prop in `art/props/`: `crate`, `crate-b`, `chest`, `strongbox`, `barrel`, `sack`,
+`sack-open`, `cart`, `cart-overturned`, `weapon-rack`, `pile`, `niche`, and the furniture `bed`
+and `table`. Each is baked by `surface.py` into one 1024 atlas (colour, ORM, normal) like the
+creatures, with the colour and ORM stored as JPEG (and a normal atlas too, when cloth or rock
+noise would make it over a megabyte as PNG): 1.1–2.7 MB a file. A build takes three to five
+minutes, nearly all of it the bake. It prints a self-check read back out of the GLB — node
+names, triangles per node, the box in Godot's frame, the size — and ends in PASS or FAIL.
+
+Scale is the board's: one unit a five-foot square, a man 1.4 (`Main.CapsuleHeight`), so a
+crate comes to his hip. Blender's Z is up (Godot's Y), the front of every prop faces -Y (Godot's
++Z, the side the default camera sees), and the origin is on the floor in the middle of the
+footprint — except `sack-open`, whose origin is the sack's, with its coin spilling off it.
+
+**Nodes.** A container's state is shown by hiding and turning nodes of one model:
+
+| Node | What it is |
+| --- | --- |
+| body, named after the prop | everything that does not move |
+| `Lid` | its origin on the hinge line; open by turning it about its local X. Extras `hinge` and `open` say how: `"x"` and `-100` for the chest and strongbox (the front rises), `"x"` and `80` for the niche's stone (it tips out toward the viewer), `"none"` and `"lift"` for the crate and barrel, whose lids have their origin at their own centre and are lifted off |
+| `Contents` | what shows inside when it is open; hidden once it is empty |
+| `Lock` | the padlock (chest) or the hasp (strongbox); hidden once picked or broken |
+| `FX_Glint` | an empty at the top centre, for the lootable sparkle |
+
+What every prop is made of lives in three helpers:
+
+- `props_parts.py` — the geometry. A board (`board_mesh`) is never a box: bevelled, cut a little
+  out of true, its edges rubbed in unevenly, chips scooped out of its corners, bowed, its ends not
+  square. Nails and rivets are forged heads; iron bands are swept round the faces they bind; rope
+  is three strands laid round each other; straw is a packed bed and loose stalks; coin heaps are
+  a mound of the metal under loose coins at every angle.
+- `props_surface.py` — the materials, added to `surface.RECIPES` by name. Wood (`plank`) grows
+  rings round each board's own pith, from a `grain` attribute every board carries, so a plank
+  lying across a crate has its grain along it and its end grain on its end; each board has its
+  own tone; mould and damp climb the foot; the chest's paint wears through on every edge; the
+  cart's wheels carry mud. After the bake, `weather()` paints rust down the wood from every nail,
+  rivet and hoop the builder recorded, in numpy, from a baked map of world position.
+- `props_cloth.py` — sacks and bundles, sculpted as cloth slumps and gathers: a lathed bag moved
+  by named rules (slump, lean, pleats converging on the tie, sag creases, a tuft that flops), with
+  the weave laid on before it is moved so the threads follow every fold. Blender's cloth
+  simulation with pressure was tried first and either collapsed the bag flat or let it skate off
+  across the floor, at every mass and pressure tried; it is kept (`drape`) for loose cloth.
+
+Three things the bake does that the creatures' does not: each node is moved apart while it
+bakes, so the inside of a box is not baked black under its lid and the contents are not darkened
+by walls; a floor is put under the body, so its foot darkens; and loose straw stalks, too thin to
+get a texel of their own, are pointed at a spot on the straw bed they lie on (`borrow_uvs`).
+Roughness is held at 0.22 or above in every atlas (`floor_roughness`): a sliver of a bevel too
+thin to be given a texel kept the cleared value, roughness 0, and shone as a white line along a
+board's edge under a lamp.
+
+The weapon rack holds three of the game's own weapons (`shortspear`, `greataxe`, `longsword`),
+imported from `art/weapons/` unchanged and scaled as a hand holds them (1.4 / 4.3); their own
+baked textures are read through their own UVs and baked into the rack's atlas, so the rack is
+one material and not four sets of textures.
+
+`IRONBOUND_FAST=1` skips the bake, as for the creatures. `IRONBOUND_KEEP=<dir>` keeps the atlases
+as files there for looking at.
+
+## `props_sheet.py` — the props as the game will show them
+
+```sh
+blender -b --factory-startup --python tools/props_sheet.py -- src/Ironbound.Game/art/props out/ chest:locked,closed,open,empty \
+    --closeup chest:0.0,-0.25,0.3:0.16 --scale crate=src/Ironbound.Game/art/karn.glb
+```
+
+Renders each prop from the game camera's default angle (`CameraRig`: 37.5 degrees up, from the
+south-east) on a dark flagstone floor under a torch, a lantern and a cold rim, in each state its
+nodes allow, using the `hinge`/`open` extras to open the lid the way the game will. `--scale`
+stands Karn beside a prop at the height the game gives him.
+
+## `render_item_icons.py` — icons for everything that is not a weapon
+
+```sh
+blender -b --factory-startup --python tools/render_item_icons.py -- src/Ironbound.Game/art/icons/items [id ...]
+```
+
+Armour, rings, coins, valuables, the party's bag (`party-bag`, the HUD's inventory button), and
+`container-<name>` for each prop above, drawn with its lid open for the loot window's title.
+Drawn exactly as `render_icons.py` draws the weapons — its lights, sky, camera, size and margin
+are imported from it, not copied. Most of these things have no model in the game, so each is
+modelled here: armour is hung on a man's trunk (`TRUNK`) as panels wrapped round it, mail is a
+ring pattern on the garment's own UVs so it follows the drape, scale mail is several hundred
+overlapping leaves, coins are struck with a rim and a device. Every icon in a family is drawn at
+one scale (`FAMILIES`), so armour fills the slot, a ring does not, and dice stand beside rings.
+
+
 ## Menus, pages and experience
 
 - **Title** (`Menu.cs`): Continue, New Game, Load Game, Quit, inked on the book's page.
@@ -265,17 +389,58 @@ in Simulation); the Game draws them (`Exploration.cs`, `LevelLook.cs`):
 - The grid and the nameplates show only during a fight, and on a level the grid is drawn at
   half strength.
 
+**Loot (content).** A feature of `"kind": "container"` (an old `"cache"` still loads as one) is a
+crate, chest, cart or sack: `"look"` (`crate`, `chest`, `strongbox`, `barrel`, `sack`, `cart`,
+`weaponRack`, `pile`; default `crate`), `"loot"` as item ids or `{ "item": "bloodstone", "count":
+2 }`, `"coins"` as `{ "pp": 0, "gp": 12, "sp": 30, "cp": 4 }`, `"lockDc"`/`"breakDc"` to lock it
+(Disable Device, trained only, or Strength, as a door), `"hiddenDc"` to hide it (each of the party
+gets one Perception roll the first time they come within 10 ft), and `"xp"` for opening it the
+first time. It may sit on furniture, in a wall niche beside the floor, or on open floor. An area's
+`"loot"` becomes a pile in the middle of the room when it is won, or at `"lootAt": { "x", "y" }`;
+the fallen become bodies where they fell. Items take `"type"` (`valuable`, `wondrous`; weapons,
+armour, shields and natural weapons are worked out), `"cost"` in gold and `"weight"` in pounds
+(a weapon item takes both from its weapon; armour writes the armour table's), `"masterwork"`, and
+`"stackable"` to override the default (plain gear and valuables stack). Creatures take
+`"purse"` (`{ "sp": "2d6", "cp": "3d10" }`, rolled from the seed when the body is made),
+`"treasure"` (`none`, `incidental`, `standard`, `double`, `triple`, `npc-gear`; data only) and
+`"quadruped": true`. `ContentLibrary.TreasureOf(level)` adds up each room's treasure against the
+book's treasure-per-encounter table as information; the Rules test
+`TreasureYardstickTests` prints it.
+
 **Picking.** Between fights a click on a portrait or a figure picks that character; Shift adds
 or removes; Ctrl+A or the ALL plate before the portraits picks everybody (the default). The picked
 wear a green ring and their portraits are lit. Whoever is picked walks when the ground is
 clicked, the first of them leading, and the first of them is who opens a door, crosses the
-bridge, searches a chest, takes the spoils and levels up. A double click on a portrait opens the
-sheet. In a fight, whoever's turn it is acts. `--explore @Pip 21,42 @all ...` picks on the way
+bridge, searches a chest or a body, and levels up. A double click on a portrait opens the
+character window. In a fight, whoever's turn it is acts. `--explore @Pip 21,42 @all ...` picks on the way
 (`Selection.cs`).
 
-**Spoils.** The spoils list shows each weapon with its icon (`art/icons/weapons/<model>.png`, from
-`render_icons.py`), and hovering an entry gives what `DescribeItem` says about it for the bearer
-picked, "not proficient" included. Armour and other gear have no icons yet and show as words.
+**Loot** (`Loot.cs`). Containers are drawn where the level puts them (`art/props/<look>.glb`, a
+stand-in shape until a model exists), with a gold mark over anything still shut or not yet empty;
+the fallen keep that mark while they have something on them. Clicking one walks the picked
+leader there and opens it — a lock asks for Disable Device or Strength, as a door does — and the
+loot window shows what is inside: click a thing to take it, or Take all. After a fight the camp
+row's **Loot (n)** opens every open container within twelve squares at once. Taken things go
+into the party's shared bag; nothing is put on by taking it. Hidden containers appear, with a
+line in the log, when somebody notices them. An `--autoplay` run takes everything and puts on
+what suits each character (`Outfitter.EquipBest`); `--show-loot` keeps the window up instead.
+
+**The character window** (`Inventory.cs`, I or a double-click on a portrait). Slots round the
+figure itself, armed as it is on the board; the party's bag as a grid with filters; the purse
+and the party's load under it, and what the picked character carries and moves under beside the
+figure. Click a thing to read it, double-click or drag it to put it on or take it off, or use
+the buttons: give, hang on the belt, drop (it lands as a pile on the ground). Green and red
+arrows say whether a thing in the bag is better or worse for the picked character than what
+they have on (`Outfitter.Compare`). The Sheet tab is the old character sheet. `--character`
+opens the window at start, for looking at it under `xvfb-run`.
+
+**Saves** (`Saves.cs`). Every save is its own file in `user://saves`, with a small `.card`
+beside it saying what and where it is: a quicksave (F5), three rotating autosaves (as a fight
+opens, once it is won, at the start of an adventure and when the window is closed) and saves
+made with "Save new". The title's Continue loads the newest of all of them; Load Game, and F9 in
+play, list them. The single `user://ironbound.save` of earlier builds is listed and loaded where
+it is, never moved. Runs started with arguments (autoplay, captures) never write saves.
+`--menu load` opens the load page at start.
 
 **Moving.** Hovering draws the path the click will take as a glowing pipe from the mover's feet
 (`PathPreview.cs`, `path.gdshader`): the rules' own path and the longest part of it this turn
@@ -298,16 +463,16 @@ block bottom-left; the campaign and the turn order top-right.
 
 | Key | Does |
 | --- | --- |
-| 1 – 7 | Move, Attack, Full attack, Trip, Shove, Help, Cast |
-| Z / X / C | Power Attack, Combat Expertise, Fight defensively |
+| 1 – 8 | Move, Attack, Full attack, Trip, Shove, Demoralize, Help, Cast |
+| Z / X / C / M | Power Attack, Combat Expertise, Fight defensively, Deadly Aim |
 | R | Rage, or let it go (barbarians only; greyed while fatigued or out of rounds) |
 | V / B / N | Rage powers declared before a blow: powerful blow, surprise accuracy, strength surge |
 | G / Space | Stand up, End turn |
-| L / I | Log, character sheet (or double-click a portrait) |
+| L / I | Log, character window: inventory and sheet (or double-click a portrait) |
 | Ctrl+A | Between fights: pick the whole party |
-| F5 / F9 | Save, Load |
+| F5 / F9 | Quicksave, the list of saved games |
 
-**Class features.** The Cast list (7) holds more than prepared spells:
+**Class features.** The Cast list (8) holds more than prepared spells:
 
 - each spell with its slots left, plus a domain or school slot it may use instead
   ("2 + 1 school");
@@ -319,8 +484,14 @@ block bottom-left; the campaign and the turn order top-right.
 
 Channel energy is aimed by clicking the cleric herself. Taking a level asks for whatever the
 class table asks for at that level (a fighter's bonus feat, a weapon group, a rogue talent or
-rage power) and lists the features that come with it. The character sheet has a *Class
-features* section with what each one is worth right now.
+rage power) and lists the features that come with it, plus the ability raised every fourth
+level, the favoured-class hit point or skill rank, and what a feat such as Weapon Focus or Skill
+Focus is taken for. Feats the character cannot take are listed with why. The character sheet has
+a *Class features* section with what each one is worth right now.
+
+A caster an enemy is standing over gets a **Defensively** toggle beside the Cast list, with the
+chance the concentration check holds; ticked, the spell draws no attacks of opportunity and is
+lost if the check fails.
 
 Portraits are not art: each is a small viewport with its own copy of the creature's model and a
 camera on its face, so anything with a model has a portrait. Icons are drawn in code

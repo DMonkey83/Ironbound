@@ -26,5 +26,9 @@
   "items": ["bite"],
   "reduction": [
     { "amount": 10, "bypassedBy": ["Silver"], "mode": "Any" }
-  ]
+  ],
+
+  // A man most of the month, with a man's NPC gear; what is left of it is a belt pouch.
+  "treasure": "npc-gear",
+  "purse": { "gp": "1d6", "sp": "2d6" }
 }

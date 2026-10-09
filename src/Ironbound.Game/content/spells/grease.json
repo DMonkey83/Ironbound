@@ -9,6 +9,8 @@
   "range": "close",
   "target": { "burst": 10 },
   "affects": "Everyone",
+  // Spell resistance does not stop it: the grease is on the floor, not on anybody.
+  "spellResistance": false,
   "save": "Reflex",
   "onSave": "Negates",
   "does": [

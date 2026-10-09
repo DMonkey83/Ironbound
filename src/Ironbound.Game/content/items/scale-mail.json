@@ -4,6 +4,7 @@
   "kind": "item", "id": "scale-mail", "name": "scale mail",
   "description": "Overlapping plates on a leather coat. Heavy, and worth it.",
   "slot": "Armour",
+  "cost": 50, "weight": 30,
   "armour": "Medium", "maxDex": 3, "checkPenalty": -4,
   "grants": [ { "target": "armourClass", "value": 4, "type": "Armor" } ]
 }

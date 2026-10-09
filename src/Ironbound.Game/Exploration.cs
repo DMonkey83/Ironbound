@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Ironbound.Rules.Content;
+using Ironbound.Rules.Items;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Maps;
 using Ironbound.Simulation;
@@ -51,7 +52,9 @@ public partial class Main
 	/// <summary>Set while a page is up: nobody walks while the player is reading.</summary>
 	private bool _held;
 
-	private bool Exploring => _campaign is { IsLevel: true } && _campaign.State == CampaignState.Exploring;
+	// Won is still walking: the last room's spoils, Gorrum's strongbox among them, are there to
+	// be picked up after the last blow.
+	private bool Exploring => _campaign is { IsLevel: true, State: CampaignState.Exploring or CampaignState.Won };
 
 	// ---- drawing the level ----
 
@@ -79,13 +82,13 @@ public partial class Main
 						SpawnPillar(x, y, treeProp);
 						break;
 					case LevelCell.Bed:
-						Furniture(square, new Vector3(0.75f, 0.22f, 0.95f), new Color(0.32f, 0.24f, 0.18f));
+						Furniture(square, "bed", new Vector3(0.75f, 0.22f, 0.95f), new Color(0.32f, 0.24f, 0.18f));
 						break;
 					case LevelCell.Table:
-						Furniture(square, new Vector3(0.9f, 0.62f, 0.9f), new Color(0.36f, 0.24f, 0.14f));
+						Furniture(square, "table", new Vector3(0.9f, 0.62f, 0.9f), new Color(0.36f, 0.24f, 0.14f));
 						break;
-					case LevelCell.Crate:
-						Furniture(square, new Vector3(0.82f, 0.72f, 0.82f), new Color(0.42f, 0.30f, 0.18f));
+					case LevelCell.Crate when _campaign.ContainerAt(square) is null:
+						Furniture(square, "crate-b", new Vector3(0.82f, 0.72f, 0.82f), new Color(0.42f, 0.30f, 0.18f));
 						break;
 				}
 			}
@@ -95,6 +98,9 @@ public partial class Main
 		{
 			DrawFeature(feature);
 		}
+
+		_containerNodes.Clear();
+		RefreshContainers();
 
 		// The rooms' occupants, waiting where the level put them. They are not on the rules'
 		// board until their room is entered, so they are placed here by hand.
@@ -124,6 +130,23 @@ public partial class Main
 				}
 			}
 		}
+	}
+
+	/// <summary>
+	/// A piece of furniture from art/props, turned by a repeatable quarter so a dormitory of beds
+	/// is not a parade; or, without the model, a box of the right size and colour.
+	/// </summary>
+	private void Furniture(GridSquare at, string model, Vector3 size, Color colour)
+	{
+		if (PropModel(model) is { } piece)
+		{
+			_world.AddChild(piece);
+			piece.Position = new Vector3(at.X + 0.5f, 0, at.Y + 0.5f);
+			piece.RotateY(Mathf.DegToRad((((at.X * 31) + (at.Y * 17)) % 4) * 90f));
+			return;
+		}
+
+		Furniture(at, size, colour);
 	}
 
 	private void Furniture(GridSquare at, Vector3 size, Color colour)
@@ -201,6 +224,26 @@ public partial class Main
 		var leader = walking.FirstOrDefault();
 		if (leader is null)
 		{
+			return;
+		}
+
+		// Too much on somebody's back to take a step: say so, and say where to put it down.
+		if (walking.FirstOrDefault(_campaign.IsOverloaded) is { } stuck)
+		{
+			// The party's load, when that is what it is — three down and the one left standing
+			// with everybody's kit — rather than blaming whoever happened to be picked.
+			var party = Encumbrance.PartyLoad(_campaign);
+			Refuse(Encumbrance.Load(stuck).Category == LoadCategory.Overloaded
+				? $"{stuck.Name} is carrying too much to move. Open the character window (I) and drop something."
+				: $"{party.Line} Rest, or drop something from the bag (I).");
+			return;
+		}
+
+		// A body or a pile on the floor: go and search it. Containers that belong to the level
+		// are features, and go the way doors do.
+		if (_campaign.ContainerAt(target) is { Feature: null, IsEmpty: false } loose)
+		{
+			GoOpen(loose, leader, field);
 			return;
 		}
 
@@ -542,6 +585,9 @@ public partial class Main
 		RefreshFigures();
 		RefreshControls();
 		ReportInitiative();
+
+		// The fight as it opens, initiative rolled and nobody moved: what a lost fight goes back to.
+		Autosave();
 		StartNextTurn();
 	}
 
@@ -552,8 +598,24 @@ public partial class Main
 	private void AfterLevelFight(AreaDefinition finished)
 	{
 		Begin(_campaign.Battle);
+		Autosave();
 		RebuildFrames();
-		Prompt(Verdict());
+		RefreshContainers();
+		Prompt(Spoils().Count > 0 ? "The fallen can be searched: click a body, or press Loot." : Verdict());
+
+		// Nobody is there to click the bodies on an autoplay run, so the spoils are taken for them,
+		// and somebody left bleeding is a rest, as a player would take one.
+		if (Unattended() && Spoils() is { Count: > 0 } spoils)
+		{
+			ShowLoot(spoils, "Spoils");
+		}
+
+		if (_autoplay && _campaign.CanRest && _campaign.Party.Any(member => !member.IsConscious))
+		{
+			_campaign.Rest();
+			LogText("— the party rests —\n");
+			RefreshFigures();
+		}
 		RefreshFigures();
 		RefreshControls();
 
@@ -639,9 +701,31 @@ public partial class Main
 		}
 
 		DrawFeature(feature);
+		RefreshContainers();
 		RebuildFrames();
 		RefreshFigures();
 		RefreshControls();
+
+		// A container opened: its page the first time, if it has one, and then what is in it.
+		if (result.Success && feature.Kind == FeatureKind.Container && _campaign.GetContainer(feature.Id) is { } box)
+		{
+			var heading = Capitalised(feature.Name);
+			if (feature.Text.Length > 0 && result.Lines.Contains(feature.Text))
+			{
+				Pause();
+				ShowPage(string.Empty, heading, feature.Text, "Go on", () =>
+				{
+					Resume();
+					ShowLoot([box], heading);
+				});
+			}
+			else
+			{
+				ShowLoot([box], heading);
+			}
+
+			return;
+		}
 
 		if (result.Success && feature.Text.Length > 0 && feature.Kind != FeatureKind.Door)
 		{

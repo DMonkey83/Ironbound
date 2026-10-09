@@ -5,6 +5,7 @@ using Ironbound.Rules.Dice;
 using Ironbound.Rules.Feats;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Items;
+using Ironbound.Rules.Maps;
 using Ironbound.Rules.Persistence;
 
 namespace Ironbound.Simulation;
@@ -50,7 +51,6 @@ public sealed partial class Campaign
     private readonly RuleOptions? _rules;
     private readonly ulong _seed;
     private readonly Dictionary<string, Creature> _party = new(StringComparer.Ordinal);
-    private readonly List<ItemDefinition> _stash = [];
     private int _lootedChapter;
 
     private Campaign(
@@ -106,6 +106,9 @@ public sealed partial class Campaign
         campaign.Experience = Levelling.ThresholdFor(
             campaign.Party.Count == 0 ? 1 : campaign.Party.Max(one => one.Level));
 
+        campaign.ShareLoad();
+        campaign.LookAbout();
+
         return campaign;
     }
 
@@ -153,17 +156,6 @@ public sealed partial class Campaign
             return Chapter >= Definition.Encounters.Count ? CampaignState.Won : CampaignState.Between;
         }
     }
-
-    /// <summary>
-    /// What has been taken from the fallen and not yet given to anybody.
-    /// </summary>
-    /// <remarks>
-    /// The other half of the wall that damage reduction builds. The rules have been able to say
-    /// "DR 10/silver" for some time and items have been able to answer it, but until something
-    /// put a silvered blade in the party's hands the answer was one the player could never
-    /// reach. Loot is how a gate becomes a puzzle instead of a dead end.
-    /// </remarks>
-    public IReadOnlyList<ItemDefinition> Stash => _stash;
 
     public bool CanRest =>
         RestsRemaining > 0 && State is CampaignState.Between or CampaignState.Exploring;
@@ -215,9 +207,16 @@ public sealed partial class Campaign
         battle.Party.Count);
 
     /// <summary>
-    /// Strips the fallen of everything they were carrying, and searches the room if the fight
-    /// was won. Idempotent: a chapter is looted once, however many times anybody asks.
+    /// Takes stock of a fight that is over: experience for it, and a body for each of the fallen
+    /// where they fell, holding what they carried and the coins in their pockets — and what the
+    /// room had lying about, as a pile. Returns how many things were laid out to be taken.
+    /// Idempotent: a chapter is collected once, however many times anybody asks.
     /// </summary>
+    /// <remarks>
+    /// Nothing goes into the bag by itself any more. Taking is a step of its own —
+    /// <see cref="TakeAll"/> and its kin — so that what is in the bag is what somebody chose to
+    /// pick up, and the bag can be too heavy to carry.
+    /// </remarks>
     public int Collect()
     {
         // Whatever else is or is not collected, a fight that is over is over for the rage too,
@@ -234,7 +233,9 @@ public sealed partial class Campaign
 
         if (IsLevel)
         {
-            return CollectArea();
+            var laid = CollectArea();
+            LookAbout();
+            return laid;
         }
 
         if (_lootedChapter >= Chapter || State == CampaignState.Fighting)
@@ -252,85 +253,23 @@ public sealed partial class Campaign
         // Anyone who cannot stop you, not only the outright dead. A hobgoblin bleeding out at
         // -12 is in no position to object, and leaving his sword on him because the rules call
         // him "dying" rather than "dead" would be a distinction the player would read as a bug.
-        foreach (var fallen in Battle.Foes.Where(foe => !foe.IsConscious))
+        var centre = Battle.Battlefield is { } field
+            ? OpenGround(field, new GridSquare(field.Width / 2, field.Height / 2))
+            : new GridSquare(0, 0);
+
+        if (State != CampaignState.Lost)
         {
-            // Enumerated into a list first: unequipping walks the same collection.
-            foreach (var item in fallen.Equipment.Items.ToList())
-            {
-                fallen.Equipment.Unequip(item.Id);
-                _stash.Add(item);
-                taken++;
-            }
+            taken += Bodies(Battle, $"chapter-{Chapter}", (ulong)Chapter, centre);
         }
 
         // What was lying about rather than being carried. Under the same once-only guard as the
         // bodies, and that guard is saved, so reloading is not a way to find the sword twice.
         if (State != CampaignState.Lost && Scene is { } scene)
         {
-            foreach (var found in scene.Loot.Select(_library.GetItem).OfType<ItemDefinition>())
-            {
-                _stash.Add(found);
-                taken++;
-            }
+            taken += Pile($"loot:chapter-{Chapter}", $"what {scene.Name} left lying about", scene.Loot, centre);
         }
 
         return taken;
-    }
-
-    /// <summary>
-    /// Hands something from the stash to somebody. Refuses mid-fight: rummaging through a sack
-    /// is not a thing you do while a hobgoblin is swinging at you.
-    /// </summary>
-    public bool Give(Creature creature, string itemId)
-    {
-        ArgumentNullException.ThrowIfNull(creature);
-
-        if (State == CampaignState.Fighting || !Party.Contains(creature))
-        {
-            return false;
-        }
-
-        var index = _stash.FindIndex(item => string.Equals(item.Id, itemId, StringComparison.Ordinal));
-        if (index < 0)
-        {
-            return false;
-        }
-
-        var found = _stash[index];
-        _stash.RemoveAt(index);
-
-        // Taking a sword means putting it in your hand. Without this the better blade is stowed
-        // behind the worse one, the creature keeps swinging the wrong thing, and the player is
-        // left wondering why the silver they went to the trouble of finding does nothing.
-        if (!creature.Equipment.HasRoomFor(found.Slot)
-            && creature.Equipment.InSlot(found.Slot).FirstOrDefault() is { } displaced)
-        {
-            creature.Equipment.Unequip(displaced.Id);
-            _stash.Add(displaced);
-        }
-
-        _library.Equip(creature, found);
-
-        return true;
-    }
-
-    /// <summary>Takes something back off somebody and returns it to the sack.</summary>
-    public bool Reclaim(Creature creature, string itemId)
-    {
-        ArgumentNullException.ThrowIfNull(creature);
-
-        if (State == CampaignState.Fighting || _library.GetItem(itemId) is not { } item)
-        {
-            return false;
-        }
-
-        if (!creature.Equipment.Unequip(itemId))
-        {
-            return false;
-        }
-
-        _stash.Add(item);
-        return true;
     }
 
     /// <summary>Whether somebody has fallen behind what the party has earned.</summary>
@@ -526,12 +465,17 @@ public sealed partial class Campaign
 
         Collect();
 
+        // The bodies and piles of the last board stay on it: whatever was not picked up is left
+        // behind with the place.
+        _containers.Clear();
+
         var encounter = Definition.Encounters[Chapter];
         Chapter++;
 
         // A different stream per chapter, so the second fight does not replay the first one's
         // dice, and so a campaign is still reproducible from one seed.
         Battle = Scenarios.Build(_library, encounter, _seed + (ulong)Chapter, _rules, _party);
+        ShareLoad();
 
         return true;
     }
@@ -545,10 +489,13 @@ public sealed partial class Campaign
                 Chapter,
                 RestsRemaining,
                 _seed,
-                [.. _stash.Select(item => item.Id)],
+                [],
                 _lootedChapter,
                 Experience,
-                CaptureLevel())));
+                CaptureLevel(),
+                [.. _bag.Entries.Select(Capture)],
+                Capture(_bag.Money),
+                [.. _containers.Select(Capture)])));
 
     /// <summary>
     /// Reads one back. Refuses a save with no campaign in it rather than inventing one.
@@ -574,15 +521,21 @@ public sealed partial class Campaign
             state.Seed,
             save.Rules,
             Battle.Restore(save, library),
-            state.Stash,
             state.LootedChapter,
             state.Experience);
 
+        campaign.RestoreBag(state);
+
         if (state.Level is { } level)
         {
-            campaign.Resume(level);
+            campaign.Resume(level, state.Containers);
+        }
+        else
+        {
+            campaign.RestoreContainers(state.Containers);
         }
 
+        campaign.ShareLoad();
         return campaign;
     }
 
@@ -595,7 +548,6 @@ public sealed partial class Campaign
         ulong seed,
         RuleOptions? rules,
         Battle battle,
-        IReadOnlyList<string> stash,
         int lootedChapter,
         int experience)
     {
@@ -607,12 +559,6 @@ public sealed partial class Campaign
             _lootedChapter = lootedChapter,
             Experience = experience,
         };
-
-        foreach (var id in stash)
-        {
-            campaign._stash.Add(library.GetItem(id) ?? throw new InvalidDataException(
-                $"The save has an item '{id}' in the sack, which no content file defines."));
-        }
 
         foreach (var creature in battle.Party)
         {

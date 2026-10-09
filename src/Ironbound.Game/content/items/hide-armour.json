@@ -3,6 +3,7 @@
   "kind": "item", "id": "hide-armour", "name": "hide armour",
   "description": "Uncured skins, several layers deep. It smells exactly as you would expect.",
   "slot": "Armour",
+  "cost": 15, "weight": 25,
   "armour": "Medium", "maxDex": 4, "checkPenalty": -3,
   "grants": [ { "target": "armourClass", "value": 3, "type": "Armor" } ]
 }

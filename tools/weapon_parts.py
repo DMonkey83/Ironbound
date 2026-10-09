@@ -460,7 +460,7 @@ def _thickness(kind, a, flat):
     return ((1.0 - a) / (1.0 - flat)) ** 0.9
 
 
-def edge_section(origin, across, w, t, kind="hex", flat=0.5, fuller=0.0, fuller_w=0.0):
+def edge_section(origin, across, w, t, kind="hex", flat=0.5, fuller=0.0, fuller_w=0.0, twin=False):
     """A double-edged blade's cross-section: 20 points round it, both edges single points.
 
     `across` is the unit vector to one edge, w the half-width and t the half-thickness. A
@@ -478,7 +478,11 @@ def edge_section(origin, across, w, t, kind="hex", flat=0.5, fuller=0.0, fuller_
     def y(a):
         v = _thickness(kind, a, flat)
         if fuller > 0 and abs(a) < fw:
-            v -= fuller * (1 - (a / fw) ** 2) ** 0.8
+            if twin:
+                # Two narrow fullers with a ridge between them: deepest at half the width.
+                v -= fuller * max(0.0, 1 - ((abs(a) - 0.5 * fw) / (0.5 * fw)) ** 2) ** 0.8
+            else:
+                v -= fuller * (1 - (a / fw) ** 2) ** 0.8
         return t * max(v, 0.12)
 
     return [origin + across * (a * w) + Y * y(a) for a in top] + [origin + across * (a * w) - Y * y(a) for a in bottom]
@@ -502,6 +506,13 @@ def blade_width(s, b):
     if b.get("wave"):
         amp, count = b["wave"]
         w *= 1 + amp * math.sin(2 * math.pi * count * s) * smoothstep(0.02, 0.1, s) * smoothstep(1.0, 0.85, s)
+    if b.get("swell"):
+        # A widening toward the point, as on a cut-and-thrust blade's "false leaf".
+        peak, amount = b["swell"]
+        w *= 1 + amount * math.exp(-((s - peak) / 0.16) ** 2)
+    for s0, depth in b.get("nicks", ()):
+        # Nicks in an old edge: small bites out of the width.
+        w *= 1 - depth * math.exp(-((s - s0) / 0.006) ** 2)
     return w
 
 
@@ -513,6 +524,8 @@ def straight_blade(name, b, material):
     ps = 1.0 - b.get("point", 0.15)
     steps = b.get("steps", 18 if not b.get("wave") else max(18, int(b["wave"][1] * 8)))
     ss = {i / steps for i in range(steps)} | {ps, ps + 0.002} | {ps + (1 - ps) * k / 7 for k in range(1, 7)}
+    for s0, _ in b.get("nicks", ()):
+        ss |= {s0 - 0.012, s0 - 0.005, s0, s0 + 0.005, s0 + 0.012}
     ss = sorted(s for s in ss if 0 <= s < 1)
     fuller = b.get("fuller")
     sections = [edge_section(Vector((0, 0, z0 - 0.02)), Vector((1, 0, 0)), blade_width(0, b), t0, b.get("section", "hex"), b.get("flat", 0.5))]
@@ -529,7 +542,7 @@ def straight_blade(name, b, material):
             depth = fd * fade
             fwa = fwa * (0.45 + 0.55 * math.sqrt(fade))
         z = z0 + L * s
-        sections.append(edge_section(Vector((0, 0, z)), Vector((1, 0, 0)), w, t, b.get("section", "hex"), b.get("flat", 0.5), depth, fwa))
+        sections.append(edge_section(Vector((0, 0, z)), Vector((1, 0, 0)), w, t, b.get("section", "hex"), b.get("flat", 0.5), depth, fwa, b.get("twin", False)))
         if fuller and depth > 0.5 * fuller[3]:
             floor.append((z, t * max(1.0 - depth, 0.12), fwa))
     sections.append([Vector((0, 0, z1))] * 20)
@@ -599,3 +612,45 @@ def curved_blade(name, b, material):
     sections = [base] + [section(s) for s in ss if s < 1] + [[tip] * 15]
     info = {"spine": spine, "normal": normal, "Wc": Wc}
     return tag(crisp(gg.loft(name, sections, material), 26), "edge"), tip, info
+
+
+# --- sculpted pieces ----------------------------------------------------------------------------
+
+def sculpt(name, elements, material, res=0.006, decimate=0.45):
+    """Metaballs to a mesh: elements are dicts of co, r (a radius or three), neg, rot (degrees).
+    `name` must have no dot and be unique: Blender melts together metaballs whose names share
+    a stem."""
+    import bpy
+    mb = bpy.data.metaballs.new(name)
+    mb.resolution = res
+    mb.render_resolution = res
+    mb.threshold = 0.6
+    ob = bpy.data.objects.new(name, mb)
+    bpy.context.collection.objects.link(ob)
+    for el in elements:
+        e = mb.elements.new(type="ELLIPSOID")
+        e.co = Vector(el["co"])
+        r = el["r"]
+        r = (r, r, r) if isinstance(r, (int, float)) else r
+        e.size_x, e.size_y, e.size_z = (v * 1.55 for v in r)
+        e.radius = 1.0
+        e.stiffness = el.get("stiff", 2.0)
+        e.use_negative = el.get("neg", False)
+        if el.get("rot"):
+            e.rotation = Euler([math.radians(a) for a in el["rot"]]).to_quaternion()
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = ob
+    ob.select_set(True)
+    bpy.ops.object.convert(target="MESH")
+    obj = bpy.context.view_layer.objects.active
+    obj.name = name + "Mesh"
+    for p in obj.data.polygons:
+        p.use_smooth = True
+    obj.data.materials.clear()
+    obj.data.materials.append(material)
+    if decimate and len(obj.data.polygons) > 400:
+        mod = obj.modifiers.new("Thin", "DECIMATE")
+        mod.ratio = decimate
+        bpy.ops.object.modifier_apply(modifier="Thin")
+    obj["role"] = "fitting"
+    return obj

@@ -1,0 +1,7 @@
+// An art object of the second grade: a hundred gold. Worn for nothing but show, so it is a
+// valuable and not a ring anybody puts on for what it does.
+{
+  "kind": "item", "id": "gold-garnet-ring", "name": "gold ring with a garnet",
+  "type": "valuable", "cost": 100,
+  "description": "A thin gold band holding a red garnet the size of a pea. Somebody missed it."
+}

@@ -135,6 +135,21 @@ its fuller (its own `Rune1` material, not baked). Their origins and length axes 
 each is within 6% of its old length. The cold-iron greataxe kept its shape and is now near-black
 with a blue temper sheen; its icon used to read as plain steel.
 
+## Named weapons — `weapons/named-*.glb`
+
+**Generated**, by `tools/named_weapons.py` (one function each, rows in `weapon_recipes.py`): the
+Holy Avenger, Flame Tongue, Frost Brand, Life-Drinker, Dwarven Thrower and Oathbow, built after
+the owner asked for weapons "way more creative, like epic named weapons" and named the axes of
+it: "shades, glows, colours, cracks, widths, handle designs". Each keeps its base weapon's size,
+grip origin and axes, so the existing hands hold it, and adds a shape no mundane weapon has —
+gilt angel's wings, flame quillons on a flamberge, ice growing out of the steel, a black crescent
+pair over a spine of vertebrae, an anvil with knotwork, swans' heads on a recurve. Ornament is
+geometry: sculpted metaball pieces, swept feathers and filigree, faceted stones in claws and
+bezels, runes and knotwork standing proud of the metal. They are baked at 2048 with a fourth,
+emission atlas; checked in Godot 4.7, the imported material has its emission texture and its
+energy (`KHR_materials_emissive_strength`). No item files yet: their rules wait for the owner's
+Specific Weapons pages.
+
 ## Weapon icons — `icons/weapons/*.png`
 
 **Rendered**, by `tools/render_icons.py`, from the same `.glb` files the game loads, one for
@@ -158,6 +173,25 @@ behind the jaws rather than a swing, because the rules give him a bite.
 Shape, stance and palette follow a second concept sheet from the project owner
 (`Werewolf Captain` / `Werewolf`, an image-generator render used as reference only): the
 unarmoured werewolf in its lower half. The armoured Captain above it is an obvious later variant.
+
+## Props — `props/*.glb`
+
+**Generated**, by `tools/generate_props.py` with its helpers `props_parts.py`,
+`props_surface.py` and `props_cloth.py`: no source art and nothing to licence — the model is the
+script. Containers (`crate`, `crate-b`, `chest`, `strongbox`, `barrel`, `sack`, `sack-open`,
+`cart`, `cart-overturned`, `weapon-rack`, `pile`, `niche`) and furniture (`bed`, `table`), each
+baked by `surface.py` into one atlas like the creatures.
+
+The weapon rack's contents are copies of three of the game's own models — `weapons/shortspear.glb`,
+`weapons/greataxe.glb`, `weapons/longsword.glb` — unchanged in shape, their own baked textures
+re-baked into the rack's atlas. If those weapons are rebuilt, rebuild the rack too.
+
+## Item icons — `icons/items/*.png`
+
+**Rendered**, by `tools/render_item_icons.py`, under `render_icons.py`'s own lights, sky and
+camera, so they sit with the weapon icons. Armour, rings, coins, valuables and the party's bag
+are modelled in that script (no source art, nothing to licence); `container-*.png` are drawn from
+`props/*.glb` with the lid open. Sized by family, not filled to the slot.
 
 ## Terrain — `Grass_Flat`, `Prop_Tree_Cedar_1`, `Sand_Flat`, `Prop_Cliff_Rock_1`
 

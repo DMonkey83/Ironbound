@@ -18,5 +18,9 @@
 
   // Order matters. The bow is what it reaches for by default; the scimitar is what it is left
   // with once something closes, since firing in someone's face provokes and costs four besides.
-  "items": ["studded-leather", "shortbow", "scimitar"]
+  "items": ["studded-leather", "shortbow", "scimitar"],
+
+  // NPC gear, as the goblin's.
+  "treasure": "npc-gear",
+  "purse": { "sp": "1d6", "cp": "2d10" }
 }

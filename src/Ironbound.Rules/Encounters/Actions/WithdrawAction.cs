@@ -14,6 +14,8 @@ namespace Ironbound.Rules.Encounters.Actions;
 /// </remarks>
 public sealed class WithdrawAction(IReadOnlyList<GridSquare> path) : MoveAction(path)
 {
+    protected override bool CanStagger => false;
+
     public override string Name => "withdraw";
 
     public override ActionCost Cost => ActionCost.FullRound;

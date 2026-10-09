@@ -13,6 +13,8 @@ namespace Ironbound.Rules.Encounters.Actions;
 /// </remarks>
 public sealed class FiveFootStepAction(IReadOnlyList<GridSquare> path) : MoveAction(path)
 {
+    protected override bool CanStagger => false;
+
     public override string Name => "five-foot step";
 
     public override ActionCost Cost => ActionCost.Free;

@@ -395,7 +395,7 @@ def build(name, directory, keep=None):
     if wf.family(name) == "named":
         # Named weapons are few and seen close: a 2048 bake of everything, glow included, into
         # an emission atlas the exporter writes with its strength.
-        surface.finish([(name, parts, 2048, True)], keep=keep, emission=wf.recipe(name).get("glow", 2.0))
+        surface.finish([(name, parts, 2048, 0.3)], keep=keep, emission=wf.recipe(name).get("glow", 2.0))
     elif name in BAKED:
         # A glow is not a colour and does not survive a bake: it keeps its own material.
         surface.finish([(name, [p for p in parts if not wf.is_unbaked(p)], 1024, True)], keep=keep)

@@ -21,7 +21,7 @@ public class EncounterStoryParsingTests
         var cellar = library.GetEncounter("cellar")!;
 
         Assert.Equal("It smells of old wine.", cellar.Intro);
-        Assert.Equal(["corkscrew"], cellar.Loot);
+        Assert.Equal([new LootDefinition("corkscrew")], cellar.Loot);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class CavesOfShadowContentTests
     {
         Assert.Equal(
             ["greatsword-plus-one", "light-crossbow"],
-            Library.GetEncounter("orc-lair")!.Loot);
+            Library.GetEncounter("orc-lair")!.Loot.Select(found => found.ItemId));
     }
 
     [Fact]

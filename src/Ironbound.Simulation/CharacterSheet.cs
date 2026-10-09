@@ -65,7 +65,23 @@ public static class CharacterSheet
             + $"{creature.AttacksPerFullAttack} attack(s) on a full attack",
         $"Attacks of opportunity {creature.AttacksOfOpportunityPerRound} a round",
         $"Fighting: {creature.Stances}",
+        Load(creature),
     ]);
+
+    /// <summary>
+    /// "Carrying 38 lb: light load (light to 76 lb, …)", and the party's load when that is the
+    /// worse of the two and so the one that counts.
+    /// </summary>
+    private static string Load(Creature creature)
+    {
+        var own = Encumbrance.Load(creature);
+        var line = $"Carrying {Pricing.Pounds(own.Weight)}: {Encumbrance.Name(own.Category)} load ({own.Capacity})";
+        var effective = Encumbrance.Effective(creature);
+
+        return effective > own.Category
+            ? $"{line}; the party's share makes it {Encumbrance.Name(effective)}"
+            : line;
+    }
 
     private static SheetSection Abilities(Creature creature) => new(
         "Abilities",

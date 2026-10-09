@@ -39,6 +39,7 @@ public partial class Main
 		Move, Attack, Full, Trip, Shove, Help, Cast,
 		Stand, EndTurn, PowerAttack, Expertise, Defend,
 		Rage, PowerfulBlow, SurpriseAccuracy, StrengthSurge,
+		Demoralize, DeadlyAim,
 		Log, Sheet, Save, Load,
 	}
 
@@ -166,6 +167,13 @@ public partial class Main
 		button.AddThemeStyleboxOverride("hover", Plate(new Color(0.20f, 0.16f, 0.17f), BronzeBright, 2, 3, 6));
 		button.AddThemeStyleboxOverride("pressed", Plate(new Color(0.30f, 0.20f, 0.16f), BronzeBright, 2, 3, 6));
 		button.AddThemeStyleboxOverride("disabled", Plate(new Color(0.08f, 0.07f, 0.07f, 0.8f), new Color(0.25f, 0.21f, 0.18f), 2, 3, 6));
+
+		// Words on iron are pale, as the glyphs are; the paper's dark ink would vanish here.
+		button.AddThemeColorOverride("font_color", Parchment);
+		button.AddThemeColorOverride("font_hover_color", BronzeBright);
+		button.AddThemeColorOverride("font_pressed_color", BronzeBright);
+		button.AddThemeColorOverride("font_hover_pressed_color", BronzeBright);
+		button.AddThemeColorOverride("font_disabled_color", new Color(0.42f, 0.39f, 0.33f));
 		return button;
 	}
 
@@ -354,12 +362,12 @@ public partial class Main
 		across.AddChild(bar);
 		_hotbar = bar;
 
-		var keys = new[] { Key.Key1, Key.Key2, Key.Key3, Key.Key4, Key.Key5, Key.Key6, Key.Key7 };
+		var keys = new[] { Key.Key1, Key.Key2, Key.Key3, Key.Key4, Key.Key5, Key.Key6, Key.Key7, Key.Key8 };
 		var glyphs = new Dictionary<Mode, Glyph>
 		{
 			[Mode.Move] = Glyph.Move, [Mode.Attack] = Glyph.Attack, [Mode.Full] = Glyph.Full,
 			[Mode.Trip] = Glyph.Trip, [Mode.Shove] = Glyph.Shove, [Mode.Help] = Glyph.Help,
-			[Mode.Cast] = Glyph.Cast,
+			[Mode.Cast] = Glyph.Cast, [Mode.Demoralize] = Glyph.Demoralize,
 		};
 
 		for (var i = 0; i < ModeOrder.Length; i++)
@@ -375,6 +383,10 @@ public partial class Main
 		_spells.ItemSelected += _ => RefreshReach();
 		bar.AddChild(_spells);
 
+		// Only there while it would matter: see RefreshDefensive.
+		_castDefensively = new CheckButton { Visible = false, FocusMode = Control.FocusModeEnum.None, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+		bar.AddChild(_castDefensively);
+
 		bar.AddChild(new VSeparator());
 
 		var stanceKeys = new Dictionary<Stance, (Glyph, Key, string)>
@@ -382,6 +394,7 @@ public partial class Main
 			[Stance.PowerAttack] = (Glyph.PowerAttack, Key.Z, "Power Attack"),
 			[Stance.CombatExpertise] = (Glyph.Expertise, Key.X, "Combat Expertise"),
 			[Stance.FightingDefensively] = (Glyph.Defend, Key.C, "Fight defensively"),
+			[Stance.DeadlyAim] = (Glyph.DeadlyAim, Key.M, "Deadly Aim"),
 
 			// The barbarian's once-a-rage tricks: offered only while raging and unspent.
 			[Stance.PowerfulBlow] = (Glyph.PowerfulBlow, Key.V, "Powerful blow (next hit)"),
@@ -423,28 +436,10 @@ public partial class Main
 		};
 		across.AddChild(_between);
 
-		_between.AddChild(Words("Spoils", Body, 16, PageInk));
-		_stash = new OptionButton { CustomMinimumSize = new Vector2(240, 0) };
-		// The icons are drawn at 256 for chests and the sheet; a dropdown wants them thumbnail-sized.
-		_stash.AddThemeConstantOverride("icon_max_width", 28);
-		_stash.GetPopup().AddThemeConstantOverride("icon_max_width", 48);
-		_between.AddChild(_stash);
-		_between.AddChild(Words("to", Body, 16, PageInk));
-		_bearer = new OptionButton { CustomMinimumSize = new Vector2(110, 0) };
-		_bearer.ItemSelected += index =>
-		{
-			if (Choosing && index >= 0 && index < _campaign.Party.Count)
-			{
-				Select(_campaign.Party[(int)index], adding: false);
-			}
-
-			RefreshSheet();
-		};
-		_between.AddChild(_bearer);
-
-		_give = new Button { Text = "Take" };
-		_give.Pressed += OnTake;
-		_between.AddChild(_give);
+		// Whatever the fallen and the opened chests still hold within reach, in one window.
+		_loot = new Button { Text = "Loot", Visible = false };
+		_loot.Pressed += OnLootNearby;
+		_between.AddChild(_loot);
 
 		_levelUp = new Button { Text = "Level up" };
 		_levelUp.Pressed += OnLevelUp;
@@ -477,7 +472,7 @@ public partial class Main
 		_showLog.Toggled += _ => RefreshLogPanel();
 		row.AddChild(Ironclad(_showLog));
 
-		_showSheet = Hot(Glyph.Sheet, "Character sheet", Key.I, toggle: true);
+		_showSheet = Hot(Glyph.Sheet, "Character: inventory and sheet", Key.I, toggle: true);
 		_showSheet.Toggled += _ => RefreshSheet();
 		row.AddChild(Ironclad(_showSheet));
 
@@ -658,6 +653,20 @@ public partial class Main
 			case Glyph.Defend:
 				Shield(true);
 				break;
+			case Glyph.Demoralize:
+				// A head, shouting: the mouth open and the threat carrying off to the right.
+				button.DrawArc(P(-6, 0), 11f, 0, Mathf.Tau, 28, ink, 2.5f, true);
+				Poly(-2, 2, 6, -1, 6, 7);
+				button.DrawArc(P(6, 2), 9f, -0.7f, 0.7f, 10, ink, 2.5f, true);
+				button.DrawArc(P(6, 2), 15f, -0.6f, 0.6f, 12, ink, 2.5f, true);
+				break;
+			case Glyph.DeadlyAim:
+				// A drawn bow and its arrow, with the point aimed through a mark.
+				button.DrawArc(P(-6, 0), 16f, -1.25f, 1.25f, 20, ink, 3f, true);
+				Line(-1, -15, -14, 0, 1.5f); Line(-14, 0, -1, 15, 1.5f);
+				Line(-14, 0, 13, 0, 2.5f); Poly(17, 0, 10, -4, 10, 4);
+				button.DrawArc(P(14, 0), 6f, 0, Mathf.Tau, 20, ink, 1.5f, true);
+				break;
 			case Glyph.Log:
 				Line(-13, -10, 13, -10); Line(-13, -2, 13, -2); Line(-13, 6, 6, 6); Line(-13, 14, 10, 14);
 				break;
@@ -719,13 +728,17 @@ public partial class Main
 	/// moment they get a model, it breathes with the same idle clip, and it can never disagree
 	/// with the figure on the board about what somebody looks like.
 	/// </remarks>
-	private SubViewport Lens(Creature creature, int pixels)
+	/// <param name="whole">
+	/// The whole figure rather than the face, holding what it holds: the character window's
+	/// centrepiece, where taking a sword off should be seen to take it out of her hand.
+	/// </param>
+	private SubViewport Lens(Creature creature, int pixels, bool whole = false)
 	{
 		var lens = new SubViewport
 		{
 			OwnWorld3D = true,
 			TransparentBg = true,
-			Size = new Vector2I(pixels, pixels),
+			Size = whole ? new Vector2I(pixels, pixels * 8 / 5) : new Vector2I(pixels, pixels),
 			RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
 			Msaa3D = Viewport.Msaa.Msaa4X,
 		};
@@ -750,6 +763,11 @@ public partial class Main
 
 		var body = Model(creature) ?? Placeholder(creature, _battle.SideOf(creature) == Ironbound.Simulation.Side.Party ? PartyColour : FoeColour);
 		lens.AddChild(body);
+
+		if (whole)
+		{
+			Arm(creature, body);
+		}
 		if (Animations(body) is { } player)
 		{
 			var clips = player.GetAnimationList();
@@ -773,6 +791,16 @@ public partial class Main
 		{
 			if (!IsInstanceValid(camera) || !IsInstanceValid(body))
 			{
+				return;
+			}
+
+			if (whole)
+			{
+				// Head to toe with a little floor, from a step to her right and a little above,
+				// the way Wrath stands its figure in the inventory.
+				var middle = new Vector3(0, tall * 0.5f, 0);
+				camera.Position = middle + new Vector3(tall * 0.55f, tall * 0.18f, tall * 2.1f);
+				camera.LookAt(middle);
 				return;
 			}
 
@@ -880,12 +908,8 @@ public partial class Main
 			{
 				if (input is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } click)
 				{
-					var index = _campaign.Party.ToList().IndexOf(who);
-					if (index >= 0 && index < _bearer.ItemCount)
-					{
-						_bearer.Selected = index;
-					}
-
+					// The character window follows whoever is clicked, in a fight as out of one.
+					_invWho = who;
 					Select(who, click.ShiftPressed);
 
 					if (click.DoubleClick)

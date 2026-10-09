@@ -1,0 +1,6 @@
+// An art object of the first grade: fifty gold, and a pound to carry.
+{
+  "kind": "item", "id": "pewter-tankard", "name": "pewter tankard",
+  "type": "valuable", "cost": 50, "weight": 1,
+  "description": "A heavy pewter tankard with a hunting scene worked round it and a hinged lid."
+}

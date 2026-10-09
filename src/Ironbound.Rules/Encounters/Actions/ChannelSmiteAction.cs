@@ -31,7 +31,7 @@ public sealed class ChannelSmiteAction : GameAction
     {
         var actor = context.Actor;
         actor.DailyUses.Spend(ClassPowers.ChannelPool);
-        actor.Stances.Adopt(Stance.ChannelSmite);
+        actor.Stances.DeclareSmite();
 
         return new ActionResult(this, actor, $"{actor.Name} channels energy into the next blow");
     }

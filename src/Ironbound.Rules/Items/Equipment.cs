@@ -88,15 +88,33 @@ public sealed class Equipment(Creature owner)
     /// modelling that needs a notion of what is in your hands right now that nothing yet asks
     /// for — so for the moment a blade on the belt is a blade you can swing.
     /// </remarks>
-    public bool Equip(ItemDefinition item, WeaponAttack? weapon = null, WeaponAttack? thrown = null)
+    public bool Equip(ItemDefinition item, WeaponAttack? weapon = null, WeaponAttack? thrown = null) =>
+        Equip(item, null, weapon, thrown);
+
+    /// <summary>
+    /// Takes something up into a chosen slot — a sword into the off hand, a ring onto the second
+    /// finger — or onto the belt with <see cref="EquipmentSlot.Carried"/>. A slot already full
+    /// puts it on the belt instead, as the plain overload does; it is the caller's business to
+    /// make room first. Returns whether it went where it was asked to.
+    /// </summary>
+    /// <param name="slot">Where it should go, or null for the item's own slot.</param>
+    /// <param name="broken">Whether it comes broken, as something taken back out of a bag can.</param>
+    public bool Equip(
+        ItemDefinition item,
+        EquipmentSlot? slot,
+        WeaponAttack? weapon = null,
+        WeaponAttack? thrown = null,
+        bool broken = false)
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        var slot = HasRoomFor(item.Slot) ? item.Slot : EquipmentSlot.Carried;
+        var wanted = slot ?? item.Slot;
+        var landed = HasRoomFor(wanted) ? wanted : EquipmentSlot.Carried;
 
-        _worn.Add(new EquippedItem(item, weapon, slot, thrown));
+        _worn.Add(new EquippedItem(item, weapon, landed, thrown) { IsBroken = broken });
+        var slotUsed = landed;
 
-        if (slot != EquipmentSlot.Carried)
+        if (slotUsed != EquipmentSlot.Carried)
         {
             item.ApplyTo(_owner);
             Cap(item);
@@ -112,7 +130,7 @@ public sealed class Equipment(Creature owner)
             _owner.Attacks.Add(thrown);
         }
 
-        return slot == item.Slot;
+        return slotUsed == wanted;
     }
 
     /// <summary>Takes something off again, with everything it was giving.</summary>
@@ -127,6 +145,26 @@ public sealed class Equipment(Creature owner)
         Remove(_worn[index]);
         return true;
     }
+
+    /// <summary>
+    /// Takes off one particular entry — the broken dagger rather than the whole one beside it.
+    /// False if the creature is not wearing it.
+    /// </summary>
+    public bool Unequip(EquippedItem entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (!_worn.Contains(entry))
+        {
+            return false;
+        }
+
+        Remove(entry);
+        return true;
+    }
+
+    /// <summary>What everything on it weighs, sized for it: see <see cref="Encumbrance.WornWeight"/>.</summary>
+    public decimal Weight => Encumbrance.Carried(_owner);
 
     private void Remove(EquippedItem entry)
     {

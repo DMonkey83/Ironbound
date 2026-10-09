@@ -1,5 +1,6 @@
 {
   "kind": "item", "id": "ring-of-protection", "name": "ring of protection +1",
-  "slot": "Ring",
+  "slot": "Ring", "type": "wondrous",
+  "cost": 2000,
   "grants": [ { "target": "armourClass", "value": 1, "type": "Deflection" } ]
 }

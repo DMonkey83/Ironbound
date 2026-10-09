@@ -14,5 +14,9 @@
   ],
   "size": "Small",
   "speed": 20,
-  "items": ["studded-leather", "scimitar"]
+  "items": ["studded-leather", "scimitar"],
+
+  // NPC gear, by the Bestiary's goblin; a goblin's pockets hold mostly copper.
+  "treasure": "npc-gear",
+  "purse": { "sp": "1d6", "cp": "2d10" }
 }

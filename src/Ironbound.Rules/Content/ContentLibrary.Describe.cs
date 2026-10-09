@@ -81,9 +81,17 @@ public sealed partial class ContentLibrary
 
         var lines = new List<string>();
 
-        if (item.Weapon is { } kind && GetWeapon(kind) is not null)
+        if (item.Weapon is { } kind && GetWeapon(kind) is { } weapon)
         {
             lines.AddRange(DescribeWeapon(kind, wielder));
+
+            // The weapon's own price is a plain one's; this one's material and enchantment
+            // are in the item's.
+            var plain = lines.IndexOf(PriceLine(weapon.Cost, weapon.Weight));
+            if (plain >= 0 && !item.IsNatural)
+            {
+                lines[plain] = ItemPriceLine(item);
+            }
 
             if (item.Description.Length > 0)
             {
@@ -142,6 +150,16 @@ public sealed partial class ContentLibrary
                 lines.Add(wielder is not null && wielder.Equipment.Has(item.Id) && wielder.Equipment.ShieldSetAside
                     ? "Not counted while wielding a two-handed weapon — and that is happening now"
                     : "Not counted while wielding a two-handed weapon");
+            }
+
+            if (item.Kind == ItemKind.Valuable)
+            {
+                lines.Add("Worth something to a buyer, and nothing in a fight");
+            }
+
+            if (!item.IsNatural)
+            {
+                lines.Add(ItemPriceLine(item));
             }
         }
 
@@ -340,6 +358,13 @@ public sealed partial class ContentLibrary
         };
 
         return weight > 0 ? $"{price} · {Number(weight)} lb" : price;
+    }
+
+    /// <summary>"105 gp · 4 lb", "50 gp · weighs nothing to speak of".</summary>
+    private static string ItemPriceLine(ItemDefinition item)
+    {
+        var price = item.Price > 0 ? Pricing.Format(item.Price) : "costs nothing";
+        return item.Weight > 0 ? $"{price} · {Pricing.Pounds(item.Weight)}" : $"{price} · weighs next to nothing";
     }
 
     private static string Number(double value) =>

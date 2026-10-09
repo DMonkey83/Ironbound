@@ -22,5 +22,9 @@
   ],
 
   // A weapon rather than an item, so that killing it does not leave its teeth in the sack.
-  "weapons": ["rat-bite"]
+  "weapons": ["rat-bite"],
+
+  // On four legs, which carries more; and an animal, which carries no treasure.
+  "quadruped": true,
+  "treasure": "none"
 }

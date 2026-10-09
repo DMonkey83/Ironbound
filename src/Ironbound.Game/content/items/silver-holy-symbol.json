@@ -1,0 +1,6 @@
+// The adventuring-gear price for a silver holy symbol, and its pound of weight.
+{
+  "kind": "item", "id": "silver-holy-symbol", "name": "silver holy symbol",
+  "type": "valuable", "cost": 25, "weight": 1,
+  "description": "A sunburst in silver on a leather thong, the kind a village shrine keeps for its priest."
+}

@@ -18,5 +18,9 @@
 
   // Fighter weapon groups, for weapon training.
   "groups": ["axes"],
+  // Priced and weighed as the greatclub it fights as, at a man's size: an item counts at its
+  // Medium weight in a bag, and an ogre's own doubles on him as any Large creature's gear does.
+  "cost": 5,
+  "weight": 8,
   "description": "A crude axe as big as a man, cut for a giant's hands; it hits as hard as the book ogre's greatclub."
 }

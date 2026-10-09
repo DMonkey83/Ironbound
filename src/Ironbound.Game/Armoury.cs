@@ -145,10 +145,6 @@ public partial class Main
 		}
 	}
 
-	/// <summary>
-	/// What the creature has in its hand to fight with: the first of its weapons it still holds,
-	/// and never the throwing half of one, which is the same dagger.
-	/// </summary>
 	private static readonly Dictionary<string, Texture2D> Icons = [];
 
 	/// <summary>
@@ -157,27 +153,37 @@ public partial class Main
 	/// <remarks>
 	/// Icons are rendered from the same models the figures hold (tools/render_icons.py), one per
 	/// model and named after it, so the silvered longsword's icon is the silvered longsword and not
-	/// a generic sword. An item with no model of its own falls back to its weapon's. Armour,
-	/// potions and the like have none yet, and show as words.
+	/// a generic sword. An item with no model of its own falls back to its weapon's. Everything
+	/// else — armour, rings, coin, valuables — is drawn by tools/render_item_icons.py and named
+	/// after the item; anything not drawn yet shows as words.
 	/// </remarks>
 	private static Texture2D ItemIcon(ItemDefinition item)
 	{
-		var name = item.Model.Length > 0 ? System.IO.Path.GetFileNameWithoutExtension(item.Model) : item.Weapon;
-		if (string.IsNullOrEmpty(name))
+		if (item is null)
 		{
 			return null;
 		}
 
-		if (!Icons.TryGetValue(name, out var icon))
+		var name = item.Model.Length > 0 ? System.IO.Path.GetFileNameWithoutExtension(item.Model) : item.Weapon;
+		var key = string.IsNullOrEmpty(name) ? $"items/{item.Id}" : $"weapons/{name}";
+
+		if (!Icons.TryGetValue(key, out var icon))
 		{
-			var path = $"res://art/icons/weapons/{name}.png";
-			icon = ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
-			Icons[name] = icon;
+			var path = $"res://art/icons/{key}.png";
+			var fallback = $"res://art/icons/items/{item.Id}.png";
+			icon = ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path)
+				: ResourceLoader.Exists(fallback) ? GD.Load<Texture2D>(fallback)
+				: null;
+			Icons[key] = icon;
 		}
 
 		return icon;
 	}
 
+	/// <summary>
+	/// What the creature has in its hand to fight with: the first of its weapons it still holds,
+	/// and never the throwing half of one, which is the same dagger.
+	/// </summary>
 	private static WeaponAttack InHand(Creature creature) =>
 		creature.Attacks.FirstOrDefault(attack => !attack.IsThrownUse && !IsOutOfHand(creature, attack));
 

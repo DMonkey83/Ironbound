@@ -85,8 +85,9 @@ public sealed class Stances(Creature owner)
         Stance.CombatExpertise => _owner.HasFeat(FeatEffect.CombatExpertise),
         Stance.DeadlyAim => _owner.HasFeat(FeatEffect.DeadlyAim),
 
-        // The channel it costs is spent by the action that declares it, not here.
-        Stance.ChannelSmite => _owner.HasFeat(FeatEffect.ChannelSmite),
+        // Never taken up directly: it costs a swift action and a channel, which only
+        // ChannelSmiteAction pays, and it declares the stance itself once they are paid.
+        Stance.ChannelSmite => false,
         _ when IsRagePower(stance) => Rage.IsRaging(_owner)
             && _owner.Choices.HasTalent(PowerFor(stance))
             && !_spent.Contains(stance),
@@ -215,6 +216,12 @@ public sealed class Stances(Creature owner)
 
         return true;
     }
+
+    /// <summary>
+    /// Declares a channel smite on the next melee blow. Only the action that has just spent the
+    /// swift action and the channel for it calls this.
+    /// </summary>
+    internal bool DeclareSmite() => _owner.HasFeat(FeatEffect.ChannelSmite) && _active.Add(Stance.ChannelSmite);
 
     /// <summary>A rage has begun: every once-a-rage power is there to be used again.</summary>
     internal void BeginRage()

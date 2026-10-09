@@ -1,6 +1,7 @@
 {
   "kind": "item", "id": "studded-leather", "name": "studded leather",
   "slot": "Armour",
+  "cost": 25, "weight": 20,
   "armour": "Light", "maxDex": 5, "checkPenalty": -1,
   "grants": [ { "target": "armourClass", "value": 3, "type": "Armor" } ]
 }

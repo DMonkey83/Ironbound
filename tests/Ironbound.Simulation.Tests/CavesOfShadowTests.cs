@@ -96,8 +96,10 @@ public class EncounterLootTests
 
         run.Collect();
 
-        Assert.Contains(run.Stash, item => item.Id == "greatsword-plus-one");
-        Assert.Contains(run.Stash, item => item.Id == "light-crossbow");
+        // Lying about rather than carried: a pile, where the old sack took it without asking.
+        Assert.Contains(run.Lying(), entry => entry.Id == "greatsword-plus-one");
+        Assert.Contains(run.Lying(), entry => entry.Id == "light-crossbow");
+        Assert.False(run.Bag.Contains("greatsword-plus-one"));
     }
 
     [Fact]
@@ -108,9 +110,10 @@ public class EncounterLootTests
 
         run.Collect();
         run.Collect();
+        run.TakeEverything();
         run.Advance();
 
-        Assert.Single(run.Stash, item => item.Id == "greatsword-plus-one");
+        Assert.Equal(1, run.Bag.CountOf("greatsword-plus-one"));
     }
 
     [Fact]
@@ -122,20 +125,24 @@ public class EncounterLootTests
 
         var restored = Campaign.FromJson(run.ToJson(), ChainContent.Library);
         restored.Collect();
+        restored.TakeEverything();
         restored.Advance();
 
-        Assert.Single(restored.Stash, item => item.Id == "greatsword-plus-one");
+        Assert.Equal(1, restored.Bag.CountOf("greatsword-plus-one"));
     }
 
     [Fact]
-    public void AdvancingCollectsItEvenIfNobodyAskedFirst()
+    public void AdvancingWithoutTakingItLeavesItBehind()
     {
         var run = AtTheLair();
         SleepingPlacementTests.Win(run);
 
+        // Collected on the way out, as ever — and left with the place, as Wrath leaves it: the
+        // next board has no way back to this one.
         run.Advance();
 
-        Assert.Contains(run.Stash, item => item.Id == "greatsword-plus-one");
+        Assert.False(run.Bag.Contains("greatsword-plus-one"));
+        Assert.DoesNotContain(run.Lying(), entry => entry.Id == "greatsword-plus-one");
     }
 
     [Fact]
@@ -144,7 +151,7 @@ public class EncounterLootTests
         var run = AtTheLair();
 
         Assert.Equal(0, run.Collect());
-        Assert.DoesNotContain(run.Stash, item => item.Id == "greatsword-plus-one");
+        Assert.Empty(run.Containers);
     }
 
     [Fact]
@@ -159,7 +166,7 @@ public class EncounterLootTests
         run.Collect();
 
         Assert.Equal(CampaignState.Lost, run.State);
-        Assert.DoesNotContain(run.Stash, item => item.Id == "greatsword-plus-one");
+        Assert.DoesNotContain(run.Lying(), entry => entry.Id == "greatsword-plus-one");
     }
 
     [Fact]
@@ -170,10 +177,11 @@ public class EncounterLootTests
         run.Collect();
 
         var aldric = run.Party.Single(hero => hero.Name == "Aldric");
+        run.TakeEverything();
 
-        Assert.True(run.Give(aldric, "greatsword-plus-one"));
+        Assert.True(run.Equip(aldric, run.InBag("greatsword-plus-one")));
         Assert.Equal("greatsword +1", aldric.PrimaryAttack!.Name);
-        Assert.Contains(run.Stash, item => item.Id == "greatsword");
+        Assert.True(run.Bag.Contains("greatsword"));
     }
 
     private static Campaign AtTheLair()

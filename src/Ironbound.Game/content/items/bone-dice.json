@@ -1,0 +1,6 @@
+// An art object of the first grade: fifty gold.
+{
+  "kind": "item", "id": "bone-dice", "name": "carved bone dice",
+  "type": "valuable", "cost": 50,
+  "description": "Six dice cut from bone, each face a tiny carved animal instead of pips. Somebody cheated with these."
+}

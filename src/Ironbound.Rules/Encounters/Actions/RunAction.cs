@@ -8,7 +8,7 @@ namespace Ironbound.Rules.Encounters.Actions;
 
 /// <summary>
 /// Running: the whole round spent covering four times the creature's speed in a straight line
-/// — three times in heavy armour — and no Dexterity to armour class until its next turn.
+/// — three times in heavy armour or under a heavy load — and no Dexterity to armour class until its next turn.
 /// </summary>
 /// <remarks>
 /// The Run feat makes it five times (four in heavy armour) and keeps the Dexterity. A straight
@@ -17,6 +17,8 @@ namespace Ironbound.Rules.Encounters.Actions;
 /// </remarks>
 public sealed class RunAction(IReadOnlyList<GridSquare> path) : MoveAction(path)
 {
+    protected override bool CanStagger => false;
+
     public override string Name => "run";
 
     public override ActionCost Cost => ActionCost.FullRound;
@@ -26,7 +28,9 @@ public sealed class RunAction(IReadOnlyList<GridSquare> path) : MoveAction(path)
     {
         ArgumentNullException.ThrowIfNull(runner);
 
-        var heavy = runner.Equipment.ArmourWorn == ArmourCategory.Heavy;
+        // Heavy armour or a heavy load: three times, not four. The two do not stack.
+        var heavy = runner.Equipment.ArmourWorn == ArmourCategory.Heavy
+            || Encumbrance.Effective(runner) >= LoadCategory.Heavy;
         var trained = runner.HasFeat(FeatEffect.Run);
 
         return (heavy ? 3 : 4) + (trained ? 1 : 0);
@@ -46,6 +50,7 @@ public sealed class RunAction(IReadOnlyList<GridSquare> path) : MoveAction(path)
     public override bool CanPerform(ActionContext context)
     {
         if (context.Actor.IsProne
+            || Encumbrance.Effective(context.Actor) == LoadCategory.Overloaded
             || context.Actor.Has(Condition.Fatigued)
             || context.Actor.Has(Condition.Exhausted)
             || !IsStraight())

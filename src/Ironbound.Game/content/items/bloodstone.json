@@ -1,0 +1,6 @@
+// A lesser gem by the book's grades: fifty gold apiece. They come in a pouch, and stack.
+{
+  "kind": "item", "id": "bloodstone", "name": "bloodstone",
+  "type": "valuable", "cost": 50,
+  "description": "A dark green stone flecked with red, polished smooth by somebody's thumb."
+}

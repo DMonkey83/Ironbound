@@ -38,8 +38,31 @@ public sealed class ArmorClass(AbilityScore dexterity)
     /// held per source so that taking off a tower shield restores the breastplate's limit
     /// instead of removing the cap entirely.
     /// </summary>
-    public int? MaxDexterityBonus =>
-        _dexterityCaps.Count == 0 ? null : _dexterityCaps.Values.Min() + Math.Max(0, CapRelief?.Invoke() ?? 0);
+    public int? MaxDexterityBonus => Cap().Maximum;
+
+    /// <summary>
+    /// The binding cap and where it comes from: the armour's (eased by training), or the load
+    /// being carried — whichever is lower, as the book has it, since the two do not stack.
+    /// </summary>
+    private (int? Maximum, string? Load) Cap()
+    {
+        int? armour = _dexterityCaps.Count == 0
+            ? null
+            : _dexterityCaps.Values.Min() + Math.Max(0, CapRelief?.Invoke() ?? 0);
+
+        if (LoadCap?.Invoke() is { } load && (armour is null || load.Maximum < armour))
+        {
+            return (load.Maximum, load.Source);
+        }
+
+        return (armour, null);
+    }
+
+    /// <summary>
+    /// What the creature's load caps Dexterity at, and the load's name — "medium load" — or null
+    /// when it is light. Armour training does not ease it: it is weight, not plates.
+    /// </summary>
+    public Func<(int Maximum, string Source)?>? LoadCap { get; set; }
 
     /// <summary>
     /// How far the wearer's training lifts every cap: a fighter's armour training, one point a
@@ -111,9 +134,12 @@ public sealed class ArmorClass(AbilityScore dexterity)
         var dexterity = DexterityContribution(options);
         if (dexterity != 0)
         {
-            var cap = MaxDexterityBonus;
+            var (cap, load) = Cap();
             var capped = cap is not null && Dexterity.Modifier > cap.Value && dexterity > 0;
-            stack.Add(Modifier.Untyped(dexterity, capped ? $"Dexterity (capped at +{cap})" : "Dexterity"));
+            var label = !capped ? "Dexterity"
+                : load is not null ? $"Dexterity ({load}: max Dex +{cap})"
+                : $"Dexterity (capped at +{cap})";
+            stack.Add(Modifier.Untyped(dexterity, label));
         }
 
         foreach (var modifier in Modifiers.Modifiers)

@@ -589,10 +589,13 @@ def finish(groups, samples=16, keep=None, emission=None):
 
         c, r, mt = _pixels(colour), _pixels(rough), _pixels(metal)
         if occlusion:
+            # True darkens the hollows by up to 65%; a number sets how much. Heavily ornamented
+            # things (feathers over feathers) go muddy at 65%.
+            k = 0.65 if occlusion is True else float(occlusion)
             ao = _image(f"{name}_ao", size, data=True)
             _bake(objects, materials, ao, "AO", samples * 2)
             a = _pixels(ao)[:, 0:1]
-            c[:, :3] *= 0.35 + 0.65 * a ** 1.5
+            c[:, :3] *= (1.0 - k) + k * a ** 1.5
             bpy.data.images.remove(ao)
         glow = None
         if emission:

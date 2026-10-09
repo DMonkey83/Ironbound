@@ -24,5 +24,9 @@
   "weaponTraining": ["heavy-blades"],
   // The silvered blade is on his belt, not in his hand — he has no use for it against
   // three humans. Kill him and it is the answer to what is waiting in the clearing.
-  "items": ["chain-shirt", "heavy-shield", "longsword", "silvered-longsword"]
+  "items": ["chain-shirt", "heavy-shield", "longsword", "silvered-longsword"],
+
+  // NPC gear, by the Bestiary's hobgoblin, and a sergeant's pay in his purse.
+  "treasure": "npc-gear",
+  "purse": { "gp": "2d6", "sp": "3d10" }
 }

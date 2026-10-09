@@ -339,8 +339,12 @@ public class LevelFightTests
         Assert.Empty(run.Battle.Foes);
         Assert.Equal(["Pip", "Aldric"], run.Party.Select(one => one.Name));
         Assert.True(run.Experience > experience);
-        Assert.Contains(run.Stash, item => item.Id == "dagger");
-        Assert.Contains(run.Stash, item => item.Id == "scimitar");
+
+        // The sleeper's scimitar on its body where it fell, and the room's dagger in a pile.
+        var body = Assert.Single(run.Containers, container => container.Body == sleeper);
+        Assert.Contains(body.Contents, entry => entry.Id == "scimitar");
+        Assert.Contains(run.Lying(), entry => entry.Id == "dagger");
+        Assert.Empty(run.Bag.Entries);
     }
 
     [Fact]
@@ -351,11 +355,11 @@ public class LevelFightTests
         TestLevel.Defeat(run.Battle.Foes);
 
         run.Collect();
-        var stash = run.Stash.Count;
+        var lying = run.Lying().Sum(entry => entry.Count);
         var experience = run.Experience;
 
         Assert.Equal(0, run.Collect());
-        Assert.Equal(stash, run.Stash.Count);
+        Assert.Equal(lying, run.Lying().Sum(entry => entry.Count));
         Assert.Equal(experience, run.Experience);
     }
 
@@ -384,7 +388,10 @@ public class LevelFightTests
         run.Collect();
 
         Assert.Equal(CampaignState.Won, run.State);
-        Assert.False(run.Walk(run.Pip(), new GridSquare(2, 3)));
+
+        // Still walking: the last room's spoils are there to be picked up, and the level stays won.
+        Assert.True(run.Walk(run.Pip(), new GridSquare(2, 3)));
+        Assert.Equal(CampaignState.Won, run.State);
     }
 
     [Fact]
@@ -396,7 +403,7 @@ public class LevelFightTests
 
         Assert.Equal(CampaignState.Lost, run.State);
         Assert.Equal(0, run.Collect());
-        Assert.DoesNotContain(run.Stash, item => item.Id == "dagger");
+        Assert.DoesNotContain(run.Lying(), entry => entry.Id == "dagger");
     }
 
     [Fact]
@@ -462,9 +469,11 @@ public class LevelRestTests
         run.Engage("far");
         TestLevel.Defeat(run.Battle.Foes);
         run.Collect();
+        run.TakeEverything();
 
-        Assert.True(run.Give(run.Pip(), "dagger"));
-        Assert.True(run.Reclaim(run.Pip(), "dagger"));
+        Assert.True(run.Stow(run.Pip(), run.InBag("dagger")));
+        Assert.True(run.Unstow(run.Pip(), run.Pip().Equipment.Worn.Single(entry => entry.Item.Id == "dagger")));
+        Assert.True(run.Bag.Contains("dagger"));
     }
 }
 
@@ -655,20 +664,28 @@ public class BridgeTests
 public class CacheTests
 {
     [Fact]
-    public void ACacheIsSearchedOnce()
+    public void AnOldCacheIsAContainerThatOpensWithoutEmptyingItself()
     {
         var run = TestLevel.Begin();
         run.Walk(run.Pip(), new GridSquare(2, 2));
+        var experience = run.Experience;
 
         var result = run.Use("chest", run.Pip());
 
         Assert.True(result.Success);
         Assert.Contains("A crossbow.", result.Lines);
-        Assert.Single(run.Stash, item => item.Id == "light-crossbow");
+        Assert.True(run.Experience > experience);
 
-        Assert.False(run.CanUse("chest", run.Pip()));
-        Assert.False(run.Use("chest", run.Pip()).Success);
-        Assert.Single(run.Stash, item => item.Id == "light-crossbow");
+        // Opening only opens: the crossbow is still in it, and the chest can be opened again.
+        Assert.Contains(run.GetContainer("chest")!.Contents, entry => entry.Id == "light-crossbow");
+        Assert.Empty(run.Bag.Entries);
+        Assert.False(run.IsUsed("chest"));
+        Assert.True(run.CanUse("chest", run.Pip()));
+
+        // And the experience is for finding it, once.
+        var after = run.Experience;
+        Assert.True(run.Use("chest", run.Pip()).Success);
+        Assert.Equal(after, run.Experience);
     }
 }
 
@@ -682,6 +699,7 @@ public class LevelSaveTests
         run.Use("door", run.Pip());
         run.Walk(run.Pip(), new GridSquare(2, 2));
         run.Use("chest", run.Pip());
+        run.TakeAll("chest");
         run.Visit("hall");
         run.Aldric().HitPoints.Take(3);
 
@@ -699,7 +717,7 @@ public class LevelSaveTests
         Assert.True(restored.IsUsed("door"));
         Assert.True(restored.IsUsed("chest"));
         Assert.True(restored.IsVisited("hall"));
-        Assert.Equal(run.Stash.Select(item => item.Id), restored.Stash.Select(item => item.Id));
+        Assert.Equal(run.Bag.Entries, restored.Bag.Entries);
         Assert.Equal(
             run.Dormant.Select(one => (one.Foe.Name, one.Square, one.Area.Id)),
             restored.Dormant.Select(one => (one.Foe.Name, one.Square, one.Area.Id)));
@@ -784,7 +802,7 @@ public class LevelSaveTests
         Assert.True(restored.Collect() > 0);
         Assert.True(restored.IsCleared("far"));
         Assert.Equal(CampaignState.Exploring, restored.State);
-        Assert.Contains(restored.Stash, item => item.Id == "dagger");
+        Assert.Contains(restored.Lying(), entry => entry.Id == "dagger");
     }
 
     [Fact]

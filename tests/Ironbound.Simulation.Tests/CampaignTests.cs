@@ -136,7 +136,12 @@ public class LootTests
         var run = Fought();
 
         Assert.True(run.Collect() > 0);
-        Assert.Contains(run.Stash, item => item.Id == "silvered-longsword");
+
+        // Onto their bodies, not into the bag: the sergeant's body holds his silvered blade.
+        var sergeant = Assert.Single(run.Containers, container => container.Name == "Sergeant Grask");
+        Assert.Equal(Rules.Content.ContainerLook.Body, sergeant.Look);
+        Assert.Contains(sergeant.Contents, entry => entry.Id == "silvered-longsword");
+        Assert.Empty(run.Bag.Entries);
     }
 
     [Fact]
@@ -156,11 +161,11 @@ public class LootTests
         var run = Fought();
 
         var first = run.Collect();
-        var count = run.Stash.Count;
+        var count = run.Containers.Count;
 
         Assert.True(first > 0);
         Assert.Equal(0, run.Collect());
-        Assert.Equal(count, run.Stash.Count);
+        Assert.Equal(count, run.Containers.Count);
     }
 
     [Fact]
@@ -169,23 +174,27 @@ public class LootTests
         var run = Campaign.Begin(ChainContent.Library, "the-long-road");
 
         Assert.Equal(0, run.Collect());
-        Assert.Empty(run.Stash);
+        Assert.Empty(run.Containers);
+        Assert.Empty(run.Bag.Entries);
     }
 
     [Fact]
-    public void TakingASwordPutsItInYourHandAndTheOldOneBackInTheSack()
+    public void EquippingASwordPutsItInYourHandAndTheOldOneBackInTheBag()
     {
         var run = Fought();
         run.Collect();
+        run.TakeEverything();
 
         var valeria = run.Party.Single(c => c.Name == "Valeria");
+        var longswords = run.Bag.CountOf("longsword");
 
-        Assert.True(run.Give(valeria, "silvered-longsword"));
+        Assert.True(run.Equip(valeria, run.InBag("silvered-longsword")));
 
         // In her hand, not stowed behind the blade she already had — otherwise she keeps
         // swinging the wrong thing and the loot does nothing.
         Assert.Equal("silvered longsword", valeria.PrimaryAttack!.Name);
-        Assert.Contains(run.Stash, item => item.Id == "longsword");
+        Assert.Equal(longswords + 1, run.Bag.CountOf("longsword"));
+        Assert.False(run.Bag.Contains("silvered-longsword"));
     }
 
     [Fact]
@@ -195,7 +204,8 @@ public class LootTests
         run.Collect();
 
         var valeria = run.Party.Single(c => c.Name == "Valeria");
-        run.Give(valeria, "silvered-longsword");
+        run.TakeEverything();
+        run.Equip(valeria, run.InBag("silvered-longsword"));
         run.Advance();
 
         var werewolf = run.Battle.Foes.Single();
@@ -216,32 +226,37 @@ public class LootTests
     }
 
     [Fact]
-    public void SomethingGivenAwayCanBeTakenBack()
+    public void SomethingPutOnCanBeTakenOffAgain()
     {
         var run = Fought();
         run.Collect();
+        run.TakeEverything();
 
-        var karn = run.Party.Single(c => c.Name == "Karn");
-        run.Give(karn, "silvered-longsword");
+        var valeria = run.Party.Single(c => c.Name == "Valeria");
+        run.Equip(valeria, run.InBag("silvered-longsword"));
+        var worn = valeria.Equipment.Worn.Single(entry => entry.Item.Id == "silvered-longsword");
 
-        Assert.True(run.Reclaim(karn, "silvered-longsword"));
-        Assert.Contains(run.Stash, item => item.Id == "silvered-longsword");
-        Assert.False(karn.Equipment.Has("silvered-longsword"));
+        Assert.True(run.Unequip(valeria, worn));
+        Assert.True(run.Bag.Contains("silvered-longsword"));
+        Assert.False(valeria.Equipment.Has("silvered-longsword"));
     }
 
     [Fact]
-    public void TheSackSurvivesASaveWithWhatIsStillInIt()
+    public void TheBagSurvivesASaveWithWhatIsStillInIt()
     {
         var run = Fought();
         run.Collect();
-        var carried = run.Stash.Select(item => item.Id).ToList();
+        run.TakeEverything();
+        var carried = run.Bag.Entries.ToList();
 
         var restored = Campaign.FromJson(run.ToJson(), ChainContent.Library);
 
-        Assert.Equal(carried, restored.Stash.Select(item => item.Id));
+        Assert.Equal(carried, restored.Bag.Entries);
+        Assert.Equal(run.Bag.Money, restored.Bag.Money);
 
         // And the chapter stays looted, so reloading is not a way to strip the bodies twice.
         Assert.Equal(0, restored.Collect());
+        Assert.All(restored.Containers, container => Assert.True(container.IsEmpty));
     }
 
     private static Campaign Fought()
@@ -301,8 +316,9 @@ public class ExperienceTests
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
         run.Collect();
 
-        // Not a shortcoming. Thirteen encounters is roughly what a level costs at this tier,
-        // and a campaign that levelled you every fight would make the numbers meaningless.
+        // Not a shortcoming. Eighteen or so fights like these are what a level costs at this
+        // tier by the book's awards, and a campaign that levelled you every fight would make
+        // the numbers meaningless.
         Assert.Equal(6, run.EarnedLevel);
         Assert.True(run.Experience < run.NextLevelAt);
         Assert.DoesNotContain(run.Ready, one => one.Level >= 6);
@@ -467,9 +483,9 @@ public class LevellingChoiceTests
     /// </summary>
     /// <remarks>
     /// The shipped campaign cannot produce one. Merrin is its only party member who can level,
-    /// and her sixth is an even level, so no feat comes with it; the werewolf beyond her is
-    /// worth 2,500 against the 5,600 that a seventh would cost. Rather than inflate the content
-    /// to suit a test, this adds a two-creature run alongside it and wins that by fiat.
+    /// and her sixth is an even level, so no feat comes with it; the whole road is worth 868 a
+    /// head against the 8,000 that a seventh would cost. Rather than inflate the content to
+    /// suit a test, this adds a two-creature run alongside it and wins that by fiat.
     /// </remarks>
     private static (Campaign Run, Creature Hero, ContentLibrary Library) Owed()
     {

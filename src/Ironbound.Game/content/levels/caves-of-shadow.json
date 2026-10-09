@@ -6,7 +6,7 @@
  "grass": "woodland",
  "map": [
   "####################################",
-  "#...........###########c.....#######",
+  "#c..........###########c.....#######",
   "#...........###########.....c#######",
   "#...........###########......#######",
   "#...........#############++#########",
@@ -271,7 +271,7 @@
   {
    "id": "tobins-cart",
    "xp": 6,
-   "kind": "cache",
+   "kind": "container",
    "name": "Tobin's cart",
    "squares": [
     {
@@ -282,12 +282,13 @@
    "loot": [
     "greatsword-plus-one"
    ],
-   "text": "Strapped to the underside of the cart and wrapped in sacking is the greatsword Tobin spoke of, its edge faintly bright. Of the healing draughts there is nothing left but broken glass and a sticky floor."
+   "text": "Strapped to the underside of the cart and wrapped in sacking is the greatsword Tobin spoke of, its edge faintly bright. Of the healing draughts there is nothing left but broken glass and a sticky floor.",
+   "look": "cart"
   },
   {
    "id": "storeroom-crates",
    "xp": 6,
-   "kind": "cache",
+   "kind": "container",
    "name": "the crates",
    "squares": [
     {
@@ -298,7 +299,75 @@
    "loot": [
     "light-crossbow"
    ],
-   "text": "Among the rope and the torches is a light crossbow with a case of bolts. The sack of coin by the door is far too heavy to carry into a fight; it will keep."
+   "text": "Among the rope and the torches is a light crossbow with a case of bolts. The sack of coin by the door is far too heavy to carry into a fight; it will keep.",
+   "look": "crate"
+  },
+  {
+   "id": "storeroom-sack",
+   "xp": 0,
+   "kind": "container",
+   "look": "sack",
+   "name": "the heavy sack",
+   "squares": [
+    {
+     "x": 24,
+     "y": 3
+    }
+   ],
+   "coins": {
+    "sp": 400,
+    "cp": 600
+   },
+   "text": "The raiders' takings from the road, in silver and copper: a thousand coins and twenty pounds of them."
+  },
+  {
+   "id": "junction-niche",
+   "xp": 0,
+   "kind": "container",
+   "look": "pile",
+   "name": "a loose stone in the wall",
+   "squares": [
+    {
+     "x": 3,
+     "y": 26
+    }
+   ],
+   "hiddenDc": 15,
+   "loot": [
+    "gold-garnet-ring"
+   ],
+   "coins": {
+    "gp": 12
+   },
+   "text": "Behind the stone is a hollow somebody once used for a hiding place, and forgot."
+  },
+  {
+   "id": "gorrums-strongbox",
+   "xp": 0,
+   "kind": "container",
+   "look": "strongbox",
+   "name": "Gorrum's strongbox",
+   "squares": [
+    {
+     "x": 1,
+     "y": 1
+    }
+   ],
+   "lockDc": 20,
+   "breakDc": 23,
+   "loot": [
+    {
+     "item": "bloodstone",
+     "count": 2
+    },
+    "silver-holy-symbol"
+   ],
+   "coins": {
+    "gp": 15,
+    "sp": 100,
+    "cp": 150
+   },
+   "text": "An iron-bound box chained to the rock, and the best of the raiders' plunder inside it."
   }
  ]
 }

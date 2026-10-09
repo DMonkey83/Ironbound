@@ -83,6 +83,14 @@ public class MoveAction : GameAction
             return false;
         }
 
+        // More than a heavy load: five feet, and only as the whole round's work. Nothing but an
+        // ordinary walk can be made into that stagger — no running, no stepping, no withdrawing.
+        if (IsOverloaded(context.Actor)
+            && (!CanStagger || !context.Combatant.Budget.CanAfford(ActionCost.FullRound)))
+        {
+            return false;
+        }
+
         if (field.SquareOf(context.Actor) != Path[0] || !field.IsFree(Path[^1]))
         {
             return false;
@@ -115,6 +123,15 @@ public class MoveAction : GameAction
             Path,
             Math.Max(0, Movement.EasyGroundFeet(context.Actor) - context.Combatant.EasyGroundUsed),
             out easyUsed);
+
+    /// <summary>
+    /// Whether this kind of movement is what an overloaded creature can still make of its turn:
+    /// an ordinary walk, cut to five feet and costing the whole round. Every other kind is barred.
+    /// </summary>
+    protected virtual bool CanStagger => true;
+
+    private static bool IsOverloaded(Creature mover) =>
+        Items.Encumbrance.Effective(mover) == Items.LoadCategory.Overloaded;
 
     /// <summary>Five feet off the walk for a Step Up taken before the turn began.</summary>
     protected virtual int Owed(Combatant combatant) => combatant.OwesStep ? Distance.FeetPerSquare : 0;
@@ -168,6 +185,13 @@ public class MoveAction : GameAction
 
         field.Place(actor, landed);
         RecordMovement(context.Combatant);
+
+        // The stagger's other half: the move action was paid for by the turn, the standard
+        // action goes with it.
+        if (IsOverloaded(actor) && CanStagger)
+        {
+            context.Combatant.Budget.Spend(ActionCost.Standard);
+        }
 
         var verb = actor.IsProne ? "crawl" : Name;
         var description = $"{actor.Name} {verb}s to {landed} ({spent} ft of {Allowance(actor)})";

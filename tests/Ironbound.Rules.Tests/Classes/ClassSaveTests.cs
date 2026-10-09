@@ -27,11 +27,12 @@ public class ClassSaveTests
             .Order.Single(combatant => combatant.Creature.Name == name).Creature;
 
     [Fact]
-    public void ThisIsVersionFifteenAndElevenIsStillRead()
+    public void ThisIsVersionSixteenAndElevenIsStillRead()
     {
         // Fifteen since the feats: the stacks every skill check and every ability check share,
-        // and the combatant state the movement feats leave between turns.
-        Assert.Equal(15, SavedGame.CurrentVersion);
+        // and the combatant state the movement feats leave between turns. Sixteen since the
+        // party's bag and the level's containers took the place of the sack.
+        Assert.Equal(16, SavedGame.CurrentVersion);
         Assert.Equal(11, SavedGame.OldestReadable);
     }
 

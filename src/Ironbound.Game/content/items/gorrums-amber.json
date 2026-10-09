@@ -1,0 +1,8 @@
+// The gem as big as a hen's egg that the den's last page speaks of: amber, a semiprecious stone
+// by the book's grades, so a hundred gold. Gorrum wears it on a chain; it is carried, not worn
+// for anything it does.
+{
+  "kind": "item", "id": "gorrums-amber", "name": "egg of amber on a chain",
+  "type": "valuable", "cost": 100,
+  "description": "A lump of amber the size of a hen's egg, a beetle caught in its heart, on a chain fit for an ogre's neck."
+}

@@ -2,6 +2,7 @@
   "kind": "item", "id": "chain-shirt", "name": "chain shirt",
   "description": "Light mail worn under the clothes.",
   "slot": "Armour",
+  "cost": 100, "weight": 25,
   "armour": "Light", "maxDex": 4, "checkPenalty": -2,
   "grants": [ { "target": "armourClass", "value": 4, "type": "Armor" } ]
 }

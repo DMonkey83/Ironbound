@@ -9,7 +9,7 @@
   "...R.....R..RR..R..RR.,T,T,T,,T,TT,TTT,TT,T,,TTT,,,,",
   ".........R..R.........TT,,,,,,,,,,,,,T,,,,,,,,,T,,,,",
   "......................,,,,,,T,,,,,,,,,,,,,,T,,,T,,,,",
-  "..R...................,,,T,,T,,,,,,TT,,T,,T,,,,,,,,,",
+  "..R..................c,,,T,,T,,,,,,TT,,T,,T,,,,,,,,,",
   "............R.........T,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
   ".........R..R....R....,,,,,,,,,,,,,,,,,,,,,T,,,,,,,,",
   "......................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
@@ -100,5 +100,50 @@
    ]
   }
  ],
- "features": []
+ "features": [
+  {
+   "id": "travellers-cart",
+   "xp": 0,
+   "kind": "container",
+   "look": "cart",
+   "name": "the travellers' cart",
+   "squares": [
+    {
+     "x": 21,
+     "y": 4
+    }
+   ],
+   "loot": [
+    "silk-scarf"
+   ],
+   "coins": {
+    "gp": 35,
+    "sp": 60
+   },
+   "text": "A cart on its side at the edge of the road, its mule long gone. The goblins had not finished with it: a strongbox under the seat is still shut, and still full."
+  },
+  {
+   "id": "goblin-sack",
+   "xp": 0,
+   "kind": "container",
+   "look": "sack",
+   "name": "the goblins' sack",
+   "squares": [
+    {
+     "x": 17,
+     "y": 6
+    }
+   ],
+   "loot": [
+    "pewter-tankard",
+    "bone-dice"
+   ],
+   "coins": {
+    "gp": 8,
+    "sp": 40,
+    "cp": 75
+   },
+   "text": "Stuffed behind the standing stone: what the goblins have taken off the road this month, which is not much."
+  }
+ ]
 }

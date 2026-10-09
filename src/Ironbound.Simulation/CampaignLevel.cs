@@ -14,11 +14,13 @@ using Ironbound.Rules.Skills;
 namespace Ironbound.Simulation;
 
 /// <summary>
-/// What came of trying a door, a bridge or a cache.
+/// What came of trying a door, a bridge or a container.
 /// </summary>
 /// <param name="Lines">For the log, headline first. Never empty, even for a refusal.</param>
 /// <param name="MovedTo">Where the one who tried it ended up, when it carried them somewhere.</param>
-public sealed record FeatureResult(bool Success, IReadOnlyList<string> Lines, GridSquare? MovedTo);
+/// <param name="Noisy">Something was forced open, loudly. Nothing hears it yet; this is where
+/// whatever does will listen.</param>
+public sealed record FeatureResult(bool Success, IReadOnlyList<string> Lines, GridSquare? MovedTo, bool Noisy = false);
 
 /// <summary>Experience given for one thing: a fight won, a place found, a door opened.</summary>
 public sealed record ExperienceAward(string Why, int Amount);
@@ -129,10 +131,23 @@ public sealed partial class Campaign
     public AreaDefinition? AreaAt(GridSquare square) =>
         Level?.Areas.FirstOrDefault(area => area.Contains(square));
 
+    /// <summary>
+    /// The door, bridge or container on a square — never a container nobody has noticed yet,
+    /// which is not there to be clicked.
+    /// </summary>
     public FeatureDefinition? FeatureAt(GridSquare square) =>
-        Level?.Features.FirstOrDefault(feature => feature.Squares.Contains(square));
+        Level?.Features.FirstOrDefault(feature => feature.Squares.Contains(square)
+            && !(feature.Kind == FeatureKind.Container
+                && _containers.FirstOrDefault(container => ReferenceEquals(container.Feature, feature)) is { IsHidden: true }));
 
-    public bool IsUsed(string featureId) => _used.Contains(featureId);
+    /// <summary>
+    /// Whether a feature has been dealt with: a door opened, a bridge tied off, a container
+    /// opened and emptied. A container with something still in it is not done with.
+    /// </summary>
+    public bool IsUsed(string featureId) =>
+        _containers.FirstOrDefault(container => string.Equals(container.Feature?.Id, featureId, StringComparison.Ordinal)) is { } container
+            ? container.IsOpen && container.IsEmpty
+            : _used.Contains(featureId);
 
     private CampaignState LevelState
     {
@@ -200,6 +215,11 @@ public sealed partial class Campaign
             Populate(area);
         }
 
+        foreach (var feature in level.Features.Where(feature => feature.Kind == FeatureKind.Container))
+        {
+            _containers.Add(Build(feature));
+        }
+
         Battle = Peace(party, field);
     }
 
@@ -253,14 +273,26 @@ public sealed partial class Campaign
 
         Collect();
 
-        if (State != CampaignState.Exploring || !Party.Contains(member) || !member.IsConscious
-            || !Field.IsFree(to))
+        // Won is still walking: the last room's spoils are there to be picked up.
+        if (State is not (CampaignState.Exploring or CampaignState.Won) || !Party.Contains(member)
+            || !member.IsConscious || !Field.IsFree(to) || Encumbrance.Effective(member) == LoadCategory.Overloaded)
         {
             return false;
         }
 
         Field.Place(member, to);
+        LookAbout();
         return true;
+    }
+
+    /// <summary>
+    /// Whether somebody is carrying too much to walk at all — their own gear, or their share of
+    /// the party's. The Game asks before a walk, to say so and to ask for something to be put down.
+    /// </summary>
+    public bool IsOverloaded(Creature member)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        return Encumbrance.Effective(member) == LoadCategory.Overloaded;
     }
 
     /// <summary>
@@ -362,28 +394,24 @@ public sealed partial class Campaign
             return 0;
         }
 
-        var taken = 0;
         Award($"Won {area.Name}", Earned(Battle));
 
-        foreach (var fallen in Battle.Foes.Where(foe => !foe.IsConscious))
-        {
-            foreach (var item in fallen.Equipment.Items.ToList())
-            {
-                fallen.Equipment.Unequip(item.Id);
-                _stash.Add(item);
-                taken++;
-            }
-        }
-
-        foreach (var found in area.Loot.Select(_library.GetItem).OfType<ItemDefinition>())
-        {
-            _stash.Add(found);
-            taken++;
-        }
-
-        // Off the board, so the bodies are not in the way of the walking. The Game draws the
-        // fallen however it likes; the rules have no further use for them.
+        // A body for each of the fallen where they fell, and the room's own loot as a pile — in
+        // the middle of the room, or where the file puts it. Seeded by the room's place in the
+        // file, as its fight is.
         var field = Field;
+        var index = 0;
+        while (!ReferenceEquals(Level!.Areas[index], area))
+        {
+            index++;
+        }
+
+        var middle = OpenGround(field, area.LootAt ?? area.Centre);
+        var taken = Bodies(Battle, area.Id, (ulong)(index + 1), middle);
+        taken += Pile($"loot:{area.Id}", $"what {area.Name} held", area.Loot, middle);
+
+        // Off the board, so the bodies are not in the way of the walking. Each one is a
+        // container now, and the Game draws the fallen from those.
         foreach (var foe in Battle.Foes)
         {
             field.Remove(foe);
@@ -430,7 +458,7 @@ public sealed partial class Campaign
         {
             FeatureKind.Door => OpenDoor(feature, who),
             FeatureKind.Bridge => Cross(feature, who),
-            _ => Search(feature, who),
+            _ => OpenContainer(GetContainer(feature.Id)!, who),
         };
     }
 
@@ -441,9 +469,21 @@ public sealed partial class Campaign
             return "There is nothing like that here.";
         }
 
-        if (State != CampaignState.Exploring)
+        // A container is opened however often anybody likes, and only once somebody has
+        // noticed it: the container's own questions.
+        if (feature.Kind == FeatureKind.Container)
+        {
+            return ContainerRefusal(GetContainer(feature.Id), who);
+        }
+
+        if (State is not (CampaignState.Exploring or CampaignState.Won))
         {
             return $"Not now: {feature.Name} will have to wait.";
+        }
+
+        if (feature.Kind == FeatureKind.Bridge && IsOverloaded(who))
+        {
+            return $"{who.Name} is carrying far too much to get across {feature.Name}.";
         }
 
         if (_used.Contains(feature.Id))
@@ -480,32 +520,8 @@ public sealed partial class Campaign
     /// </remarks>
     private FeatureResult OpenDoor(FeatureDefinition door, Creature who)
     {
-        string headline;
-        string roll;
-        bool success;
-
-        if (who.Skills.Ranks(Skill.DisableDevice) > 0)
-        {
-            var check = who.Skills.Check(Skill.DisableDevice, _explore, door.LockDc);
-            success = check.Succeeded == true;
-            roll = check.ToString();
-            headline = success
-                ? $"{who.Name} picks the lock of {door.Name}."
-                : $"{who.Name} cannot pick the lock of {door.Name}.";
-        }
-        else
-        {
-            // A Strength check, so being shaken costs as much here as it does on a lock.
-            var natural = _explore.NextDie(20);
-            var strength = who.AbilityCheck(Ability.Strength).Total;
-            var total = natural + strength;
-            success = total >= door.BreakDc;
-            roll = $"{who.Name} Strength: d20 [{natural}] {strength:+0;-0;+0} = {total} "
-                + $"vs DC {door.BreakDc} — {(success ? "success" : "failure")}";
-            headline = success
-                ? $"{who.Name} forces {door.Name}."
-                : $"{Capital(door.Name)} holds against {who.Name}.";
-        }
+        // A Strength check without the skill, so being shaken costs as much here as on a lock.
+        var (success, headline, roll, forced) = TryLock(door.Name, door.LockDc, door.BreakDc, who);
 
         var lines = new List<string> { headline, roll };
         if (success)
@@ -520,7 +536,7 @@ public sealed partial class Campaign
             AddText(lines, door);
         }
 
-        return new FeatureResult(success, lines, null);
+        return new FeatureResult(success, lines, null, success && forced);
     }
 
     /// <summary>
@@ -591,24 +607,6 @@ public sealed partial class Campaign
         return new FeatureResult(false, fell, null);
     }
 
-    private FeatureResult Search(FeatureDefinition cache, Creature who)
-    {
-        var found = cache.Loot.Select(_library.GetItem).OfType<ItemDefinition>().ToList();
-        _stash.AddRange(found);
-        _used.Add(cache.Id);
-        Award($"Searched {cache.Name}", cache.Experience);
-
-        var lines = new List<string> { $"{who.Name} searches {cache.Name}." };
-        AddText(lines, cache);
-
-        if (found.Count > 0)
-        {
-            lines.Add($"Into the sack: {string.Join(", ", found.Select(item => item.Name))}.");
-        }
-
-        return new FeatureResult(true, lines, null);
-    }
-
     private static void AddText(List<string> lines, FeatureDefinition feature)
     {
         if (feature.Text.Length > 0)
@@ -649,7 +647,7 @@ public sealed partial class Campaign
     /// Puts a level back around a restored battle: what the party has done to the place, and
     /// everyone still waiting in a room they have not walked into.
     /// </summary>
-    private void Resume(SavedLevel saved)
+    private void Resume(SavedLevel saved, SavedContainer[]? containers)
     {
         var level = _library.GetLevel(saved.Id) ?? throw new InvalidDataException(
             $"The save is of a level '{saved.Id}', which no content file defines.");
@@ -682,6 +680,8 @@ public sealed partial class Campaign
                 }
             }
         }
+
+        RestoreContainers(containers, level);
 
         foreach (var area in level.Areas)
         {

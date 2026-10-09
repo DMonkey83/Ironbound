@@ -1,6 +1,8 @@
+// A light steel shield, priced and weighed from the armour table.
 { "model": "res://art/weapons/light-shield.glb",
   "kind": "item", "id": "light-shield", "name": "light shield",
   "slot": "Shield",
+  "cost": 9, "weight": 6,
   "armour": "Shield", "checkPenalty": -1,
   "grants": [ { "target": "armourClass", "value": 1, "type": "Shield" } ]
 }

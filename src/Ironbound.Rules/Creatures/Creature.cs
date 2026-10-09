@@ -61,6 +61,10 @@ public sealed class Creature
         ArmorClass.CapRelief = () => Martial.ArmorTraining(this);
         ArmorClass.Situational = options => Martial.Situational(this, options);
         ArmorClass.Suppressed = Equipment.IsSetAside;
+        ArmorClass.LoadCap = () => Encumbrance.Effective(this) is var load
+            && Encumbrance.MaxDexterity(load) is { } most
+                ? (most, $"{Encumbrance.Name(load)} load")
+                : null;
     }
 
     /// <summary>Builds a creature whose hit points come from its hit die, per the rule options.</summary>
@@ -339,6 +343,20 @@ public sealed class Creature
     /// <summary>Base movement in feet per round, before anything hurries or hinders it.</summary>
     public int Speed { get; set; } = 30;
 
+    /// <summary>On four legs rather than two, which carries half as much again.</summary>
+    public bool Quadruped { get; set; }
+
+    /// <summary>
+    /// The load the party this creature walks with is under, when it is in one: what the shared
+    /// bag and everybody's gear come to against everybody's Strength. Set by whoever keeps the
+    /// bag, which is a campaign and not the rules; null for a creature on its own.
+    /// </summary>
+    /// <remarks>
+    /// Asked live rather than pushed, because it changes in the middle of a fight: somebody who
+    /// falls stops carrying, and their share lands on everyone else.
+    /// </remarks>
+    public Func<LoadCategory>? SharedLoad { get; set; }
+
     /// <summary>Haste, a monk's fast movement, heavy armour, difficult circumstances.</summary>
     public ModifierStack SpeedModifiers { get; } = new();
 
@@ -362,6 +380,13 @@ public sealed class Creature
             foreach (var condition in Conditions)
             {
                 speed = speed * ConditionInfo.Of(condition).SpeedPercent / 100;
+            }
+
+            // Carrying more than a heavy load leaves a stagger of five feet, and that only as
+            // a whole round's work (see MoveAction).
+            if (Encumbrance.Effective(this) == LoadCategory.Overloaded)
+            {
+                speed = Math.Min(speed, Maps.Distance.FeetPerSquare);
             }
 
             return speed;

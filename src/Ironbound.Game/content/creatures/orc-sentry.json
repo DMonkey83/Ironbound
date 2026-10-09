@@ -16,5 +16,9 @@
     { "skill": "Intimidate", "ranks": 2 }
   ],
   "speed": 30,
-  "items": ["studded-leather", "dagger"]
+  "items": ["studded-leather", "dagger"],
+
+  // NPC gear, as any orc: the knife, the armour, and a few coins.
+  "treasure": "npc-gear",
+  "purse": { "sp": "2d6", "cp": "3d10" }
 }

@@ -58,7 +58,7 @@ from mathutils import Matrix, Vector
 import generate_goblin as gg
 import surface
 from weapon_parts import (Y, arc, band, box_ring_yz, box_ring_z, chain, cord, cross_guard, crisp, curved_blade,
-                          ellipse, grip, haft, lathe, lerp, orient, place, plate, prism, ring, smoothstep,
+                          ellipse, grip, haft, lathe, lerp, orient, place, plate, prism, ring, sculpt, smoothstep,
                           spike, spiked_ball, spline, straight_blade, sweep, tag, torus, tube, wheel)
 
 
@@ -232,7 +232,7 @@ def is_unbaked(obj):
 
 DEFAULT_ROLE = {"sweep": "edge", "plate": "edge", "spike": "edge", "blade": "edge", "curved": "edge", "ball": "head",
                 "prism": "head", "lathe": "fitting", "tube": "fitting", "torus": "fitting", "chain": "chain",
-                "cord": "cord", "grip": "grip", "haft": "haft", "guard": "fitting", "wheel": "fitting"}
+                "cord": "cord", "grip": "grip", "haft": "haft", "guard": "fitting", "wheel": "fitting", "pommel": "fitting"}
 KINDS = tuple(DEFAULT_ROLE)
 FX_ROLES = ("edge", "head")
 
@@ -302,6 +302,9 @@ def make(spec):
                             spec.get("droop", 0.0), spec.get("centre", 0.4), spec.get("taper", 0.3), spec.get("knob", 0.75))]
     elif kind == "wheel":
         objs = [wheel(name, v, spec.get("r", 0.06), spec.get("half", 0.02), m)]
+    elif kind == "pommel":
+        # A pommel from the library, on the end of a haft: pommel=dict(kind=..., top=z, radius=r)
+        objs = _pommel(v, m, {"bottom": v["top"]})
     role = spec.get("role", DEFAULT_ROLE[kind])
     for o in objs:
         o["role"] = o.get("role", role) if kind in ("chain",) else role
@@ -598,11 +601,14 @@ def _hilt(r, metal, fittings, held, blade_root=0.0, blade_halfwidth=0.05, thick=
     kind = g.get("kind", "cross")
     gz = g.get("z", gr["top"])
     bend = gr.get("bend", 0.0)
-    if kind in ("cross", "ring", "knuckle", "swept", "parry", "bar"):
+    if kind in ("cross", "ring", "knuckle", "swept", "parry", "bar", "recurved", "s", "basket"):
         span = g.get("span", 0.2)
         droop = g.get("droop", 0.0)
-        if kind == "swept":
+        if kind in ("swept", "s"):
             droop = (lambda t, d=g.get("droop", 0.07): d * t ** 3)          # S-curved quillons
+        elif kind == "recurved":
+            # Quillons dipping toward the hand, then flicking up toward the blade at their ends.
+            droop = (lambda t, d=g.get("droop", 0.06): -0.4 * d * abs(t) ** 1.5 + d * 1.6 * smoothstep(0.7, 1.0, abs(t)) ** 1.5)
         if kind == "parry":
             droop = g.get("droop", 0.09)
         parts.append(tag(cross_guard("Guard", gz, span, g.get("height", 0.015), g.get("depth", 0.02), fittings, g.get("ends", "knob"),
@@ -638,6 +644,12 @@ def _hilt(r, metal, fittings, held, blade_root=0.0, blade_halfwidth=0.05, thick=
         rr = g.get("ring", 0.06)
         parts.append(tag(torus("Guard_Ring", (-0.01, -0.035, gz + 0.01), rr, 0.009, fittings, tilt=0.0, plane="XY", n=16), "fitting"))
         parts.append(tag(tube("Guard_Branch", spline([(-0.03, -0.01, gz + 0.005), (-0.05, -0.07, gz + 0.04), (-0.02, -0.09, gz + 0.06)], 4), 0.008, fittings, 6), "fitting"))
+    if kind == "basket":
+        # A basket: bars from the guard sweeping out round the hand and in to the pommel.
+        for k, (bx, by) in enumerate(((-0.07, -0.05), (0.0, -0.075), (0.07, -0.05), (-0.09, 0.0), (0.09, 0.0))):
+            pts = [(bx * 0.8, by * 0.6, gz - 0.01), (bx * 1.35, by * 1.35, lerp(gz, gr["bottom"], 0.45)), (bx * 0.4, by * 0.5, gr["bottom"] - 0.02)]
+            parts.append(tag(tube(f"Basket_{k}", spline(pts, 4), 0.0075, fittings, 6), "fitting"))
+        parts.append(tag(torus("Basket_Ring", (0, 0, lerp(gz, gr["bottom"], 0.45)), 0.10, 0.007, fittings, plane="XY", n=20), "fitting"))
     if kind in ("knuckle", "swept", "shell") or g.get("knuckle"):
         x0 = -g.get("radius", 0.13) * 0.75 if kind == "shell" else -g.get("span", 0.12) * 0.95
         z0 = gz - 0.01
@@ -664,10 +676,71 @@ def _hilt(r, metal, fittings, held, blade_root=0.0, blade_halfwidth=0.05, thick=
                     secs.append(ring([(-hw, y, zz), (0, y + side * 0.006, zz), (hw, y, zz), (0, y - side * 0.002, zz)]))
                 parts.append(tag(crisp(gg.loft(f"Langet_{nm}_{side}", secs, fittings), 30), "fitting"))
 
-    parts.append(grip("Grip", gr["bottom"], gr["top"], gr["radius"], held, gr.get("style", "spiral"), gr.get("turns", 8),
-                      gr.get("profile", "straight"), bend=bend, oval=gr.get("oval", 0.86)))
+    parts += _grip(gr, held, fittings, bend)
     parts += _pommel(pm, fittings, gr, bend)
+    if gr.get("tassel"):
+        # A tassel hung from the pommel: a knot and a fall of dyed cords.
+        tm = material(gr["tassel"])
+        zb = (pm.get("top", gr["bottom"]) - pm.get("height", 0.08) - 0.02) if pm.get("kind", "none") != "none" else gr["bottom"] - 0.02
+        parts.append(tag(lathe("Tassel_Knot", [(zb + 0.01, 0.0), (zb, 0.018), (zb - 0.03, 0.016), (zb - 0.04, 0.0)], tm, 8), "fitting"))
+        for k in range(6):
+            dx = (k - 2.5) * 0.008
+            parts.append(tag(tube(f"Tassel_{k}", spline([(dx, 0.004 * (k % 2), zb - 0.03), (dx * 2.0 - 0.02, 0.008 * (k % 3), zb - 0.12), (dx * 3.0 - 0.06, 0.0, zb - 0.20)], 4),
+                                  lambda u: 0.0045 * (1 - 0.4 * u), tm, 4), "fitting"))
     return parts
+
+
+def _grip(gr, held, fittings, bend=0.0):
+    """The grip, from a library: spiral leather, cord, ridged bone, a katana's diamond wrap, and
+    built-up kinds — crisscross cord over leather, ray skin under a dark diamond cord, wire
+    wound, ringed segments, a riveted tang with scales."""
+    z0, z1, r = gr["bottom"], gr["top"], gr["radius"]
+    style = gr.get("style", "spiral")
+    L = z1 - z0
+    out = []
+    if style == "scales":
+        # A flat tang showing between two riveted scales.
+        out.append(tag(prism("Tang", [(z0 - 0.005, r * 0.95, r * 0.18), (z1, r * 0.95, r * 0.18)], material(gr.get("tang", "Steel")), 8, 0.4), "grip"))
+        for sy in (1, -1):
+            out.append(tag(prism(f"Scale_{sy}", [(z0, r * 0.9, r * 0.32, 0, sy * r * 0.42), (z0 + 0.02, r * 1.0, r * 0.42, 0, sy * r * 0.46),
+                                                  (z1 - 0.02, r * 1.0, r * 0.42, 0, sy * r * 0.46), (z1, r * 0.9, r * 0.32, 0, sy * r * 0.42)], held, 12, 0.8), "grip"))
+            for k in range(3):
+                zz = lerp(z0 + 0.03, z1 - 0.03, k / 2)
+                o = lathe(f"Rivet_{sy}_{k}", [(0, r * 0.22), (r * 0.12, r * 0.2), (r * 0.18, 0.0)], material(gr.get("rivets", "Bronze")), 8)
+                orient(o, (0, sy * r * 0.86, zz), (0, sy, 0))
+                out.append(tag(o, "fitting"))
+        return out
+    base_style = style if style in ("spiral", "cord", "ridged", "diamond", "plain") else "plain"
+    base_m = material(gr["skin"]) if style == "rayskin" else held
+    out.append(grip("Grip", z0, z1, r, base_m, base_style, gr.get("turns", 8), gr.get("profile", "straight"), bend=bend, oval=gr.get("oval", 0.86)))
+    def helix(sign, turns, wire, m):
+        pts = []
+        steps = int(turns * 14)
+        for k in range(steps + 1):
+            t = k / steps
+            a = sign * 2 * math.pi * turns * t
+            rr = r * 1.05 * (1 + (0.10 * math.sin(math.pi * t) if gr.get("profile") == "barrel" else 0.0))
+            pts.append((bend * (1 - t) ** 2 + rr * math.cos(a), rr * gr.get("oval", 0.86) * math.sin(a), lerp(z0 + 0.008, z1 - 0.008, t)))
+        return tag(tube(f"Wrap_{sign}_{turns}", pts, wire, m, 4), "grip")
+    if style in ("crisscross", "rayskin"):
+        cord = material(gr.get("cord", "Cloth" if style == "crisscross" else "Wrap"))
+        turns = max(2.0, L / (0.07 if style == "rayskin" else 0.045))
+        w = r * (0.22 if style == "rayskin" else 0.16)
+        out += [helix(1, turns, w, cord), helix(-1, turns, w, cord)]
+    elif style == "wire":
+        out.append(helix(1, L / 0.011, r * 0.09, material(gr.get("wire", "Bronze"))))
+    elif style == "rings":
+        n = max(2, int(L / 0.07))
+        for k in range(n + 1):
+            zz = lerp(z0 + 0.01, z1 - 0.01, k / n)
+            out.append(tag(lathe(f"GripRing_{k}", [(zz - 0.008, r * 1.02), (zz - 0.004, r * 1.14), (zz + 0.004, r * 1.14), (zz + 0.008, r * 1.02)], fittings, 10), "fitting"))
+    return out
+
+
+def _unique(stem):
+    """A dotless, unique name for a metaball: same-stemmed metaballs melt together."""
+    _count[0] += 1
+    return f"{stem}{_count[0]}"
 
 
 def _pommel(p, fittings, gr, bend=0.0):
@@ -715,6 +788,38 @@ def _pommel(p, fittings, gr, bend=0.0):
         return parts
     if kind == "spike":
         return [tag(spike("Pommel", (bend, 0, top + 0.01), (bend, 0, top - p.get("length", 0.12)), r, fittings, 6), "edge")]
+    if kind == "faceted":
+        h = p.get("height", 0.06)
+        prof = [(top + 0.004, r * 0.55), (top - 0.18 * h, r * 0.95), (top - 0.5 * h, r), (top - 0.82 * h, r * 0.9), (top - h, r * 0.45), (top - h - 0.008, 0.0)]
+        return [tag(lathe("Pommel", prof, fittings, n=8, oval=p.get("oval", 0.72), faceted=True, phase=math.pi / 8, x=bend), "fitting")]
+    if kind == "claw":
+        # A stone held in claws: a cap, claws curling down round it, the stone table-down.
+        stone = material(p.get("gem", "Crystal"))
+        gz = top - r * 1.4
+        out = [tag(lathe("Pommel_Cap", [(top + 0.004, r * 0.7), (top - 0.012, r * 0.85), (top - 0.024, r * 0.6)], fittings, 10), "fitting")]
+        gem = lathe("Pommel_Stone", [(r * 0.4, 0.0), (r * 0.4, r * 0.56), (r * 0.14, r), (0.0, r), (-r * 0.62, 0.0)], stone, 8, faceted=True, phase=math.pi / 8)
+        orient(gem, (bend, 0, gz), (0, 0, -1))
+        out.append(tag(gem, "fitting"))
+        for k in range(4):
+            a = 2 * math.pi * k / 4 + math.pi / 4
+            d = Vector((math.cos(a), math.sin(a), 0.0))
+            c = Vector((bend, 0, gz))
+            pts = [Vector((bend, 0, top - 0.02)) + d * r * 0.5, c + d * r * 1.15 + Vector((0, 0, r * 0.5)), c + d * r * 1.12, c + d * r * 0.8 - Vector((0, 0, r * 0.5))]
+            out.append(tag(tube(f"Pommel_Claw_{k}", spline(pts, 3), lambda u: r * 0.2 * (1.2 - 0.8 * u), fittings, 5), "fitting"))
+        return out
+    if kind == "skull":
+        z = top - r
+        el = [dict(co=(bend, 0, z), r=(r, r * 1.08, r * 0.92)), dict(co=(bend, -r * 0.7, z - r * 0.8), r=(r * 0.68, r * 0.48, r * 0.6)),
+              dict(co=(bend + r * 0.4, -r * 1.2, z - r * 0.5), r=r * 0.27, neg=True), dict(co=(bend - r * 0.4, -r * 1.2, z - r * 0.5), r=r * 0.27, neg=True)]
+        return [tag(sculpt(_unique("PommelSkull"), el, fittings, r * 0.08, 0.5), "fitting")]
+    if kind == "beast":
+        # A beast's head — muzzle, brow, ears — biting the end of the grip.
+        z = top - r * 1.1
+        el = [dict(co=(bend, 0, z), r=(r * 0.95, r, r * 1.05)), dict(co=(bend, -r * 0.9, z - r * 0.25), r=(r * 0.6, r * 0.75, r * 0.55)),
+              dict(co=(bend + r * 0.55, r * 0.1, z + r * 0.75), r=(r * 0.28, r * 0.2, r * 0.42)), dict(co=(bend - r * 0.55, r * 0.1, z + r * 0.75), r=(r * 0.28, r * 0.2, r * 0.42)),
+              dict(co=(bend, -r * 1.5, z - r * 0.4), r=(r * 0.4, r * 0.25, r * 0.2), neg=True),
+              dict(co=(bend + r * 0.42, -r * 0.85, z + r * 0.25), r=r * 0.17, neg=True), dict(co=(bend - r * 0.42, -r * 0.85, z + r * 0.25), r=r * 0.17, neg=True)]
+        return [tag(sculpt(_unique("PommelBeast"), el, fittings, r * 0.07, 0.5), "fitting")]
     if kind == "crook":
         # A walking stick's handle: the grip turns over into a crook at the top.
         pts = [(0, 0, top + 0.01), (0, 0, top - 0.04), (-0.02, 0, top - 0.10), (-0.08, 0, top - 0.13), (-0.14, 0, top - 0.10), (-0.15, 0, top - 0.04)]
@@ -814,8 +919,14 @@ def _hafted(r):
         parts.append(haft("Haft", h[0], h[1], h[2], material(r.get("haft_material", "Wood")), h[3] if len(h) > 3 else None,
                           r.get("haft_sides", 8), r.get("haft_swell", 0.06), r.get("haft_steps", 6), r.get("haft_oval", 1.0)))
     for w in r.get("wraps", []):
-        parts.append(grip("Wrap", w[0], w[1], w[2], material(w[3] if len(w) > 3 else r.get("grip_material", "Wrap")),
-                          w[4] if len(w) > 4 else "spiral", max(3, int((w[1] - w[0]) / 0.045)), n=8))
+        style = w[4] if len(w) > 4 else "spiral"
+        held = material(w[3] if len(w) > 3 else r.get("grip_material", "Wrap"))
+        if style in ("crisscross", "rayskin", "wire", "rings", "scales"):
+            # (z0, z1, r, material, style, cord/wire material)
+            extra = {"cord": w[5], "wire": w[5]} if len(w) > 5 else {}
+            parts += _grip(dict(bottom=w[0], top=w[1], radius=w[2], style=style, **extra), held, material(r.get("fittings", "DarkIron")))
+        else:
+            parts.append(grip("Wrap", w[0], w[1], w[2], held, style, max(3, int((w[1] - w[0]) / 0.045)), n=8))
     if r.get("butt"):
         parts += realise(butt(**r["butt"]))
     parts += realise(heads(r.get("head", [])))

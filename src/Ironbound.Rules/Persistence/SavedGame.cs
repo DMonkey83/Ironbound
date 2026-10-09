@@ -1,5 +1,6 @@
 using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Combat;
+using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Dice;
@@ -31,7 +32,7 @@ public sealed record SavedGame(
     SavedCombatant[] Order,
     SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 15;
+    public const int CurrentVersion = 16;
 
     /// <summary>
     /// The oldest version still read. Twelve only added a field that eleven did without, so an
@@ -41,13 +42,21 @@ public sealed record SavedGame(
     /// catalogue and races: an older file has nothing broken, everything in hand, and the race
     /// its creatures' files give them. Fifteen added the stacks every skill check and every
     /// ability check share, and what the movement feats leave on a combatant between turns: an
-    /// older file has nothing on either, which is what it had.
+    /// older file has nothing on either, which is what it had. Sixteen replaced the sack with the
+    /// party's bag and the level's containers: an older file's sack is poured into the bag, its
+    /// searched caches come back open and empty, and the bodies of rooms already won do not
+    /// exist — whatever they carried was in the sack already.
     /// </summary>
     public const int OldestReadable = 11;
 }
 
 /// <summary>Where a run of encounters had got to.</summary>
+/// <param name="Stash">The old sack, by item id: read from a save before sixteen and written empty since.</param>
 /// <param name="Level">Null for a run of separate fights, which is every save before twelve.</param>
+/// <param name="Bag">The party's bag. Null before sixteen.</param>
+/// <param name="Purse">The party's coins. Null before sixteen.</param>
+/// <param name="Containers">Every container the party knows of or has yet to find, bodies and
+/// piles included. Null before sixteen.</param>
 public sealed record SavedCampaign(
     string Id,
     int Chapter,
@@ -56,7 +65,37 @@ public sealed record SavedCampaign(
     string[] Stash,
     int LootedChapter,
     int Experience,
-    SavedLevel? Level = null);
+    SavedLevel? Level = null,
+    SavedBagEntry[]? Bag = null,
+    SavedMoney? Purse = null,
+    SavedContainer[]? Containers = null);
+
+/// <summary>So many of one item in a bag or a container, broken or not.</summary>
+public sealed record SavedBagEntry(string Id, int Count, bool Broken = false);
+
+/// <summary>Coins by kind.</summary>
+public sealed record SavedMoney(int Platinum, int Gold, int Silver, int Copper);
+
+/// <summary>
+/// A container as the party has left it: what is still in it, and whether it has been opened,
+/// unlocked and noticed.
+/// </summary>
+/// <param name="Rolled">Who has had their one look for a hidden one, by name.</param>
+/// <param name="BodyOf">For a body, the creature file it was built from, to draw it again.</param>
+/// <param name="BodyName">For a body, the name it went by.</param>
+public sealed record SavedContainer(
+    string Id,
+    string Name,
+    ContainerLook Look,
+    SavedSquare[] Squares,
+    SavedBagEntry[] Contents,
+    SavedMoney Coins,
+    bool Open,
+    bool Locked,
+    bool Noticed,
+    string[] Rolled,
+    string? BodyOf = null,
+    string? BodyName = null);
 
 /// <summary>
 /// How far through a level the party has got.

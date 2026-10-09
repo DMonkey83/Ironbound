@@ -19,6 +19,18 @@ public enum EquipmentSlot
     Neck,
     Cloak,
     Ring,
+
+    // The rest of the book's body slots, so a paper doll can be drawn whole. Nothing goes in them
+    // yet. Appended rather than slotted in alphabetically: saves name slots as words, and the
+    // values above keep their places either way.
+    Belt,
+    Body,
+    Chest,
+    Eyes,
+    Feet,
+    Hands,
+    Headband,
+    Wrists,
 }
 
 public static class EquipmentSlots
@@ -30,6 +42,30 @@ public static class EquipmentSlots
         EquipmentSlot.Ring => 2,
         _ => 1,
     };
+
+    /// <summary>Every slot something can be worn or held in, for drawing a paper doll.</summary>
+    public static IReadOnlyList<EquipmentSlot> Worn { get; } =
+        [.. Enum.GetValues<EquipmentSlot>().Where(slot => slot != EquipmentSlot.Carried)];
+}
+
+/// <summary>What sort of thing an item is, for sorting a bag and deciding what can be done with it.</summary>
+public enum ItemKind
+{
+    Weapon,
+
+    /// <summary>Body armour: light, medium or heavy.</summary>
+    Armour,
+
+    Shield,
+
+    /// <summary>Rings, cloaks, amulets and the like: worn, and doing something for it.</summary>
+    Wondrous,
+
+    /// <summary>Gems, art objects and trade goods. They weigh and they sell, and that is all.</summary>
+    Valuable,
+
+    /// <summary>Teeth and claws. Never looted, dropped or shown in a bag.</summary>
+    Natural,
 }
 
 /// <summary>How much armour something is, which decides what it costs the wearer.</summary>
@@ -71,6 +107,45 @@ public sealed record ItemDefinition
     public string Description { get; init; } = string.Empty;
 
     public EquipmentSlot Slot { get; init; } = EquipmentSlot.Carried;
+
+    /// <summary>
+    /// What sort of thing it is. Worked out by the library from what the item is — a weapon of
+    /// the natural category is natural, armour is armour — unless its file says <c>"type"</c>.
+    /// </summary>
+    public ItemKind Kind { get; init; } = ItemKind.Wondrous;
+
+    /// <summary>
+    /// Pounds, for a Medium creature's version. A weapon's comes from its weapon, anything
+    /// else's from its file. A Small wearer's armour weighs half; see <see cref="Encumbrance"/>.
+    /// </summary>
+    public decimal Weight { get; init; }
+
+    /// <summary>
+    /// What it is worth, in copper pieces so that prices add up without rounding. Worked out by
+    /// <see cref="Pricing"/> from the base cost, the material and any enhancement.
+    /// </summary>
+    public int Price { get; init; }
+
+    /// <summary>Whether two of it share a line in a bag: "dagger ×2". Never for a natural weapon.</summary>
+    public bool Stackable { get; init; }
+
+    /// <summary>Made with extra care: +1 to hit for a weapon, a point off armour's check penalty. Implied by any enhancement.</summary>
+    public bool Masterwork { get; init; }
+
+    /// <summary>The base cost in gold pieces the file wrote, before material and enhancement; null for one that takes its weapon's.</summary>
+    public decimal? BaseCost { get; init; }
+
+    /// <summary>The weight the file wrote; null for one that takes its weapon's.</summary>
+    public decimal? BaseWeight { get; init; }
+
+    /// <summary>The kind its file wrote with <c>"type"</c>, if it did; what <see cref="Kind"/> is worked out from.</summary>
+    internal ItemKind? WrittenKind { get; init; }
+
+    /// <summary>Whether its file said it stacks, if it did.</summary>
+    internal bool? WrittenStackable { get; init; }
+
+    /// <summary>A bite or a claw: nothing anybody can take off the body.</summary>
+    public bool IsNatural => Kind == ItemKind.Natural;
 
     /// <summary>
     /// What it looks like in somebody's hand, or empty for things that are not held.

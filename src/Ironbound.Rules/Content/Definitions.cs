@@ -150,6 +150,21 @@ public sealed record CreatureDefinition
 
     public int SpellResistance { get; init; }
 
+    /// <summary>On four legs: carries half as much again as a biped of its size.</summary>
+    public bool Quadruped { get; init; }
+
+    /// <summary>
+    /// The dice for the coins in its pockets, rolled when it falls and becomes a body: the orc's
+    /// "2d6" silver and "3d10" copper. Empty for something that carries no money.
+    /// </summary>
+    public PurseDefinition Purse { get; init; } = PurseDefinition.Empty;
+
+    /// <summary>
+    /// The Bestiary's treasure line for it — none, incidental, standard, double, triple or NPC
+    /// gear. Data only: what the treasure yardstick reads, not something the game hands out.
+    /// </summary>
+    public TreasureKind? Treasure { get; init; }
+
     /// <summary>
     /// Hands the creature the facts about it that are its file's and not its fight's: its type,
     /// subtypes, spell resistance, challenge rating and favoured class. At build, and again on
@@ -157,6 +172,7 @@ public sealed record CreatureDefinition
     /// </summary>
     internal void Describe(Creature creature)
     {
+        creature.Quadruped = Quadruped;
         creature.Type = Type;
         creature.Subtypes.Clear();
         creature.Subtypes.UnionWith(Subtypes);
@@ -534,7 +550,53 @@ public sealed record EncounterDefinition
     /// lying about rather than being swung at you. Only a win finds it: nobody searches the
     /// room they were driven out of.
     /// </remarks>
-    public IReadOnlyList<string> Loot { get; init; } = [];
+    public IReadOnlyList<LootDefinition> Loot { get; init; } = [];
+}
+
+/// <summary>
+/// So many of one item, as a level or an encounter places it: <c>"dagger"</c>, or
+/// <c>{ "item": "dagger", "count": 2 }</c>.
+/// </summary>
+public readonly record struct LootDefinition(string ItemId, int Count = 1)
+{
+    public override string ToString() => Count == 1 ? ItemId : $"{ItemId} ×{Count}";
+}
+
+/// <summary>The Bestiary's treasure line, as data.</summary>
+public enum TreasureKind
+{
+    None,
+
+    /// <summary>Half of standard, and only in its lair.</summary>
+    Incidental,
+
+    /// <summary>What an encounter of its rating is worth on the treasure table.</summary>
+    Standard,
+
+    Double,
+
+    Triple,
+
+    /// <summary>What an NPC of a level equal to its rating carries.</summary>
+    NpcGear,
+}
+
+/// <summary>What a container looks like, for whoever draws it. Bodies and piles are on the floor.</summary>
+public enum ContainerLook
+{
+    Crate,
+    Chest,
+    Strongbox,
+    Barrel,
+    Sack,
+    Cart,
+    WeaponRack,
+
+    /// <summary>Things left lying about: what a room held, or what the party put down.</summary>
+    Pile,
+
+    /// <summary>Somebody who fell, and what they had on them.</summary>
+    Body,
 }
 
 /// <summary>What one character of a level's map stands for.</summary>
@@ -703,8 +765,17 @@ public sealed record AreaDefinition
     /// <summary>Who is waiting, at their squares on the level's map.</summary>
     public IReadOnlyList<PlacementDefinition> Foes { get; init; } = [];
 
-    /// <summary>Found once the room is won, over and above what the fallen carried.</summary>
-    public IReadOnlyList<string> Loot { get; init; } = [];
+    /// <summary>
+    /// Found once the room is won, over and above what the fallen carried: laid out as a pile
+    /// at <see cref="LootAt"/>, or in the middle of the room.
+    /// </summary>
+    public IReadOnlyList<LootDefinition> Loot { get; init; } = [];
+
+    /// <summary>Where the room's loot lies, when the file says; null for the middle of the room.</summary>
+    public GridSquare? LootAt { get; init; }
+
+    /// <summary>The square in the middle of the room, rounding down.</summary>
+    public GridSquare Centre => new(X + (Width - 1) / 2, Y + (Height - 1) / 2);
 
     /// <summary>
     /// Experience for finding the place at all, given the first time anybody sets foot in it —
@@ -732,8 +803,12 @@ public enum FeatureKind
     /// <summary>Down until somebody gets across and ties it off.</summary>
     Bridge,
 
-    /// <summary>Something worth searching, searched once.</summary>
-    Cache,
+    /// <summary>
+    /// Something with things in it: a crate, a chest, a cart, a sack. Opened, perhaps unlocked or
+    /// noticed first, and then emptied a piece at a time or all at once. Files may still say
+    /// <c>"cache"</c>, the name it had when it was searched once and emptied into the sack.
+    /// </summary>
+    Container,
 }
 
 /// <summary>
@@ -756,8 +831,8 @@ public sealed record FeatureDefinition
     public string Text { get; init; } = string.Empty;
 
     /// <summary>
-    /// Where it is. A door's squares are its doorway, a bridge's the chasm it spans, a cache's
-    /// the furniture it is in.
+    /// Where it is. A door's squares are its doorway, a bridge's the chasm it spans, a
+    /// container's the furniture it is in, the niche in the wall, or the floor a sack lies on.
     /// </summary>
     public IReadOnlyList<GridSquare> Squares { get; init; } = [];
 
@@ -772,11 +847,32 @@ public sealed record FeatureDefinition
     /// <summary>What a failed crossing costs, in dice.</summary>
     public string Fall { get; init; } = "2d6";
 
-    /// <summary>What a cache holds, by item id.</summary>
-    public IReadOnlyList<string> Loot { get; init; } = [];
+    /// <summary>What a container holds.</summary>
+    public IReadOnlyList<LootDefinition> Loot { get; init; } = [];
 
-    /// <summary>Experience for dealing with it: the door opened, the chasm crossed, the cache found.</summary>
+    /// <summary>The coins in a container.</summary>
+    public Items.Money Coins { get; init; }
+
+    /// <summary>What a container looks like. A crate unless the file says.</summary>
+    public ContainerLook Look { get; init; } = ContainerLook.Crate;
+
+    /// <summary>
+    /// Whether a container is locked: true when its file gives a <c>lockDc</c>. A door is always
+    /// shut, so the question is only asked of containers.
+    /// </summary>
+    public bool Locked { get; init; }
+
+    /// <summary>
+    /// The Perception DC to notice a container at all, or null for one in plain sight. Each of the
+    /// party rolls once, the first time they come within ten feet of it.
+    /// </summary>
+    public int? HiddenDc { get; init; }
+
+    /// <summary>Experience for dealing with it: the door opened, the chasm crossed, the container found.</summary>
     public int Experience { get; init; }
+
+    /// <summary>The distance in feet within which somebody gets their one look for a hidden container.</summary>
+    public const int NoticeFeet = 10;
 
     /// <summary>What dealing with one of these is worth when its file does not say: a crossing
     /// that can break a leg is worth more than a door. Per character, and on the same scale

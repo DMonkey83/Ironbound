@@ -250,9 +250,10 @@ public static class Martial
     }
 
     /// <summary>
-    /// What medium or heavy armour does to a creature's speed: thirty becomes twenty, twenty
-    /// fifteen. Armour training lifts it for medium armour at the first step and heavy at the
-    /// second.
+    /// What medium or heavy armour, or a medium or heavy load, does to a creature's speed: thirty
+    /// becomes twenty, twenty fifteen. Armour training lifts it for medium armour at the first
+    /// step and heavy at the second; it does nothing for a load. The two do not stack — slowed
+    /// is slowed, by the armour or by the weight or by both.
     /// </summary>
     public static int ArmouredSpeed(Creature creature, int speed)
     {
@@ -268,8 +269,28 @@ public static class Martial
             _ => false,
         };
 
-        return slowed ? Reduced(speed) : speed;
+        return slowed || Encumbrance.Slows(Encumbrance.Effective(creature)) ? Reduced(speed) : speed;
     }
+
+    /// <summary>
+    /// The check penalty that counts on a Strength- or Dexterity-based check: the worse of the
+    /// armour's (<see cref="CheckPenalty"/>) and the load's, and which of the two it was.
+    /// </summary>
+    public static (int Penalty, string Source) SkillCheckPenalty(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        var armour = CheckPenalty(creature);
+        var load = Encumbrance.Effective(creature);
+        var weight = Encumbrance.CheckPenalty(load);
+
+        return weight < armour
+            ? (weight, $"{Capital(Encumbrance.Name(load))} load check penalty")
+            : (armour, "Armour check penalty");
+    }
+
+    private static string Capital(string text) =>
+        text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     /// <summary>
     /// The armour table's speeds. The common ones are the book's own; anything else is two

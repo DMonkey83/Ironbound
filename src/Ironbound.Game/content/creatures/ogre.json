@@ -27,5 +27,11 @@
     { "skill": "Perception", "ranks": 2 },
     { "skill": "Climb", "ranks": 4 }
   ],
-  "items": ["hide-armour", "ogre-axe"]
+  // The amber egg on its chain is the gem the den's last page speaks of.
+  "items": ["hide-armour", "ogre-axe", "gorrums-amber"],
+
+  // Standard treasure, by the Bestiary's ogre. The hoard itself is in the strongbox in his den;
+  // this is only what he keeps about him.
+  "treasure": "standard",
+  "purse": { "gp": "2d6", "sp": "4d6" }
 }

@@ -81,16 +81,6 @@ public partial class Main
 
 	private void SelectionChanged()
 	{
-		// The spoils list names the same person, so taking an item gives it to whoever is picked.
-		if (Selected().FirstOrDefault() is { } first && _bearer is not null)
-		{
-			var index = _campaign.Party.ToList().IndexOf(first);
-			if (index >= 0 && index < _bearer.ItemCount)
-			{
-				_bearer.Selected = index;
-			}
-		}
-
 		RefreshSheet();
 		UpdateStatus();
 		RefreshControls();

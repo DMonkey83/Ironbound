@@ -64,7 +64,7 @@ public class CriticalFeatTests
 
     [Theory]
     [InlineData(2, 3, 4)]
-    [InlineData(19, 3, 1)]
+    [InlineData(20, 3, 1)]
     public void StaggeringCriticalStaggersForD4Plus1OrOneRoundOnASave(int save, int die, int rounds)
     {
         var brute = Brute("\"staggering-critical\"");
@@ -79,7 +79,7 @@ public class CriticalFeatTests
 
     [Theory]
     [InlineData(2, Condition.Stunned)]
-    [InlineData(19, Condition.Staggered)]
+    [InlineData(20, Condition.Staggered)]
     public void StunningCriticalStunsOrOnASaveStaggers(int save, Condition result)
     {
         var brute = Brute("\"staggering-critical\", \"stunning-critical\"");
@@ -92,6 +92,7 @@ public class CriticalFeatTests
     }
 
     [Fact]
+    // A natural 20 is what saves a dummy against DC 27: the saves above that pass roll one.
     public void TheSaveIsTenPlusTheAttackersBaseAttack()
     {
         Assert.Equal(27, CriticalFeats.DifficultyClass(Brute("\"stunning-critical\"")));
@@ -126,7 +127,7 @@ public class CriticalFeatTests
 
     [Theory]
     [InlineData(2, Condition.Blinded)]
-    [InlineData(19, Condition.Dazzled)]
+    [InlineData(20, Condition.Dazzled)]
     public void BlindingCriticalBlindsOrOnASaveDazzles(int save, Condition result)
     {
         var brute = Brute("\"blinding-critical\"");
@@ -139,7 +140,7 @@ public class CriticalFeatTests
 
     [Theory]
     [InlineData(2, true)]
-    [InlineData(19, false)]
+    [InlineData(20, false)]
     public void DeafeningCriticalDeafensForGoodOrForARound(int save, bool forGood)
     {
         var brute = Brute("\"deafening-critical\"");

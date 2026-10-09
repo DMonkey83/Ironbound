@@ -149,6 +149,8 @@ public abstract class MoveAndAttackAction : GameAction
     /// </summary>
     private sealed class Leg(IReadOnlyList<GridSquare> path, Func<Creature, bool>? provokes) : MoveAction(path)
     {
+        protected override bool CanStagger => false;
+
         protected override Func<Creature, bool>? Provokes(ActionContext context) => provokes;
     }
 }

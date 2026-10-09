@@ -33,15 +33,18 @@ public class ShippedLevelTests
     }
 
     [Fact]
-    public void TheCavesHaveTheirDoorsBridgeAndCaches()
+    public void TheCavesHaveTheirDoorsBridgeAndContainers()
     {
         var caves = Library.GetLevel("caves-of-shadow")!;
 
         Assert.Equal(
-            [FeatureKind.Bridge, FeatureKind.Door, FeatureKind.Door, FeatureKind.Cache, FeatureKind.Cache],
+            [FeatureKind.Bridge, FeatureKind.Door, FeatureKind.Door,
+                FeatureKind.Container, FeatureKind.Container, FeatureKind.Container,
+                FeatureKind.Container, FeatureKind.Container],
             caves.Features.Select(feature => feature.Kind));
         Assert.Equal(17, caves.GetFeature("den-door")!.BreakDc);
-        Assert.Equal(["greatsword-plus-one"], caves.GetFeature("tobins-cart")!.Loot);
+        Assert.Equal([new LootDefinition("greatsword-plus-one")], caves.GetFeature("tobins-cart")!.Loot);
+        Assert.Equal(ContainerLook.Cart, caves.GetFeature("tobins-cart")!.Look);
     }
 }
 
@@ -154,7 +157,7 @@ public class LevelParsingTests
         Assert.Equal("Grass.", lawn.Intro);
         Assert.Equal("Quiet.", lawn.Outro);
         Assert.True(lawn.Final);
-        Assert.Equal(["key"], lawn.Loot);
+        Assert.Equal([new LootDefinition("key")], lawn.Loot);
 
         var rival = Assert.Single(lawn.Foes);
         Assert.Equal(new PlacementDefinition("hero", 2, 1, false, "Rival", true, true), rival);
@@ -296,12 +299,13 @@ public class LevelProblemTests
     }
 
     [Fact]
-    public void ACacheOnOpenFloorIsReported()
+    public void AContainerOnOpenFloorIsFine()
     {
-        Assert.Contains(Problems(Level(features: """
+        // A sack by the door, a chest in the corner: not every container is furniture the map
+        // draws. The old "cache" still loads as one.
+        Assert.Empty(Problems(Level(features: """
             { "id": "box", "kind": "cache", "name": "box", "squares": [ { "x": 1, "y": 1 } ] }
-            """)),
-            problem => problem.Field == "features.box");
+            """)));
     }
 
     [Fact]
