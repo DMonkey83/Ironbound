@@ -416,7 +416,15 @@ public partial class Main
 		_between.AddChild(_stash);
 		_between.AddChild(Words("to", Body, 16, PageInk));
 		_bearer = new OptionButton { CustomMinimumSize = new Vector2(110, 0) };
-		_bearer.ItemSelected += _ => RefreshSheet();
+		_bearer.ItemSelected += index =>
+		{
+			if (Choosing && index >= 0 && index < _campaign.Party.Count)
+			{
+				Select(_campaign.Party[(int)index], adding: false);
+			}
+
+			RefreshSheet();
+		};
 		_between.AddChild(_bearer);
 
 		_give = new Button { Text = "Take" };
@@ -784,6 +792,8 @@ public partial class Main
 			child.QueueFree();
 		}
 
+		_partyRow.AddChild(SelectAllButton());
+
 		foreach (var creature in _battle.Party)
 		{
 			// A tall portrait in an iron frame, the name across its foot and anything wrong with
@@ -828,11 +838,13 @@ public partial class Main
 			frame.Numbers.AddThemeFontSizeOverride("font_size", 11);
 			stack.AddChild(frame.Health);
 
-			// A click on a face is "tell me about them": it picks them and opens their sheet.
+			// A click on a face picks them, Shift adding them to whoever is picked already; a
+			// double click opens their sheet as well.
 			var who = creature;
+			frame.Panel.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
 			frame.Panel.GuiInput += input =>
 			{
-				if (input is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+				if (input is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } click)
 				{
 					var index = _campaign.Party.ToList().IndexOf(who);
 					if (index >= 0 && index < _bearer.ItemCount)
@@ -840,7 +852,13 @@ public partial class Main
 						_bearer.Selected = index;
 					}
 
-					_showSheet.ButtonPressed = true;
+					Select(who, click.ShiftPressed);
+
+					if (click.DoubleClick)
+					{
+						_showSheet.ButtonPressed = true;
+					}
+
 					RefreshSheet();
 				}
 			};
@@ -887,7 +905,9 @@ public partial class Main
 			frame.Numbers.Text = $"{vitals.Current} / {vitals.Maximum}";
 			frame.Trouble.Text = vitals.Trouble;
 			frame.Face.Modulate = vitals.Conscious ? Colors.White : new Color(0.45f, 0.40f, 0.40f);
-			frame.Panel.AddThemeStyleboxOverride("panel", Plate(Iron, vitals.Acting ? BronzeBright : IronEdge, vitals.Acting ? 3 : 2, 3, 3));
+			// Lit for whoever is acting in a fight, and for whoever is picked between fights.
+			var picked = vitals.Acting || (Choosing && Selected().Contains(creature));
+			frame.Panel.AddThemeStyleboxOverride("panel", Plate(Iron, picked ? BronzeBright : IronEdge, picked ? 3 : 2, 3, 3));
 		}
 
 		if (acting is { } now && actor is not null)

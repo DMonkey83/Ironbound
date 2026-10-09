@@ -597,7 +597,7 @@ public partial class Main : Node3D
 
 		// The camera first: wheel, middle-drag and its keys are never a move or an attack. Being
 		// *unhandled* input, a wheel over the log panel has already been eaten by the log.
-		if (CameraInput(@event) || HudInput(@event))
+		if (CameraInput(@event) || HudInput(@event) || SelectionKey(@event))
 		{
 			return;
 		}
@@ -610,9 +610,15 @@ public partial class Main : Node3D
 		}
 
 		// Between chapters there is no turn, no budget and nothing to provoke, so a click just
-		// puts somebody where you pointed. The board is a camp rather than a battlefield.
+		// puts somebody where you pointed. The board is a camp rather than a battlefield. A click
+		// on one of the party picks them instead.
 		if (_campaign.State != CampaignState.Fighting)
 		{
+			if (SelectionClick((InputEventMouseButton)@event))
+			{
+				return;
+			}
+
 			if (_campaign.IsLevel)
 			{
 				Travel(square);
@@ -957,6 +963,7 @@ public partial class Main : Node3D
 		CameraKeys(delta);
 		StepWalkers(delta);
 		TendLevel(delta);
+		TendSelection();
 		AnnounceExperience();
 
 		if (_cursor is null)
@@ -1070,8 +1077,9 @@ public partial class Main : Node3D
 		_campaign = restored;
 		Begin(_campaign.Battle);
 
-		// Whatever was walking or being read belongs to the run being replaced.
+		// Whatever was walking, picked or being read belongs to the run being replaced.
 		_walkers.Clear();
+		_selection.Clear();
 		_held = false;
 		_page?.QueueFree();
 		_page = null;
@@ -1912,6 +1920,12 @@ public partial class Main : Node3D
 	/// </summary>
 	private Creature Subject()
 	{
+		// Between fights it is whoever the player has picked, the first of them if several.
+		if (Choosing && Selected().FirstOrDefault() is { } picked)
+		{
+			return picked;
+		}
+
 		if (_bearer is not null
 			&& _bearer.Selected >= 0
 			&& _bearer.Selected < _campaign.Party.Count)
@@ -2494,7 +2508,7 @@ public partial class Main : Node3D
 			creature => VitalsOf(creature, open is not null && ReferenceEquals(open.Actor, creature)));
 		// Between fights there is no turn, so the bar shows whoever leads the party rather than
 		// being left on the face of the last goblin to die.
-		var actor = open?.Actor ?? _battle.Party.FirstOrDefault(one => one.IsConscious) ?? _battle.Party.FirstOrDefault();
+		var actor = open?.Actor ?? Subject() ?? _battle.Party.FirstOrDefault(one => one.IsConscious) ?? _battle.Party.FirstOrDefault();
 		Vitals? acting = actor is null ? null : VitalsOf(actor, open is not null);
 
 		// Which buttons the bar offers is part of whose bar it is, so it is decided here, with

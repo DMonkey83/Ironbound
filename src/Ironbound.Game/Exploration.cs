@@ -196,7 +196,9 @@ public partial class Main
 			return;
 		}
 
-		var leader = Subject() is { IsConscious: true } chosen ? chosen : _battle.Party.FirstOrDefault(one => one.IsConscious);
+		// Whoever is picked walks; the first of them leads, and is the one who uses a feature.
+		var walking = Selected().Where(one => field.SquareOf(one) is not null).ToList();
+		var leader = walking.FirstOrDefault();
 		if (leader is null)
 		{
 			return;
@@ -219,8 +221,8 @@ public partial class Main
 		// to take a place someone else is standing next to.
 		var claimed = new HashSet<GridSquare> { target };
 		var plan = new List<(Creature Who, GridSquare To)> { (leader, target) };
-		var others = _battle.Party
-			.Where(one => one.IsConscious && !ReferenceEquals(one, leader) && field.SquareOf(one) is not null)
+		var others = walking
+			.Where(one => !ReferenceEquals(one, leader))
 			.OrderBy(one => Apart(field.SquareOf(one)!.Value, target))
 			.ToList();
 		var around = Ring(field, target, others.Count, claimed);

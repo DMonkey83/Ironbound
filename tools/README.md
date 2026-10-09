@@ -189,6 +189,14 @@ in Simulation); the Game draws them (`Exploration.cs`, `LevelLook.cs`):
 - The grid and the nameplates show only during a fight, and on a level the grid is drawn at
   half strength.
 
+**Picking.** Between fights a click on a portrait or a figure picks that character; Shift adds
+or removes; Ctrl+A or the ALL plate before the portraits picks everybody (the default). The picked
+wear a green ring and their portraits are lit. Whoever is picked walks when the ground is
+clicked, the first of them leading, and the first of them is who opens a door, crosses the
+bridge, searches a chest, takes the spoils and levels up. A double click on a portrait opens the
+sheet. In a fight, whoever's turn it is acts. `--explore @Pip 21,42 @all ...` picks on the way
+(`Selection.cs`).
+
 **Moving.** Hovering draws the path the click will take as a glowing pipe from the mover's feet
 (`PathPreview.cs`, `path.gdshader`): the rules' own path and the longest part of it this turn
 pays for, red past that, a ring where the move stops, an orange mark over each square whose
@@ -213,7 +221,8 @@ block bottom-left; the campaign and the turn order top-right.
 | 1 – 7 | Move, Attack, Full attack, Trip, Shove, Help, Cast |
 | Z / X / C | Power Attack, Combat Expertise, Fight defensively |
 | G / Space | Stand up, End turn |
-| L / I | Log, character sheet (or click a portrait) |
+| L / I | Log, character sheet (or double-click a portrait) |
+| Ctrl+A | Between fights: pick the whole party |
 | F5 / F9 | Save, Load |
 
 Portraits are not art: each is a small viewport with its own copy of the creature's model and a

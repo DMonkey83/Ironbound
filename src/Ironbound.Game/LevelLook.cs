@@ -446,31 +446,28 @@ public partial class Main
 
 	// ---- a walk laid down on the command line ----
 
-	private Queue<GridSquare> _route;
+	private Queue<string> _route;
 	private double _routeWait;
 
 	/// <summary>
 	/// <c>-- --explore 6,36 5,25 17,23</c>: the party walks to each square in turn, using any door,
 	/// bridge or cache named, once the last walk, page and fight are done. With <c>--autoplay</c>
 	/// the fights play themselves, so a whole level can be watched or recorded without a hand on
-	/// the mouse — which is how its look and its rooms are checked.
+	/// the mouse — which is how its look and its rooms are checked. <c>@Pip</c> on the way picks
+	/// Pip alone, as a click on her would; <c>@all</c> picks the whole party again.
 	/// </summary>
 	private void FollowRoute(double delta)
 	{
 		if (_route is null)
 		{
-			_route = new Queue<GridSquare>();
+			_route = new Queue<string>();
 			var args = OS.GetCmdlineUserArgs();
 			var at = Array.IndexOf(args, "--explore");
 			for (var i = at + 1; at >= 0 && i < args.Length && !args[i].StartsWith("--", StringComparison.Ordinal); i++)
 			{
-				foreach (var pair in args[i].Split(' ', StringSplitOptions.RemoveEmptyEntries))
+				foreach (var word in args[i].Split(' ', StringSplitOptions.RemoveEmptyEntries))
 				{
-					var xy = pair.Split(',');
-					if (xy.Length == 2 && int.TryParse(xy[0], out var x) && int.TryParse(xy[1], out var y))
-					{
-						_route.Enqueue(new GridSquare(x, y));
-					}
+					_route.Enqueue(word);
 				}
 			}
 		}
@@ -488,7 +485,31 @@ public partial class Main
 		}
 
 		_routeWait = 0;
-		var next = _route.Peek();
+		var step = _route.Peek();
+
+		if (step.StartsWith('@'))
+		{
+			_route.Dequeue();
+			var name = step[1..];
+			if (name == "all")
+			{
+				SelectAll();
+			}
+			else if (_campaign.Party.FirstOrDefault(one => string.Equals(one.Name, name, StringComparison.OrdinalIgnoreCase)) is { } who)
+			{
+				Select(who, adding: false);
+			}
+
+			return;
+		}
+
+		if (step.Split(',') is not [var sx, var sy] || !int.TryParse(sx, out var x) || !int.TryParse(sy, out var y))
+		{
+			_route.Dequeue();
+			return;
+		}
+
+		var next = new GridSquare(x, y);
 
 		// A door or a crossing is tried until it gives; anything else is walked to once.
 		if (_campaign.FeatureAt(next) is not { } feature || _campaign.IsUsed(feature.Id))
