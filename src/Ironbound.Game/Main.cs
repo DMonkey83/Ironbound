@@ -99,7 +99,7 @@ public partial class Main : Node3D
 	private MeshInstance3D _cursor;
 	private MeshInstance3D _turnMarker;
 	private ShaderMaterial _groundPaint;
-	private MultiMeshInstance3D _reach;
+	private MeshInstance3D _reach;
 	private StandardMaterial3D _turnPaint;
 	private StandardMaterial3D _cursorPaint;
 
@@ -631,12 +631,22 @@ public partial class Main : Node3D
 		}
 
 		var actor = _battle.Encounter.Current!.Actor;
+		var action = ActionFor(actor, square);
 
-		if (ActionFor(actor, square) is not { } action)
+		// Too far for one move: go as far as it allows, along the path the preview drew.
+		if (_mode == Mode.Move && (action is null || !_battle.CanAct(action))
+			&& MovePlan(actor, square, out _, out _) is { } shorter)
+		{
+			action = shorter;
+		}
+
+		if (action is null)
 		{
 			Refuse(WhyNot(actor, square));
 			return;
 		}
+
+		HidePath();
 
 		var lines = _battle.Act(action);
 
@@ -891,11 +901,38 @@ public partial class Main : Node3D
 		}
 	}
 
+	private static GridSquare? _hoverArg;
+	private static bool _hoverRead;
+
+	private static GridSquare? Hovering()
+	{
+		if (!_hoverRead)
+		{
+			_hoverRead = true;
+			var args = OS.GetCmdlineUserArgs();
+			var at = System.Array.IndexOf(args, "--hover");
+			if (at >= 0 && at + 1 < args.Length && args[at + 1].Split(',') is [var x, var y]
+				&& int.TryParse(x, out var hx) && int.TryParse(y, out var hy))
+			{
+				_hoverArg = new GridSquare(hx, hy);
+			}
+		}
+
+		return _hoverArg;
+	}
+
 	private GridSquare? SquareUnderCursor()
 	{
 		if (_camera is null || _battle.Battlefield is not { } field)
 		{
 			return null;
+		}
+
+		// -- --hover x,y: the pointer is held over that square, for looking at what hovering
+		// draws in a display nobody can move a mouse in.
+		if (Hovering() is { } held)
+		{
+			return held;
 		}
 
 		if (GroundUnder(GetViewport().GetMousePosition()) is not { } hit)
@@ -929,23 +966,40 @@ public partial class Main : Node3D
 
 		var fighting = _campaign.State == CampaignState.Fighting;
 
+		// The reach belongs to the player's turn, and to the moment it is being decided: not to
+		// the enemy's, nor to the beats of a move already made.
+		if (_reach is not null)
+		{
+			_reach.Visible = fighting && _battle.IsPartyTurn && !StageBusy;
+		}
+
 		if (StageBusy || (fighting && !_battle.IsPartyTurn) || SquareUnderCursor() is not { } square)
 		{
 			_cursor.Visible = false;
+			HidePath();
 			return;
 		}
 
 		_cursor.Visible = true;
-		_cursor.Position = new Vector3(square.X + 0.5f, 0.02f, square.Y + 0.5f);
+		_cursor.Position = new Vector3(square.X, 0.004f, square.Y);
 
-		// Out of a fight the only thing that can refuse you is somebody standing there.
+		// Out of a fight the only thing that can refuse you is somebody standing there — or a
+		// door, a crossing or a chest, which a click goes and uses.
 		if (!fighting)
 		{
+			var usable = _campaign.IsLevel && _campaign.FeatureAt(square) is { } feature && !_campaign.IsUsed(feature.Id);
 			_cursorPaint.AlbedoColor =
-				_battle.Battlefield?.IsFree(square) == true ? LegalColour : IllegalColour;
-
+				usable || _battle.Battlefield?.IsFree(square) == true ? LegalColour : IllegalColour;
+			// No path between fights: walking about is not a move anybody has to plan.
+			HidePath();
 			return;
 		}
+
+		var actor = _battle.Encounter.Current!.Actor;
+
+		// Has its own memory of what it last drew, keyed by the mode too, so a change of mode
+		// under a still pointer is noticed.
+		PreviewMove(actor, square);
 
 		// Deciding what a click would mean runs a path search, so only do it when the cursor
 		// actually moves to a different square rather than once a frame.
@@ -955,8 +1009,9 @@ public partial class Main : Node3D
 		}
 
 		_hovered = square;
-		var actor = _battle.Encounter.Current!.Actor;
-		_cursorPaint.AlbedoColor = CanAct(actor, square) ? LegalColour : IllegalColour;
+		_cursorPaint.AlbedoColor = CanAct(actor, square) || (_mode == Mode.Move && MovePlan(actor, square, out _, out _) is not null)
+			? LegalColour
+			: IllegalColour;
 	}
 
 	// ---- saving ----
@@ -1337,37 +1392,24 @@ public partial class Main : Node3D
 		ground.Position = centre + new Vector3(0, GridHeight, 0);
 
 		// Where the current actor could get to. One draw call however many squares light up.
-		_reach = new MultiMeshInstance3D
-		{
-			Multimesh = new MultiMesh
-			{
-				TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-				Mesh = new PlaneMesh { Size = new Vector2(0.92f, 0.92f) },
-				InstanceCount = 0,
-			},
-			MaterialOverride = new StandardMaterial3D
-			{
-				AlbedoColor = ReachColour,
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-			},
-		};
-
+		// Where the current actor could get to: a faint wash with a line round its edge.
+		_reach = new MeshInstance3D { MaterialOverride = OutlinePaint(), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
 		_world.AddChild(_reach);
 
-		_cursorPaint = new StandardMaterial3D
-		{
-			AlbedoColor = LegalColour,
-			Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-		};
-
+		// The square under the pointer: an outline, so it frames what is on the square rather
+		// than painting over it.
+		_cursorPaint = OutlinePaint();
+		_cursorPaint.AlbedoColor = LegalColour;
 		_cursor = new MeshInstance3D
 		{
-			Mesh = new PlaneMesh { Size = new Vector2(0.95f, 0.95f) },
+			Mesh = Outline([new GridSquare(0, 0)], Colors.White, 0.18f, 0.06f),
 			MaterialOverride = _cursorPaint,
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
 			Visible = false,
 		};
 
 		_world.AddChild(_cursor);
+		BuildPathPreview();
 
 		_turnPaint = new StandardMaterial3D
 		{
@@ -2334,53 +2376,47 @@ public partial class Main : Node3D
 		}
 
 		var fighting = _campaign.State == CampaignState.Fighting;
-		_groundPaint?.SetShaderParameter("strength", fighting ? 1.0f : 0.0f);
+		// On a level's painted ground the grid is a guide, not the picture: half strength, so the
+		// reach outline and the path read over it.
+		_groundPaint?.SetShaderParameter("strength", fighting ? (_campaign.IsLevel ? 0.45f : 1.0f) : 0.0f);
 
 		if (!fighting
 			|| !_battle.NeedsPlayer
 			|| _battle.Battlefield is not { } field
 			|| _battle.Encounter.Current is not { IsEnded: false } turn)
 		{
-			_reach.Multimesh.InstanceCount = 0;
+			_reach.Mesh = null;
 			return;
 		}
 
-		if (_reach.MaterialOverride is StandardMaterial3D paint)
+		var colour = _mode switch
 		{
-			paint.AlbedoColor = _mode switch
-			{
-				Mode.Move => ReachColour,
-				Mode.Cast => SpellColour,
-				Mode.Help => HelpColour,
-				_ => StrikeColour,
-			};
+			Mode.Move => ReachColour,
+			Mode.Cast => SpellColour,
+			Mode.Help => HelpColour,
+			_ => StrikeColour,
+		};
+
+		// Only where an answer could be yes. Asking every square of a level the size of the
+		// caves ran a path search for each of sixteen hundred squares on every click.
+		IEnumerable<GridSquare> candidates;
+		if ((_mode == Mode.Move || (_mode == Mode.Cast && SelectedSpell() is { NeedsAPoint: true }))
+			&& field.SquareOf(turn.Actor) is { } at)
+		{
+			var radius = _mode == Mode.Move ? (turn.Actor.CurrentSpeed / Distance.FeetPerSquare) + 1 : 24;
+			candidates = Enumerable.Range(System.Math.Max(0, at.X - radius), System.Math.Min(field.Width, at.X + radius + 1) - System.Math.Max(0, at.X - radius))
+				.SelectMany(x => Enumerable.Range(System.Math.Max(0, at.Y - radius), System.Math.Min(field.Height, at.Y + radius + 1) - System.Math.Max(0, at.Y - radius))
+					.Select(y => new GridSquare(x, y)));
+		}
+		else
+		{
+			candidates = _battle.Encounter.Order
+				.Select(one => field.SquareOf(one.Creature))
+				.OfType<GridSquare>();
 		}
 
-		var squares = new List<GridSquare>();
-
-		for (var x = 0; x < field.Width; x++)
-		{
-			for (var y = 0; y < field.Height; y++)
-			{
-				var square = new GridSquare(x, y);
-
-				if (CanAct(turn.Actor, square))
-				{
-					squares.Add(square);
-				}
-			}
-		}
-
-		_reach.Multimesh.InstanceCount = squares.Count;
-
-		for (var i = 0; i < squares.Count; i++)
-		{
-			_reach.Multimesh.SetInstanceTransform(
-				i,
-				new Transform3D(
-					Basis.Identity,
-					new Vector3(squares[i].X + 0.5f, 0.015f, squares[i].Y + 0.5f)));
-		}
+		var squares = candidates.Where(square => CanAct(turn.Actor, square)).ToHashSet();
+		_reach.Mesh = Outline(squares, new Color(colour, 1f), colour.A * 0.45f, 0.05f);
 	}
 
 	/// <summary>Puts the ring under whoever is acting, and hides it when nobody is.</summary>

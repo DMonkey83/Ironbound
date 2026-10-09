@@ -186,7 +186,16 @@ in Simulation); the Game draws them (`Exploration.cs`, `LevelLook.cs`):
   gravel in the open, grass by the vertex colour — so nothing is tiled.
 - A level that is a third or more rock is a cave: night outside, a torch on the head wall of
   every room under the rock, and a lantern carried by the party. Open levels keep the daylight.
-- The grid and the nameplates show only during a fight.
+- The grid and the nameplates show only during a fight, and on a level the grid is drawn at
+  half strength.
+
+**Moving.** Hovering draws the path the click will take as a glowing pipe from the mover's feet
+(`PathPreview.cs`, `path.gdshader`): the rules' own path and the longest part of it this turn
+pays for, red past that, a ring where the move stops, an orange mark over each square whose
+leaving provokes, and the distance. A click too far away moves as far as the move allows along
+that path. Fights only: between them the party just walks, with no line. The ground within
+reach is a faint wash with a line round its edge. `-- --hover x,y` holds the pointer over a
+square, for checking all of this under `xvfb-run`.
 
 `-- --explore 6,37 6,30 17,23 ...` walks the party to each square in turn, using any feature it
 names, once the last walk, page and fight are done. With `--autoplay` a whole level plays itself;
