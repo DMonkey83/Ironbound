@@ -6,5 +6,24 @@
   "hitDie": 12,
   "attack": "Full",
   "goodSaves": ["Fortitude"],
-  "classSkills": ["Acrobatics", "Climb", "Intimidate", "Survival", "Swim"]
+  "classSkills": ["Acrobatics", "Climb", "Intimidate", "Survival", "Swim"],
+
+  // Rage is counted in rounds a day, worked out from the level and Constitution; a talent row is a
+  // rage power. Damage reduction is 1/— at seventh and 2/— at tenth: one per row.
+  "features": [
+    { "level": 1, "id": "fast-movement" },
+    { "level": 1, "id": "rage" },
+    { "level": 2, "id": "talent", "list": "rage-power" },
+    { "level": 2, "id": "uncanny-dodge" },
+    { "level": 3, "id": "trap-sense" },
+    { "level": 4, "id": "talent", "list": "rage-power" },
+    { "level": 5, "id": "improved-uncanny-dodge" },
+    { "level": 6, "id": "talent", "list": "rage-power" },
+    { "level": 6, "id": "trap-sense" },
+    { "level": 7, "id": "damage-reduction" },
+    { "level": 8, "id": "talent", "list": "rage-power" },
+    { "level": 9, "id": "trap-sense" },
+    { "level": 10, "id": "talent", "list": "rage-power" },
+    { "level": 10, "id": "damage-reduction" }
+  ]
 }

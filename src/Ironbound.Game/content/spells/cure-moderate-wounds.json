@@ -1,0 +1,16 @@
+// The Healing domain's second-level spell, and a good cleric's spontaneous second-level cure.
+{
+  "kind": "spell",
+  "id": "cure-moderate-wounds",
+  "name": "Cure Moderate Wounds",
+  "level": 2,
+  "school": "Conjuration",
+  "range": "touch",
+  "target": { "shape": "single" },
+  "affects": "Allies",
+  "descriptors": ["cure"],
+  "does": [
+    // Two d8, and one a caster level to a maximum of ten.
+    { "heal": { "fixed": "2d8", "plusPerLevel": 1, "plusMaximum": 10 } }
+  ]
+}

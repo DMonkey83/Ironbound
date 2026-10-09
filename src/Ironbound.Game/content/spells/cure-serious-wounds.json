@@ -1,0 +1,14 @@
+{
+  "kind": "spell",
+  "id": "cure-serious-wounds",
+  "name": "Cure Serious Wounds",
+  "level": 3,
+  "school": "Conjuration",
+  "range": "touch",
+  "target": { "shape": "single" },
+  "affects": "Allies",
+  "descriptors": ["cure"],
+  "does": [
+    { "heal": { "fixed": "3d8", "plusPerLevel": 1, "plusMaximum": 15 } }
+  ]
+}

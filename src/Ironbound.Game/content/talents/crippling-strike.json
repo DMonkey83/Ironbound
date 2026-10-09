@@ -1,0 +1,9 @@
+{
+  "kind": "talent",
+  "id": "crippling-strike",
+  "name": "Crippling Strike",
+  "list": "rogue-talent",
+  "effect": "CripplingStrike",
+  "advanced": true,
+  "description": "A sneak attack also deals 2 points of Strength damage."
+}

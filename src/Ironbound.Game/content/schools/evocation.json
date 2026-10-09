@@ -1,0 +1,14 @@
+// Elemental Wall, at eighth level, is a lasting area the battlefield has no way to hold yet; it is
+// listed so the table is the book's, and does nothing.
+{
+  "kind": "school",
+  "id": "evocation",
+  "name": "Evocation",
+  "school": "Evocation",
+  "description": "You revel in the raw power of magic, and can use it to create and destroy with shocking ease.",
+  "powers": [
+    { "level": 1, "effect": "IntenseSpells" },
+    { "level": 1, "effect": "ForceMissile" },
+    { "level": 8, "effect": "ElementalWall" }
+  ]
+}

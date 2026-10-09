@@ -1,6 +1,8 @@
-// A shield bonus, not an armour one — different types, so the two stack.
+// A shield bonus, not an armour one — different types, so the two stack. Its check penalty is
+// its own: a fighter's armour training eases the armour and not the shield.
 { "model": "res://art/weapons/heavy-shield.glb",
   "kind": "item", "id": "heavy-shield", "name": "heavy shield",
   "slot": "Shield",
+  "armour": "Shield", "checkPenalty": -2,
   "grants": [ { "target": "armourClass", "value": 2, "type": "Shield" } ]
 }

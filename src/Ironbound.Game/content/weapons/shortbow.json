@@ -12,5 +12,8 @@
   // Dexterity aims it, and a plain shortbow does not care how strong you are — a composite
   // bow would say "scale": "Full" here.
   "attackAbility": "Dexterity",
-  "scale": "None"
+  "scale": "None",
+
+  // Fighter weapon groups, for weapon training.
+  "groups": ["bows"]
 }

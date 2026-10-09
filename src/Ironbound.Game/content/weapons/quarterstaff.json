@@ -3,5 +3,8 @@
   "id": "quarterstaff",
   "name": "quarterstaff",
   "damage": "1d6",
-  "damageType": "Bludgeoning"
+  "damageType": "Bludgeoning",
+
+  // Fighter weapon groups, for weapon training.
+  "groups": ["double", "monk"]
 }

@@ -1,0 +1,9 @@
+{
+  "kind": "talent",
+  "id": "defensive-roll",
+  "name": "Defensive Roll",
+  "list": "rogue-talent",
+  "effect": "DefensiveRoll",
+  "advanced": true,
+  "description": "Once a day, against a blow that would drop her, a Reflex save (DC the damage) to take half."
+}

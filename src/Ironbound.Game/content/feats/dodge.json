@@ -3,6 +3,7 @@
   "kind": "feat",
   "id": "dodge",
   "name": "Dodge",
+  "combat": true,
   "description": "+1 dodge bonus to armour class.",
   "grants": [
     // Dodge bonuses are the ones that stack with each other, which is why the type matters.

@@ -1,0 +1,10 @@
+// Channel energy heals everyone in the burst, foes included. This is the way round it: up to your
+// Charisma bonus of creatures left out — the enemy when it heals, your own side when it harms.
+{
+  "kind": "feat",
+  "id": "selective-channeling",
+  "name": "Selective Channeling",
+  "description": "Leave up to your Charisma bonus of creatures out of a channel.",
+  "effect": "SelectiveChanneling",
+  "requires": { "cha": 13, "features": ["channel-energy"] }
+}

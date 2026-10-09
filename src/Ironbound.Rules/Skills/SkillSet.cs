@@ -91,9 +91,13 @@ public sealed class SkillSet(Creature owner)
     public bool IsClassSkill(Skill skill) =>
         _owner.Levels.Any(level => level.Class.ClassSkills.Contains(skill));
 
-    /// <summary>Whether the creature may attempt it at all.</summary>
+    /// <summary>
+    /// Whether the creature may attempt it at all: trained if it must be, and not something a
+    /// rage puts beyond her.
+    /// </summary>
     public bool CanAttempt(Skill skill) =>
-        !SkillInfo.TrainedOnly(skill) || Ranks(skill) > 0;
+        (!SkillInfo.TrainedOnly(skill) || Ranks(skill) > 0)
+        && !Classes.ClassFeatures.BarsSkill(_owner, skill);
 
     /// <summary>The whole bonus, with every part named.</summary>
     public ModifierBreakdown Explain(Skill skill)
@@ -121,7 +125,9 @@ public sealed class SkillSet(Creature owner)
             innate.Add(modifier, BonusType.Untyped, Abilities.AbilityInfo.Abbreviate(ability));
         }
 
-        return ModifierStack.Combine(innate, Modifiers(skill));
+        // Armour's check penalty and trapfinding are worked out live from what is worn and
+        // what levels are held, so taking the scale mail off helps the very next climb.
+        return ModifierStack.Combine(innate, Modifiers(skill), Classes.ClassFeatures.SkillModifiers(_owner, skill));
     }
 
     public int Total(Skill skill) => Explain(skill).Total;

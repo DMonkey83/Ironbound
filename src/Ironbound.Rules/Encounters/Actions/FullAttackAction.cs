@@ -57,11 +57,13 @@ public sealed class FullAttackAction : GameAction
         var opportunities = weapon.IsRanged ? Provoke(context) : [];
         var strikes = new List<StrikeResult>();
 
+        var followUps = new List<StrikeResult>();
+
         if (actor.IsConscious)
         {
-            foreach (var penalty in Iteratives.Penalties(actor.BaseAttackBonus))
+            foreach (var penalty in Penalties(actor, weapon))
             {
-                strikes.Add(Strike.Resolve(
+                var strike = Strike.Resolve(
                     actor,
                     weapon,
                     Target,
@@ -70,7 +72,14 @@ public sealed class FullAttackAction : GameAction
                     context.Rules,
                     context.Encounter.Battlefield,
                     penalty,
-                    context.Encounter.IsFlatFooted(Target)));
+                    context.Encounter.IsFlatFootedTo(Target, actor));
+
+                strikes.Add(strike);
+
+                if (strike.IsHit && !weapon.IsRanged)
+                {
+                    followUps.AddRange(Opportunities.Opportunist(context.Encounter, actor, Target));
+                }
 
                 // No point hacking at something already down, and stopping keeps the random
                 // stream where a replay expects to find it.
@@ -81,7 +90,29 @@ public sealed class FullAttackAction : GameAction
             }
         }
 
-        return new FullAttackResult(this, actor, weapon, strikes, opportunities);
+        return new FullAttackResult(this, actor, weapon, strikes, opportunities) { FollowUps = followUps };
+    }
+
+    /// <summary>Rapid Shot's penalty on every shot of a full attack, and the extra one it buys.</summary>
+    public const int RapidShotPenalty = -2;
+
+    /// <summary>
+    /// The penalty on each swing in order. Rapid Shot puts an extra shot at the front, at the
+    /// full bonus, and takes two off every one of them — always worth it, so always taken.
+    /// </summary>
+    public static IReadOnlyList<int> Penalties(Creature actor, WeaponAttack weapon)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(weapon);
+
+        var penalties = Iteratives.Penalties(actor.BaseAttackBonus);
+
+        if (!weapon.IsRanged || !actor.HasFeat(Feats.FeatEffect.RapidShot))
+        {
+            return penalties;
+        }
+
+        return [.. new[] { 0 }.Concat(penalties).Select(penalty => penalty + RapidShotPenalty)];
     }
 
     /// <summary>
@@ -130,6 +161,9 @@ public sealed record FullAttackResult(
     IReadOnlyList<StrikeResult> Opportunities)
     : ActionResult(Action, Actor, Describe(Actor, Weapon, Strikes, Opportunities))
 {
+    /// <summary>Swings an ally's opportunist talent took at the target in between.</summary>
+    public IReadOnlyList<StrikeResult> FollowUps { get; init; } = [];
+
     private static string Describe(
         Creature actor,
         WeaponAttack weapon,

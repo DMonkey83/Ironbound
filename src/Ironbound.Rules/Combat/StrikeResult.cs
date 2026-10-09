@@ -44,6 +44,21 @@ public sealed record StrikeResult
     /// </remarks>
     public required string TargetAfter { get; init; }
 
+    /// <summary>
+    /// How many d6 of sneak attack rode on this hit: precision damage, already in
+    /// <see cref="Damage"/> and never multiplied by a critical. Nought when there was none.
+    /// </summary>
+    public int SneakAttackDice { get; init; }
+
+    /// <summary>Whether this was a Vital Strike, with the weapon's dice rolled twice.</summary>
+    public bool Vital { get; init; }
+
+    /// <summary>
+    /// What else happened on the way: a declared rage power used, a defensive roll, the bleed a
+    /// sneak attack left. Each a short phrase the log can append.
+    /// </summary>
+    public IReadOnlyList<string> Notes { get; init; } = [];
+
     public bool IsHit => Attack.IsHit;
 
     public bool IsCritical => Attack.IsCritical;
@@ -60,14 +75,20 @@ public sealed record StrikeResult
 
     public override string ToString()
     {
-        var text = $"{Attacker.Name} attacks {Target.Name} ({Weapon.Name}): {Attack}";
+        var verb = Vital ? "vital strikes" : "attacks";
+        var text = $"{Attacker.Name} {verb} {Target.Name} ({Weapon.Name}): {Attack}";
 
         if (Damage is null)
         {
-            return text;
+            return Notes.Count == 0 ? text : $"{text}; {string.Join("; ", Notes)}";
         }
 
         text += $"; {Damage}";
+
+        if (SneakAttackDice > 0)
+        {
+            text += $" (+{SneakAttackDice}d6 sneak attack)";
+        }
 
         if (Taken is { WasMitigated: true } mitigated)
         {
@@ -82,6 +103,11 @@ public sealed record StrikeResult
         if (NonlethalDealt > 0)
         {
             text += $"; {NonlethalDealt} of it nonlethal";
+        }
+
+        foreach (var note in Notes)
+        {
+            text += $"; {note}";
         }
 
         return $"{text}; {Target.Name} {TargetAfter}";

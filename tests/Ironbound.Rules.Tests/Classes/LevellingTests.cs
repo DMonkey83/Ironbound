@@ -203,8 +203,14 @@ public class SpellSlotTests
     public void LevellingAWizardGivesNewSlotsWithoutRefillingTheSpentOnes()
     {
         var merrin = TestContent.Library.BuildCreature("merrin")!;
-        merrin.Spells.Spend(merrin.Spells.Prepared.First(spell => spell.Level == 3));
 
+        // Fireball is an evocation, so it comes out of her school slot first; the general
+        // slots of that level are spent by the second.
+        var fireball = merrin.Spells.Prepared.First(spell => spell.Level == 3);
+        merrin.Spells.Spend(fireball);
+        merrin.Spells.Spend(fireball);
+
+        Assert.Equal(0, merrin.Spells.SpecialtyRemaining(3));
         Assert.Equal(1, merrin.Spells.SlotsRemaining(3));
 
         Levelling.Gain(merrin, TestContent.Library.GetClass("wizard")!);
@@ -212,8 +218,9 @@ public class SpellSlotTests
         // Wizard 6 is 3/3/2 before the bonus, so the third level goes from two slots to three.
         Assert.Equal(3, merrin.Spells.SlotsMaximum(3));
 
-        // And the one she cast this morning is still gone.
+        // And the ones she cast this morning are still gone, school slot included.
         Assert.Equal(2, merrin.Spells.SlotsRemaining(3));
+        Assert.Equal(0, merrin.Spells.SpecialtyRemaining(3));
     }
 
     [Fact]

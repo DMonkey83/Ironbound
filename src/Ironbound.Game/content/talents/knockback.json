@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "knockback",
+  "name": "Knockback",
+  "list": "rage-power",
+  "effect": "Knockback",
+  "description": "Once a round, a bull rush in place of a melee attack that does not provoke and deals her Strength bonus in damage."
+}

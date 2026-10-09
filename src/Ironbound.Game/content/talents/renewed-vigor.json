@@ -1,0 +1,9 @@
+{
+  "kind": "talent",
+  "id": "renewed-vigor",
+  "name": "Renewed Vigor",
+  "list": "rage-power",
+  "effect": "RenewedVigor",
+  "minimumLevel": 4,
+  "description": "Once a day, a standard action while raging: heal 1d8 plus Constitution, another d8 every four levels past fourth."
+}

@@ -1,0 +1,15 @@
+// Favoured weapon in words: the game has no such weapon yet.
+{
+  "kind": "deity",
+  "id": "torag",
+  "name": "Torag",
+  "alignment": "LG",
+  "domains": [
+    "artifice",
+    "earth",
+    "good",
+    "law",
+    "protection"
+  ],
+  "favoredWeapon": "warhammer"
+}

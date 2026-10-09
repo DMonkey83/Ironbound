@@ -65,6 +65,31 @@ public sealed class WeaponAttack
 
     public string Name { get; }
 
+    /// <summary>
+    /// The content id of the kind of weapon this is — "longsword" for the silvered one as much
+    /// as the plain one — or null for an attack built by hand.
+    /// </summary>
+    /// <remarks>
+    /// The name is the item's and says "silvered longsword"; the feats and class features that
+    /// care about weapons are written against the kind. Weapon Focus (longsword) has to know
+    /// that both blades are longswords without parsing a display name.
+    /// </remarks>
+    public string? Kind { get; init; }
+
+    /// <summary>
+    /// The fighter weapon groups it belongs to: "heavy-blades", "light-blades", "thrown". What
+    /// weapon training is written against.
+    /// </summary>
+    public IReadOnlyList<string> Groups { get; init; } = [];
+
+    /// <summary>
+    /// Whether Weapon Finesse can aim it with Dexterity: every light weapon, natural weapons,
+    /// and the handful of others the rulebook names.
+    /// </summary>
+    public bool Finesse { get; init; }
+
+    public bool IsIn(string group) => Groups.Contains(group, StringComparer.Ordinal);
+
     public Attack Attack { get; }
 
     public DamagePacket Damage { get; }

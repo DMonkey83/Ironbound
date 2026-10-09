@@ -47,6 +47,16 @@ public enum Condition
     /// counted them by position would see every later one shift.
     /// </remarks>
     Asleep,
+
+    /// <summary>
+    /// Worn out: -2 Strength and Dexterity, and no charging or running. What a barbarian is left
+    /// with once her rage is spent, and the reason she cannot simply start another.
+    /// </summary>
+    /// <remarks>
+    /// Appended after <see cref="Asleep"/> for the same reason it was: saves name conditions as
+    /// words, but nothing should ever have to wonder whether a position moved.
+    /// </remarks>
+    Fatigued,
 }
 
 /// <summary>
@@ -172,6 +182,18 @@ public static class ConditionInfo
             Condition = Condition.Asleep,
             DeniesActions = true,
             DeniesDexterity = true,
+        };
+
+        table[Condition.Fatigued] = new ConditionRules
+        {
+            // Charging and running are the other half of the rule; the engine has neither yet,
+            // so the two ability penalties are the whole of it.
+            Condition = Condition.Fatigued,
+            Grants =
+            [
+                new ModifierGrant(ModifierTarget.Ability(Abilities.Ability.Strength), -2, BonusType.Untyped),
+                new ModifierGrant(ModifierTarget.Ability(Abilities.Ability.Dexterity), -2, BonusType.Untyped),
+            ],
         };
 
         return table;

@@ -98,6 +98,26 @@ public sealed record ClassDefinition
     public IReadOnlyList<int> SlotsAt(int level) =>
         level >= 1 && level <= SpellSlots.Count ? SpellSlots[level - 1] : [];
 
+    /// <summary>
+    /// What the class hands out and when, in the order the rulebook's table lists it.
+    /// </summary>
+    /// <remarks>
+    /// One row per step rather than one row per feature with a formula beside it: sneak attack
+    /// is written at first, third, fifth, seventh and ninth level, and "how many dice" is how
+    /// many of those rows a rogue has reached. That is how the table in the book reads, and it
+    /// keeps the numbers in the file rather than in code — the code only knows what a row of
+    /// <c>sneak-attack</c> <em>does</em>.
+    /// </remarks>
+    public IReadOnlyList<ClassFeatureDefinition> Features { get; init; } = [];
+
+    /// <summary>Every feature row this class has handed out by a given level.</summary>
+    public IEnumerable<ClassFeatureDefinition> FeaturesAt(int level) =>
+        Features.Where(feature => feature.Level <= level);
+
+    /// <summary>The rows gained on reaching exactly this level.</summary>
+    public IEnumerable<ClassFeatureDefinition> FeaturesGainedAt(int level) =>
+        Features.Where(feature => feature.Level == level);
+
     public int CasterLevelAt(int level) => Casting switch
     {
         CasterProgression.Full => level,
@@ -106,6 +126,29 @@ public sealed record ClassDefinition
     };
 
     public override string ToString() => Name;
+}
+
+/// <summary>
+/// One row of a class's feature table: at this level, this feature, with whatever it needs to
+/// be told.
+/// </summary>
+/// <param name="Id">What the code knows the feature as: <c>sneak-attack</c>, <c>rage</c>. An id
+/// the code has never heard of is reported when the content loads.</param>
+/// <param name="Parameters">Anything else the row says, such as which list a <c>talent</c> row
+/// picks from. Empty for most.</param>
+public sealed record ClassFeatureDefinition(
+    int Level, string Id, IReadOnlyDictionary<string, string> Parameters)
+{
+    public ClassFeatureDefinition(int level, string id)
+        : this(level, id, new Dictionary<string, string>())
+    {
+    }
+
+    /// <summary>A parameter, or the fallback when the row does not say.</summary>
+    public string Parameter(string name, string fallback = "") =>
+        Parameters.TryGetValue(name, out var value) ? value : fallback;
+
+    public override string ToString() => $"{Id} at {Level}";
 }
 
 /// <summary>So many levels of one class. A character is a list of these.</summary>

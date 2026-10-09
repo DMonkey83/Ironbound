@@ -1,0 +1,15 @@
+// Favoured weapon in words: the game has no such weapon yet.
+{
+  "kind": "deity",
+  "id": "urgathoa",
+  "name": "Urgathoa",
+  "alignment": "NE",
+  "domains": [
+    "death",
+    "evil",
+    "magic",
+    "strength",
+    "war"
+  ],
+  "favoredWeapon": "scythe"
+}

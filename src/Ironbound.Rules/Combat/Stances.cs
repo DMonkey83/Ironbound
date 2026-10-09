@@ -1,3 +1,4 @@
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Feats;
 using Ironbound.Rules.Modifiers;
@@ -15,6 +16,21 @@ public enum Stance
 
     /// <summary>Cover up. Costs a great deal of accuracy and needs no training at all.</summary>
     FightingDefensively,
+
+    /// <summary>
+    /// A rage power declared before a swing: more damage on that one blow. Spent by the next
+    /// attack, hit or miss, and only once a rage.
+    /// </summary>
+    PowerfulBlow,
+
+    /// <summary>A rage power declared before a swing: more accuracy on that one roll.</summary>
+    SurpriseAccuracy,
+
+    /// <summary>
+    /// A rage power declared before a manoeuvre: the barbarian's level on that one check.
+    /// Spent by the next combat manoeuvre, and left alone by ordinary swings.
+    /// </summary>
+    StrengthSurge,
 }
 
 /// <summary>
@@ -37,6 +53,10 @@ public sealed class Stances(Creature owner)
     private readonly Creature _owner = owner ?? throw new ArgumentNullException(nameof(owner));
     private readonly HashSet<Stance> _active = [];
 
+    // The once-a-rage powers already used in the rage now running. Cleared when a new one
+    // starts, which is the only thing that gives them back.
+    private readonly HashSet<Stance> _spent = [];
+
     /// <summary>What fighting defensively costs and buys, whoever you are.</summary>
     public const int DefensivePenalty = -4;
 
@@ -46,13 +66,54 @@ public sealed class Stances(Creature owner)
 
     public bool IsActive(Stance stance) => _active.Contains(stance);
 
-    /// <summary>Whether the creature has the training a stance calls for.</summary>
+    /// <summary>
+    /// Whether the creature has the training a stance calls for — and, for a rage power, is
+    /// raging and has not used it yet this rage.
+    /// </summary>
     public bool CanAdopt(Stance stance) => stance switch
     {
         Stance.PowerAttack => _owner.HasFeat(FeatEffect.PowerAttack),
         Stance.CombatExpertise => _owner.HasFeat(FeatEffect.CombatExpertise),
+        _ when IsOneShot(stance) => Rage.IsRaging(_owner)
+            && _owner.Choices.HasTalent(PowerFor(stance))
+            && !_spent.Contains(stance),
         _ => true,
     };
+
+    /// <summary>
+    /// The stances that are a declaration about the next blow rather than a way of fighting:
+    /// taken up, used once, and gone.
+    /// </summary>
+    public static bool IsOneShot(Stance stance) =>
+        stance is Stance.PowerfulBlow or Stance.SurpriseAccuracy or Stance.StrengthSurge;
+
+    /// <summary>The rage power each one-shot stance is.</summary>
+    public static TalentEffect PowerFor(Stance stance) => stance switch
+    {
+        Stance.PowerfulBlow => TalentEffect.PowerfulBlow,
+        Stance.SurpriseAccuracy => TalentEffect.SurpriseAccuracy,
+        Stance.StrengthSurge => TalentEffect.StrengthSurge,
+        _ => throw new ArgumentOutOfRangeException(nameof(stance), $"{stance} is not a rage power."),
+    };
+
+    /// <summary>Whether a once-a-rage power has already been used in this rage.</summary>
+    public bool IsSpent(Stance stance) => _spent.Contains(stance);
+
+    /// <summary>
+    /// What a rage power is worth to this barbarian: one, and one more for every four levels,
+    /// on damage or accuracy; her whole level on a strength surge.
+    /// </summary>
+    public int RageBonus(Stance stance)
+    {
+        var level = Math.Max(1, ClassFeatures.LevelOf(_owner, FeatureIds.Rage));
+
+        return stance switch
+        {
+            Stance.PowerfulBlow or Stance.SurpriseAccuracy => 1 + (level / 4),
+            Stance.StrengthSurge => level,
+            _ => 0,
+        };
+    }
 
     /// <summary>
     /// How steep the trade is. Both trained stances sharpen with skill at arms: one more point
@@ -90,6 +151,49 @@ public sealed class Stances(Creature owner)
     /// <summary>What a melee swing gains for it. Nothing at all with a bow in your hands.</summary>
     public int DamageBonus(bool melee) =>
         melee && IsActive(Stance.PowerAttack) ? Severity(Stance.PowerAttack) * 2 : 0;
+
+    /// <summary>
+    /// Uses up a declared rage power: it goes, and cannot come back until the next rage. Returns
+    /// false, changing nothing, when it was not declared.
+    /// </summary>
+    public bool Spend(Stance stance)
+    {
+        if (!IsOneShot(stance) || !_active.Remove(stance))
+        {
+            return false;
+        }
+
+        _spent.Add(stance);
+        return true;
+    }
+
+    /// <summary>A rage has begun: every once-a-rage power is there to be used again.</summary>
+    internal void BeginRage()
+    {
+        _spent.Clear();
+        DropOneShots();
+    }
+
+    /// <summary>A rage has ended: anything declared and not yet used goes with it.</summary>
+    internal void EndRage() => DropOneShots();
+
+    /// <summary>The once-a-rage powers used this rage, as a save writes them.</summary>
+    public IEnumerable<Stance> Spent => _spent.OrderBy(stance => stance);
+
+    /// <summary>Puts back what a save said was used.</summary>
+    internal void RestoreSpent(IEnumerable<Stance> spent)
+    {
+        _spent.Clear();
+        _spent.UnionWith(spent);
+    }
+
+    private void DropOneShots()
+    {
+        foreach (var stance in _active.Where(IsOneShot).ToList())
+        {
+            Drop(stance);
+        }
+    }
 
     /// <summary>Takes it up. Returns false if the creature has not the training for it.</summary>
     public bool Adopt(Stance stance)
@@ -139,6 +243,9 @@ public sealed class Stances(Creature owner)
     {
         Stance.PowerAttack => "Power Attack",
         Stance.CombatExpertise => "Combat Expertise",
+        Stance.PowerfulBlow => "Powerful Blow",
+        Stance.SurpriseAccuracy => "Surprise Accuracy",
+        Stance.StrengthSurge => "Strength Surge",
         _ => "Fighting Defensively",
     };
 

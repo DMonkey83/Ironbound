@@ -44,19 +44,24 @@ public sealed class AttackAction : GameAction
             return new AttackActionResult(this, context.Actor, null, opportunities);
         }
 
-        return new AttackActionResult(
-            this,
+        // Vital Strike belongs to exactly this action — one attack, at the full bonus — and
+        // costs nothing, so anybody with the feat always uses it.
+        var strike = Strike.Resolve(
             context.Actor,
-            Strike.Resolve(
-                context.Actor,
-                Weapon,
-                Target,
-                context.Random,
-                DefenderState,
-                context.Rules,
-                context.Encounter.Battlefield,
-                flatFooted: context.Encounter.IsFlatFooted(Target)),
-            opportunities);
+            Weapon,
+            Target,
+            context.Random,
+            DefenderState,
+            context.Rules,
+            context.Encounter.Battlefield,
+            flatFooted: context.Encounter.IsFlatFootedTo(Target, context.Actor),
+            vital: context.Actor.HasFeat(Feats.FeatEffect.VitalStrike));
+
+        var followUps = strike.IsHit && !Weapon.IsRanged
+            ? Opportunities.Opportunist(context.Encounter, context.Actor, Target)
+            : [];
+
+        return new AttackActionResult(this, context.Actor, strike, opportunities) { FollowUps = followUps };
     }
 
     /// <summary>
@@ -100,6 +105,9 @@ public sealed record AttackActionResult(
     IReadOnlyList<StrikeResult> Opportunities)
     : ActionResult(Action, Actor, Describe(Actor, Action, Strike, Opportunities))
 {
+    /// <summary>Swings an ally's opportunist talent took at the target afterwards.</summary>
+    public IReadOnlyList<StrikeResult> FollowUps { get; init; } = [];
+
     private static string Describe(
         Creature actor,
         GameAction action,

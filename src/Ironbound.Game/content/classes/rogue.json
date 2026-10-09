@@ -5,5 +5,27 @@
   "hitDie": 8,
   "attack": "ThreeQuarters",
   "goodSaves": ["Reflex"],
-  "classSkills": ["Acrobatics", "Bluff", "Climb", "DisableDevice", "Perception", "SenseMotive", "Stealth"]
+  "classSkills": ["Acrobatics", "Bluff", "Climb", "DisableDevice", "Perception", "SenseMotive", "Stealth"],
+
+  // Sneak attack is a d6 for every row reached; a talent row is a pick from the rogue talents.
+  "features": [
+    { "level": 1, "id": "sneak-attack" },
+    { "level": 1, "id": "trapfinding" },
+    { "level": 2, "id": "evasion" },
+    { "level": 2, "id": "talent", "list": "rogue-talent" },
+    { "level": 3, "id": "sneak-attack" },
+    { "level": 3, "id": "trap-sense" },
+    { "level": 4, "id": "talent", "list": "rogue-talent" },
+    { "level": 4, "id": "uncanny-dodge" },
+    { "level": 5, "id": "sneak-attack" },
+    { "level": 6, "id": "talent", "list": "rogue-talent" },
+    { "level": 6, "id": "trap-sense" },
+    { "level": 7, "id": "sneak-attack" },
+    { "level": 8, "id": "talent", "list": "rogue-talent" },
+    { "level": 8, "id": "improved-uncanny-dodge" },
+    { "level": 9, "id": "sneak-attack" },
+    { "level": 9, "id": "trap-sense" },
+    { "level": 10, "id": "talent", "list": "rogue-talent" },
+    { "level": 10, "id": "advanced-talents" }
+  ]
 }

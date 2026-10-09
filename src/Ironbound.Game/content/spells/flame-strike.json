@@ -1,0 +1,19 @@
+// The War domain's fifth: a column of divine fire, ten feet across. A burst does for the column.
+// Simplified: the book makes half the damage fire and half divine, which no fire resistance
+// touches; nothing in the game resists fire yet, so it is all fire here.
+{
+  "kind": "spell",
+  "id": "flame-strike",
+  "name": "Flame Strike",
+  "level": 5,
+  "school": "Evocation",
+  "range": "medium",
+  "target": { "burst": 10 },
+  "affects": "Everyone",
+  "save": "Reflex",
+  "onSave": "Half",
+  "descriptors": ["fire"],
+  "does": [
+    { "damage": { "perLevel": 6, "maxDice": 15 }, "type": "Fire" }
+  ]
+}

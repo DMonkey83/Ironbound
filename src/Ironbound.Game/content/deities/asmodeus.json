@@ -1,0 +1,15 @@
+// Favoured weapon in words: the game has no such weapon yet.
+{
+  "kind": "deity",
+  "id": "asmodeus",
+  "name": "Asmodeus",
+  "alignment": "LE",
+  "domains": [
+    "evil",
+    "fire",
+    "law",
+    "magic",
+    "trickery"
+  ],
+  "favoredWeapon": "mace"
+}

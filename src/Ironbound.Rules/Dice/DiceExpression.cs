@@ -102,6 +102,16 @@ public sealed class DiceExpression : IEquatable<DiceExpression>
         return new DiceExpression([.. terms]);
     }
 
+    /// <summary>
+    /// The dice without any flat part: "1d8+4" is "1d8". What Vital Strike rolls again, since it
+    /// doubles the weapon's dice and not what the wielder adds to them.
+    /// </summary>
+    public DiceExpression DiceOnly()
+    {
+        var dice = _terms.Where(term => !term.IsConstant).ToArray();
+        return dice.Length == 0 ? Constant(0) : new DiceExpression(dice);
+    }
+
     public DiceRoll Roll(IRandomSource random)
     {
         ArgumentNullException.ThrowIfNull(random);

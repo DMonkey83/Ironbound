@@ -203,7 +203,12 @@ public class CavesOfShadowContentTests
 
         Assert.Equal(7, sylwen.HitPoints.Maximum);
         Assert.Equal(2, sylwen.Spells.SlotsMaximum(1));   // one from the table, one from Int 17
-        Assert.Equal(["Magic Missile"], sylwen.Spells.Prepared.Select(spell => spell.Name));
+
+        // And, since class features, a conjuration slot only grease or mage armour can use.
+        Assert.Equal(1, sylwen.Spells.SpecialtyMaximum(1));
+        Assert.Equal(
+            ["Magic Missile", "Grease", "Mage Armor"],
+            sylwen.Spells.Prepared.Select(spell => spell.Name));
         Assert.Equal("shortbow", sylwen.PrimaryAttack!.Name);
     }
 
@@ -216,8 +221,9 @@ public class CavesOfShadowContentTests
         Assert.Equal(Ability.Wisdom, hale.Spells.CastingAbility);
         Assert.Equal(1, hale.Spells.CasterLevel);
 
-        // Two from the table, one of which stands in for the domain slot, and one for Wis 15.
-        Assert.Equal(3, hale.Spells.SlotsMaximum(1));
+        // One from the table and one for Wis 15, and the domain slot kept apart from them.
+        Assert.Equal(2, hale.Spells.SlotsMaximum(1));
+        Assert.Equal(1, hale.Spells.SpecialtyMaximum(1));
         Assert.Equal(
             ["Bless", "Cure Light Wounds"],
             hale.Spells.Prepared.Select(spell => spell.Name));

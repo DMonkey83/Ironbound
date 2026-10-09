@@ -1,0 +1,9 @@
+// Nothing in the game lets an ally's spell be accepted without a save, so the second half asks nothing new.
+{
+  "kind": "talent",
+  "id": "superstition",
+  "name": "Superstition",
+  "list": "rage-power",
+  "effect": "Superstition",
+  "description": "+2 morale on saves against spells and magical abilities (+1 more every four levels), allies' as well as enemies'."
+}

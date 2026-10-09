@@ -49,7 +49,8 @@ public sealed class Attack
         DefenseOptions defenderState = DefenseOptions.None,
         RuleOptions? rules = null,
         int cover = 0,
-        int prone = 0)
+        int prone = 0,
+        CriticalProfile? critical = null)
     {
         ArgumentNullException.ThrowIfNull(defense);
         ArgumentNullException.ThrowIfNull(random);
@@ -70,7 +71,10 @@ public sealed class Attack
 
         // A roll in the threat range only threatens if it actually hit; otherwise no
         // confirmation is rolled at all, and the random stream stays where a replay expects it.
-        var threatened = hit && Critical.Threatens(natural);
+        // Improved Critical widens the range for one wielder only, so it arrives as an argument
+        // rather than by changing the weapon every one of its owners shares.
+        var profile = critical ?? Critical;
+        var threatened = hit && profile.Threatens(natural);
 
         int? confirmationNatural = null;
         int? confirmationTotal = null;
@@ -98,14 +102,16 @@ public sealed class Attack
             Bonus = bonus,
             Total = total,
             TargetArmorClass = armorClass,
-            Options = options,
+
+            // Melee is a question for the armour class, not something the log has a word for.
+            Options = options & ~DefenseOptions.Melee,
             Cover = cover,
             Prone = prone,
             Outcome = outcome,
             Threatened = threatened,
             ConfirmationNatural = confirmationNatural,
             ConfirmationTotal = confirmationTotal,
-            CriticalMultiplier = confirmed ? Critical.Multiplier : 1,
+            CriticalMultiplier = confirmed ? profile.Multiplier : 1,
         };
     }
 

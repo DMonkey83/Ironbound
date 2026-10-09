@@ -110,6 +110,7 @@ public partial class Main : Node3D
 	private Button _endTurn;
 	private Button _load;
 	private Button _stand;
+	private Button _rage;
 	private Button _press;
 	private Button _rest;
 	private OptionButton _stash;
@@ -554,6 +555,36 @@ public partial class Main : Node3D
 		UpdateStatus();
 	}
 
+	/// <summary>Into a rage, or out of one: a free action, as often as the rounds allow.</summary>
+	private void OnRage()
+	{
+		if (StageBusy || _battle.Encounter.Current is not { IsEnded: false } turn)
+		{
+			return;
+		}
+
+		var lines = _battle.Act(new RageAction());
+		if (lines.Count == 0)
+		{
+			Refuse(turn.Actor.IsRaging
+				? $"{turn.Actor.Name} cannot stop raging now."
+				: $"{turn.Actor.Name} cannot rage now — no rounds left, or still worn out from the last.");
+			RefreshControls();
+			return;
+		}
+
+		Stage(_battle.LastResult, lines);
+		if (_figures.TryGetValue(turn.Actor, out var figure))
+		{
+			Float(figure, turn.Actor.IsRaging ? "RAGE!" : "calms", turn.Actor.IsRaging ? CritColour : MissColour, turn.Actor.IsRaging);
+		}
+
+		RefreshFigures();
+		PromptTurn();
+		RefreshControls();
+		UpdateStatus();
+	}
+
 	private void OnStandUp()
 	{
 		if (StageBusy)
@@ -882,6 +913,17 @@ public partial class Main : Node3D
 				if (SelectedSpell() is not { } spell)
 				{
 					return null;
+				}
+
+				// A power is aimed as its effect says: at a point, at somebody, or — channel
+				// energy — at the user, by clicking them.
+				if (SelectedPower() is { } power)
+				{
+					return spell.Target is SelfTarget
+						? ReferenceEquals(occupant, actor) ? UsePowerAction.Self(power) : null
+						: spell.NeedsAPoint
+							? UsePowerAction.At(power, square)
+							: occupant is not null ? UsePowerAction.At(power, occupant) : null;
 				}
 
 				return spell.NeedsAPoint
@@ -1982,6 +2024,23 @@ public partial class Main : Node3D
 		_levelFeat.ItemSelected += _ => RefreshLevelUp();
 		picks.AddChild(_levelFeat);
 
+		// What the class itself asks for at this level: a fighter's bonus feat, a weapon group, a
+		// rogue talent or a rage power. Each picker shows only when the level brings it.
+		_levelBonusLabel = new Label { Text = "Bonus feat" };
+		picks.AddChild(_levelBonusLabel);
+		_levelBonus = new OptionButton { CustomMinimumSize = new Vector2(240, 0) };
+		picks.AddChild(_levelBonus);
+
+		_levelGroupLabel = new Label { Text = "Weapon group" };
+		picks.AddChild(_levelGroupLabel);
+		_levelGroup = new OptionButton { CustomMinimumSize = new Vector2(180, 0) };
+		picks.AddChild(_levelGroup);
+
+		_levelTalentLabel = new Label { Text = "Talent" };
+		picks.AddChild(_levelTalentLabel);
+		_levelTalent = new OptionButton { CustomMinimumSize = new Vector2(240, 0) };
+		picks.AddChild(_levelTalent);
+
 		_levelTake = new Button { Text = "Take the level", CustomMinimumSize = new Vector2(150, 0) };
 		_levelTake.Pressed += OnTakeLevel;
 		picks.AddChild(_levelTake);
@@ -2020,6 +2079,11 @@ public partial class Main : Node3D
 
 		Fill(_levelClass, classes.Select(taken => taken.Name));
 		Fill(_levelFeat, earnsFeat ? feats.Select(feat => feat.Name) : []);
+
+		var needs = LevelNeedsFor(creature, classes);
+		ShowPicker(_levelBonusLabel, _levelBonus, needs?.BonusFeats.Select(feat => feat.Name));
+		ShowPicker(_levelGroupLabel, _levelGroup, needs?.WeaponGroups.Select(Capitalised));
+		ShowPicker(_levelTalentLabel, _levelTalent, needs?.Talents.Select(talent => talent.Name));
 
 		_levelFeat.Disabled = !earnsFeat || feats.Count == 0;
 		_levelTake.Disabled = false;
@@ -2069,6 +2133,31 @@ public partial class Main : Node3D
 			.OrderBy(feat => feat.Name, System.StringComparer.Ordinal)
 			.Select(feat => (feat.Name, string.Join(", ", feat.Requires.Unmet(creature))));
 
+	private Label _levelBonusLabel;
+	private OptionButton _levelBonus;
+	private Label _levelGroupLabel;
+	private OptionButton _levelGroup;
+	private Label _levelTalentLabel;
+	private OptionButton _levelTalent;
+
+	/// <summary>What the chosen class asks for at the level being taken, or null before a class is chosen.</summary>
+	private LevelNeeds LevelNeedsFor(Creature creature, IReadOnlyList<ClassDefinition> classes) =>
+		_levelClass.Selected >= 0 && _levelClass.Selected < classes.Count
+			? _campaign.NeedsFor(creature, classes[_levelClass.Selected])
+			: null;
+
+	/// <summary>A picker and its label, shown and filled when there is something to pick.</summary>
+	private static void ShowPicker(Label label, OptionButton picker, IEnumerable<string> entries)
+	{
+		var list = entries?.ToList() ?? [];
+		label.Visible = list.Count > 0;
+		picker.Visible = list.Count > 0;
+		Fill(picker, list);
+	}
+
+	private static T Pick<T>(IReadOnlyList<T> offered, OptionButton picker) =>
+		picker.Visible && picker.Selected >= 0 && picker.Selected < offered.Count ? offered[picker.Selected] : default;
+
 	private static void Fill(OptionButton picker, IEnumerable<string> entries)
 	{
 		var wanted = entries.ToList();
@@ -2110,14 +2199,42 @@ public partial class Main : Node3D
 				? feats[_levelFeat.Selected]
 				: null;
 
-		if (!_campaign.LevelUp(creature, classes[_levelClass.Selected], chosen))
+		var taken = classes[_levelClass.Selected];
+		var needs = _campaign.NeedsFor(creature, taken);
+		var choices = new LevelChoices(
+			BonusFeat: Pick(needs.BonusFeats, _levelBonus),
+			WeaponGroup: Pick(needs.WeaponGroups, _levelGroup),
+			Talent: Pick(needs.Talents, _levelTalent) is { } talent ? talent.Id : null);
+
+		if (!_campaign.LevelUp(creature, taken, chosen, choices))
 		{
 			Refuse($"{creature.Name} cannot take that level.");
 			return;
 		}
 
+		var learned = new List<string>();
+		if (chosen is not null)
+		{
+			learned.Add(chosen.Name);
+		}
+
+		if (choices.BonusFeat is { } bonus)
+		{
+			learned.Add(bonus.Name);
+		}
+
+		if (choices.WeaponGroup is { } group)
+		{
+			learned.Add($"weapon training ({group})");
+		}
+
+		if (choices.Talent is { } talentId && needs.Talents.FirstOrDefault(one => one.Id == talentId) is { Name: { } talentName })
+		{
+			learned.Add(talentName);
+		}
+
 		_log.AddText($"— {creature.Name} is now {creature.Description}"
-			+ (chosen is null ? string.Empty : $", and learns {chosen.Name}") + " —\n");
+			+ (learned.Count == 0 ? string.Empty : $", and learns {string.Join(", ", learned)}") + " —\n");
 
 		_levelPanel.Visible = false;
 		RefreshControls();
@@ -2150,10 +2267,21 @@ public partial class Main : Node3D
 		}
 
 		_spells.Clear();
+		_castables.Clear();
 		foreach (var spell in actor.Spells.Prepared)
 		{
 			_spells.AddItem($"{spell.Name} ({actor.Spells.SlotsRemaining(spell.Level)})");
 			_spells.SetItemDisabled(_spells.ItemCount - 1, !actor.Spells.CanCast(spell));
+			_castables.Add((spell, null));
+		}
+
+		// Class powers — channel energy, a domain's touch, a school's missile — in the same list,
+		// with their uses left for the day where a spell shows its slots.
+		foreach (var power in actor.Powers)
+		{
+			_spells.AddItem($"{power.Name} ({actor.UsesLeft(power)}/{actor.UsesPerDay(power)})");
+			_spells.SetItemDisabled(_spells.ItemCount - 1, actor.UsesLeft(power) <= 0);
+			_castables.Add((power.Effect, power));
 		}
 
 		_spells.Disabled = _spells.ItemCount == 0;
@@ -2163,16 +2291,19 @@ public partial class Main : Node3D
 		}
 	}
 
-	private Spell SelectedSpell()
-	{
-		if (_battle.Encounter.Current is not { } turn || _spells.Selected < 0)
-		{
-			return null;
-		}
+	/// <summary>What the Cast list holds, in its order: a spell, or a power and the spell-shaped
+	/// effect that says how it is aimed.</summary>
+	private readonly List<(Spell Spell, Power Power)> _castables = [];
 
-		var prepared = turn.Actor.Spells.Prepared;
-		return _spells.Selected < prepared.Count ? prepared[_spells.Selected] : null;
-	}
+	private Spell SelectedSpell() =>
+		_battle.Encounter.Current is not null && _spells.Selected >= 0 && _spells.Selected < _castables.Count
+			? _castables[_spells.Selected].Spell
+			: null;
+
+	private Power SelectedPower() =>
+		_battle.Encounter.Current is not null && _spells.Selected >= 0 && _spells.Selected < _castables.Count
+			? _castables[_spells.Selected].Power
+			: null;
 
 	// ---- reporting ----
 
@@ -2250,16 +2381,18 @@ public partial class Main : Node3D
 		_modes[Mode.Shove].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Help].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Cast].Disabled = turn is null
-			|| !turn.Budget.HasStandard
-			|| !turn.Actor.Spells.Prepared.Any(turn.Actor.Spells.CanCast);
+			|| !((turn.Budget.HasStandard && turn.Actor.Spells.Prepared.Any(turn.Actor.Spells.CanCast))
+				|| turn.Actor.Powers.Any(power => turn.Actor.UsesLeft(power) > 0 && turn.Budget.CanAfford(power.Cost)));
 		_modes[Mode.Move].Disabled = turn is null || !CanStillMove(turn);
 
 		_spells.Disabled = turn is null || _spells.ItemCount == 0;
 		_stand.Disabled = turn is null || !turn.CanTake(new StandUpAction());
+		_rage.Disabled = turn is null || !turn.CanTake(new RageAction());
+		_rage.SetPressedNoSignal(turn?.Actor.IsRaging == true);
 
 		foreach (var (stance, button) in _stances)
 		{
-			button.Disabled = turn is null || !turn.Actor.Stances.CanAdopt(stance);
+			button.Disabled = turn is null || !(turn.Actor.Stances.CanAdopt(stance) || turn.Actor.Stances.IsActive(stance));
 			button.ButtonPressed = turn is not null && turn.Actor.Stances.IsActive(stance);
 		}
 
@@ -2519,8 +2652,10 @@ public partial class Main : Node3D
 		var fighting = _campaign.State == CampaignState.Fighting;
 		var offered = new Offer(
 			Hotbar: fighting && actor is not null && _battle.SideOf(actor) == Ironbound.Simulation.Side.Party,
-			Cast: actor is not null && actor.Spells.Prepared.Count > 0,
-			Stances: actor is null ? [] : [.. _stances.Keys.Where(actor.Stances.CanAdopt)],
+			Cast: actor is not null && (actor.Spells.Prepared.Count > 0 || actor.Powers.Count > 0),
+
+			// An armed one-shot (a powerful blow waiting for its hit) stays on show, lit.
+			Stances: actor is null ? [] : [.. _stances.Keys.Where(stance => actor.Stances.CanAdopt(stance) || actor.Stances.IsActive(stance))],
 
 			// And a third kind of "no": nothing to do it to. Standing up is for somebody on the
 			// floor and first aid is for somebody bleeding out on it. As words in a row they
@@ -2529,7 +2664,10 @@ public partial class Main : Node3D
 			Help: actor is not null && _battle.Party.Any(one =>
 				!ReferenceEquals(one, actor)
 				&& one.HitPoints.State == HitPointState.Dying
-				&& !Ironbound.Rules.Effects.Bleeding.IsStable(one)));
+				&& !Ironbound.Rules.Effects.Bleeding.IsStable(one)),
+
+			// Only for somebody who can rage at all; greyed while worn out or out of rounds.
+			Rage: actor is not null && actor.RageRoundsPerDay > 0);
 		(bool, bool, bool)? pips = open is null || !_battle.IsPartyTurn
 			? null
 			: (open.Budget.HasStandard, open.Budget.HasMove, open.Budget.HasSwift);

@@ -1,0 +1,15 @@
+// Favoured weapon by id: the game has one.
+{
+  "kind": "deity",
+  "id": "sarenrae",
+  "name": "Sarenrae",
+  "alignment": "NG",
+  "domains": [
+    "fire",
+    "glory",
+    "good",
+    "healing",
+    "sun"
+  ],
+  "favoredWeapon": "scimitar"
+}

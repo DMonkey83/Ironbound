@@ -20,10 +20,19 @@
 
   // Crossbow first, staff second: the same order the goblin archer uses, and the reason a
   // click on a distant enemy offers the bolt while a click on an adjacent one offers the staff.
-  "feats": ["iron-will", "improved-initiative"],
+  // Empower Spell is the wizard bonus feat fifth level brought: half as much again on a magic
+  // missile or a fireball, for a slot two levels up.
+  "feats": ["iron-will", "improved-initiative", "empower-spell"],
   "items": ["light-crossbow", "quarterstaff"],
 
   // Order is priority: the AI works down the list, so Cause Fear gets the first-level slot
   // ahead of Magic Missile. A debuff that lasts the fight beats 3d4+3 once.
-  "spells": ["fireball", "scorching-ray", "cause-fear", "grease", "magic-missile"]
+  "spells": ["fireball", "scorching-ray", "cause-fear", "grease", "magic-missile"],
+
+  // An evoker: intense spells add two to every evocation's damage, a school slot at each level
+  // holds an evocation, and force missile is there once the slots run dry. Enchantment and
+  // illusion are given up, which costs her nothing she prepares.
+  "school": "evocation",
+  "opposition": ["Enchantment", "Illusion"],
+  "arcaneBond": "object"
 }

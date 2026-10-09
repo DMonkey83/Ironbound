@@ -249,14 +249,16 @@ public class ShippedFeatTests
         Assert.NotNull(TestContent.Library.GetFeat(id));
 
     [Fact]
-    public void MostOfThemAreNothingButNumbers()
+    public void AFeatIsEitherNumbersOrANamedEffect()
     {
-        var pure = TestContent.Library.FeatIds
-            .Select(id => TestContent.Library.GetFeat(id)!)
-            .Count(feat => feat.Effect == FeatEffect.None);
+        // This used to say most feats were nothing but numbers. The class-feature pass brought
+        // the weapon feats, which are written against one weapon or one kind of attack and so
+        // cannot be a stack entry, and tipped the balance. What still holds — and is the point
+        // of the design — is that a feat with no effect of its own is entirely its numbers.
+        var feats = TestContent.Library.FeatIds.Select(id => TestContent.Library.GetFeat(id)!).ToList();
 
-        // The point of the design: only a minority earn an entry in the engine.
-        Assert.True(pure > TestContent.Library.FeatIds.Count - pure);
+        Assert.All(feats.Where(feat => feat.Effect == FeatEffect.None), feat => Assert.NotEmpty(feat.Grants));
+        Assert.All(feats.Where(feat => feat.Grants.Count == 0), feat => Assert.NotEqual(FeatEffect.None, feat.Effect));
     }
 
     [Fact]
@@ -264,7 +266,7 @@ public class ShippedFeatTests
     {
         var valeria = TestContent.Library.BuildCreature("valeria")!;
 
-        Assert.Equal(19, valeria.ArmorClass.Total);              // Dodge
+        Assert.Equal(20, valeria.ArmorClass.Total);              // Dodge, and Shield Focus
         Assert.Equal(3, valeria.AttacksOfOpportunityPerRound);   // Combat Reflexes, Dex 14
         Assert.Equal(2, valeria.DamageModifiers.Total);          // Weapon Specialization
         Assert.True(valeria.HasFeat(FeatEffect.ImprovedTrip));

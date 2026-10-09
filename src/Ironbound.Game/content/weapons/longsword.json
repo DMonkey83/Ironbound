@@ -5,5 +5,8 @@
   "damage": "1d8",
   "damageType": "Slashing",
   "threatsOn": 19,
-  "multiplier": 2
+  "multiplier": 2,
+
+  // Fighter weapon groups, for weapon training.
+  "groups": ["heavy-blades"]
 }

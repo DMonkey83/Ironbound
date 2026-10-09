@@ -4,5 +4,8 @@
   "id": "shortspear",
   "name": "shortspear",
   "damage": "1d6",
-  "damageType": "Piercing"
+  "damageType": "Piercing",
+
+  // Fighter weapon groups, for weapon training.
+  "groups": ["spears", "thrown"]
 }

@@ -1,0 +1,11 @@
+// Doubles one weapon's threat range: a longsword's 19-20 becomes 17-20.
+{
+  "kind": "feat",
+  "id": "improved-critical",
+  "name": "Improved Critical",
+  "combat": true,
+  "takes": "Weapon",
+  "description": "Twice the threat range with one kind of weapon.",
+  "effect": "ImprovedCritical",
+  "requires": { "baseAttack": 8 }
+}

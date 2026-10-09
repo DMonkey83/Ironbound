@@ -1,0 +1,12 @@
+// Taken for one kind of weapon, named after a colon in a creature's file: "weapon-focus:longsword".
+// The same feat taken again for another weapon is another feat.
+{
+  "kind": "feat",
+  "id": "weapon-focus",
+  "name": "Weapon Focus",
+  "combat": true,
+  "takes": "Weapon",
+  "description": "+1 on attack rolls with one kind of weapon.",
+  "effect": "WeaponFocus",
+  "requires": { "baseAttack": 1 }
+}

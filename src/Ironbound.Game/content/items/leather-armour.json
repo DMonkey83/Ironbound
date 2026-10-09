@@ -1,6 +1,8 @@
+// Light armour: no slower, no clumsier, and the most Dexterity any armour lets through.
 {
   "kind": "item", "id": "leather-armour", "name": "leather armour",
   "description": "Boiled and stitched. Light enough to climb in.",
   "slot": "Armour",
+  "armour": "Light", "maxDex": 6, "checkPenalty": 0,
   "grants": [ { "target": "armourClass", "value": 2, "type": "Armor" } ]
 }

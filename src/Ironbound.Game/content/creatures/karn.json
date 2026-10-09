@@ -12,5 +12,9 @@
   ],
   "speed": 30,
   "feats": ["improved-initiative", "great-fortitude", "improved-bull-rush", "power-attack"],
-  "items": ["breastplate", "light-shield", "greataxe"]
+  "items": ["breastplate", "light-shield", "greataxe"],
+
+  // Three rage powers by sixth level, all declared before a blow: more damage on one swing, more
+  // accuracy on one swing, and the barbarian's whole level on one shove. Each once a rage.
+  "talents": ["powerful-blow", "surprise-accuracy", "strength-surge"]
 }

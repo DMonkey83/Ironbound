@@ -57,9 +57,12 @@ public abstract class ManeuverAction : GameAction
     /// The free swing reaching in costs you — unless you have practised this particular
     /// maneuver, which is most of why those feats are worth taking.
     /// </summary>
+    /// <summary>Whether trying it gives anyone a free swing. Knockback says not.</summary>
+    protected virtual bool Provokes(ActionContext context) => !context.Actor.HasFeat(Maneuvers.ImprovedBy(Kind));
+
     private IReadOnlyList<StrikeResult> Provoke(ActionContext context)
     {
-        if (context.Actor.HasFeat(Maneuvers.ImprovedBy(Kind)))
+        if (!Provokes(context))
         {
             return [];
         }
@@ -115,7 +118,7 @@ public sealed class TripAction(Creature target) : ManeuverAction(target)
 /// flanking, and it drags a caster out of range without a single point of damage. It stops dead
 /// against a wall or another creature, which is what makes a corridor worth holding.
 /// </remarks>
-public sealed class BullRushAction(Creature target) : ManeuverAction(target)
+public class BullRushAction(Creature target) : ManeuverAction(target)
 {
     public const int FeetPerIncrement = 5;
 
@@ -129,6 +132,13 @@ public sealed class BullRushAction(Creature target) : ManeuverAction(target)
         {
             return string.Empty;
         }
+
+        return Shove(context, check, field);
+    }
+
+    /// <summary>The push itself, for anything that pushes the same way and then does more.</summary>
+    protected string Shove(ActionContext context, ManeuverResult check, Battlefield field)
+    {
 
         if (field.SquareOf(context.Actor) is not { } from || field.SquareOf(Target) is not { } standing)
         {

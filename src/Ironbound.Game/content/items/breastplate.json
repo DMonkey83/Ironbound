@@ -1,5 +1,6 @@
 {
   "kind": "item", "id": "breastplate", "name": "breastplate",
   "slot": "Armour",
+  "armour": "Medium", "maxDex": 3, "checkPenalty": -4,
   "grants": [ { "target": "armourClass", "value": 6, "type": "Armor" } ]
 }

@@ -1,3 +1,4 @@
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Dice;
@@ -41,6 +42,8 @@ public static class Strike
     /// <param name="defenderState">What is true of the target — flat-footed, surprised,
     /// immobilised. Position-dependent conditions will be derived here once a map exists.</param>
     /// <param name="rules">Defaults to the attacker's own options.</param>
+    /// <param name="vital">A Vital Strike: the weapon's dice rolled twice, the second set not
+    /// multiplied on a critical. Only an attack action may ask for it.</param>
     public static StrikeResult Resolve(
         Creature attacker,
         WeaponAttack weapon,
@@ -50,7 +53,8 @@ public static class Strike
         RuleOptions? rules = null,
         Battlefield? field = null,
         int iterativePenalty = 0,
-        bool flatFooted = false)
+        bool flatFooted = false,
+        bool vital = false)
     {
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
@@ -59,6 +63,7 @@ public static class Strike
         rules ??= attacker.Rules;
 
         var before = target.HitPoints.State;
+        var notes = new List<string>();
 
         // Stunned or blinded denies Dexterity just as being flat-footed does, and the caller
         // should not have to remember which conditions do that.
@@ -67,32 +72,78 @@ public static class Strike
             defenderState |= DefenseOptions.DexterityDenied;
         }
 
-        if (flatFooted)
+        // Uncanny dodge is exactly this: never caught flat-footed. Conditions still bite.
+        if (flatFooted && !UncannyDodge.Has(target))
         {
             defenderState |= DefenseOptions.DexterityDenied;
         }
+
+        // Only the armour class asks whether it was a swing, for a guarded stance's sake.
+        var asked = weapon.IsRanged ? defenderState : defenderState | DefenseOptions.Melee;
+        var feet = field?.DistanceInFeet(attacker, target);
+        var flanking = FlankingPartner(attacker, target, field) is not null;
 
         var attack = weapon.Attack.Resolve(
             target.ArmorClass,
             random,
             AttackBonus(attacker, weapon, target, field, iterativePenalty),
-            defenderState,
+            asked,
             rules,
             CoverFor(attacker, target, field),
-            ProneFor(weapon, target));
+            ProneFor(weapon, target),
+            Martial.Critical(attacker, weapon));
+
+        // Declared before the roll, so the roll spends it whether it hit or not.
+        var surprised = attacker.Stances.Spend(Combat.Stance.SurpriseAccuracy);
+        var powerful = attacker.Stances.IsActive(Combat.Stance.PowerfulBlow)
+            ? attacker.Stances.RageBonus(Combat.Stance.PowerfulBlow)
+            : 0;
+        attacker.Stances.Spend(Combat.Stance.PowerfulBlow);
+
+        if (surprised)
+        {
+            notes.Add("surprise accuracy");
+        }
 
         DamageRoll? damage = null;
         DamageTaken? taken = null;
         DamageApplication? applied = null;
         var nonlethal = 0;
+        var sneak = 0;
 
         if (attack.IsHit)
         {
+            var denied = (attack.Options & DefenseOptions.DexterityDenied) != 0;
+            var packet = DamageFor(attacker, weapon, feet, powerful, vital);
+
+            if (SneakAttack.Applies(attacker, weapon, denied, flanking, feet))
+            {
+                sneak = SneakAttack.Dice(attacker);
+                packet.Add(SneakAttack.Component(attacker, weapon));
+            }
+
             // Damage dice are only rolled on a hit, so a miss leaves the random stream
             // exactly where a replay expects to find it.
-            damage = DamageFor(attacker, weapon).Roll(random, attack.CriticalMultiplier);
+            damage = packet.Roll(random, attack.CriticalMultiplier);
             taken = target.Defenses.Apply(damage, weapon.Qualities, rules);
-            (applied, nonlethal) = Apply(target, taken);
+
+            var (dealt, rolled) = RogueDefences.DefensiveRoll(target, taken.Total, denied, random, rules);
+            if (rolled is not null)
+            {
+                notes.Add($"{target.Name} rolls with it: {rolled}");
+            }
+
+            (applied, nonlethal) = Apply(target, taken, dealt);
+
+            if (sneak > 0)
+            {
+                notes.AddRange(SneakAttack.Riders(attacker, target));
+            }
+        }
+
+        if (powerful > 0)
+        {
+            notes.Insert(0, attack.IsHit ? $"powerful blow +{powerful}" : "powerful blow wasted");
         }
 
         return new StrikeResult
@@ -108,6 +159,9 @@ public static class Strike
             StateBefore = before,
             StateAfter = target.HitPoints.State,
             TargetAfter = target.HitPoints.ToString(),
+            SneakAttackDice = sneak,
+            Vital = vital,
+            Notes = notes,
         };
     }
 
@@ -126,6 +180,8 @@ public static class Strike
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
 
+        var feet = target is null ? null : field?.DistanceInFeet(attacker, target);
+
         return ModifierStack.Combine(
             attacker.AttackModifiers,
             weapon.Attack.Modifiers,
@@ -135,7 +191,8 @@ public static class Strike
             AtRange(attacker, weapon, target, field),
             Iterative(iterativePenalty),
             Stance(attacker, !weapon.IsRanged),
-            Derived(attacker, weapon.AttackAbility, modifier => modifier));
+            Martial.AttackBonus(attacker, weapon, feet),
+            Derived(attacker, Martial.AttackAbility(attacker, weapon), modifier => modifier));
     }
 
     /// <summary>The creature's own skill at arms, read live so a class level lands immediately.</summary>
@@ -163,6 +220,14 @@ public static class Strike
         if (penalty != 0)
         {
             stack.Add(penalty, BonusType.Untyped, attacker.Stances.ToString());
+        }
+
+        if (attacker.Stances.IsActive(Combat.Stance.SurpriseAccuracy))
+        {
+            stack.Add(
+                attacker.Stances.RageBonus(Combat.Stance.SurpriseAccuracy),
+                BonusType.Morale,
+                Combat.Stances.Name(Combat.Stance.SurpriseAccuracy));
         }
 
         return stack;
@@ -216,7 +281,9 @@ public static class Strike
             stack.Add(penalty, BonusType.Untyped, $"Range ({feet} ft)");
         }
 
-        if (field.SquareOf(target) is { } square
+        // Precise Shot is the feat that buys the angle a bowman would otherwise walk for.
+        if (!attacker.HasFeat(Feats.FeatEffect.PreciseShot)
+            && field.SquareOf(target) is { } square
             && field.Creatures.Any(ally =>
                 !ReferenceEquals(ally, attacker)
                 && ally.IsAllyOf(attacker)
@@ -236,12 +303,29 @@ public static class Strike
     {
         var stack = new ModifierStack();
 
-        if (target is not null && field?.FindFlankingPartner(attacker, target) is { } partner)
+        if (target is not null && FlankingPartner(attacker, target, field) is { } partner)
         {
             stack.Add(FlankingBonus, BonusType.Untyped, $"Flanking with {partner.Name}");
         }
 
         return stack;
+    }
+
+    /// <summary>
+    /// Whoever the attacker is flanking this target with, if anybody — and nobody at all against
+    /// improved uncanny dodge, unless the attacker is enough of a rogue to get past it.
+    /// </summary>
+    public static Creature? FlankingPartner(Creature attacker, Creature target, Battlefield? field)
+    {
+        ArgumentNullException.ThrowIfNull(attacker);
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (field is null || !UncannyDodge.CanBeFlankedBy(target, attacker))
+        {
+            return null;
+        }
+
+        return field.FindFlankingPartner(attacker, target);
     }
 
     /// <summary>
@@ -262,7 +346,8 @@ public static class Strike
     }
 
     /// <summary>The flat bonus added to the weapon's damage, from the same two sources.</summary>
-    public static ModifierBreakdown DamageBonus(Creature attacker, WeaponAttack weapon)
+    /// <param name="feet">How far the target is, for what only counts up close.</param>
+    public static ModifierBreakdown DamageBonus(Creature attacker, WeaponAttack weapon, int? feet = null)
     {
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
@@ -275,10 +360,19 @@ public static class Strike
             stance.Add(bonus, BonusType.Untyped, Combat.Stances.Name(Combat.Stance.PowerAttack));
         }
 
+        if (attacker.Stances.IsActive(Combat.Stance.PowerfulBlow))
+        {
+            stance.Add(
+                attacker.Stances.RageBonus(Combat.Stance.PowerfulBlow),
+                BonusType.Untyped,
+                Combat.Stances.Name(Combat.Stance.PowerfulBlow));
+        }
+
         return ModifierStack.Combine(
             attacker.DamageModifiers,
             weapon.DamageModifiers,
             stance,
+            Martial.DamageBonus(attacker, weapon, feet),
             Derived(attacker, weapon.DamageAbility, weapon.ScaleDamage));
     }
 
@@ -307,12 +401,36 @@ public static class Strike
     /// The weapon's damage with the flat bonus folded into its own component, so the bonus is
     /// multiplied on a critical and the log still reads as one expression.
     /// </summary>
-    private static DamagePacket DamageFor(Creature attacker, WeaponAttack weapon)
+    /// <remarks>
+    /// Always a fresh packet, never the weapon's own: sneak attack and vital strike add
+    /// components to what this returns, and the weapon's packet is shared by every swing.
+    /// The powerful blow is passed in rather than read from the stance, because the roll that
+    /// spent it has already taken it away.
+    /// </remarks>
+    private static DamagePacket DamageFor(
+        Creature attacker, WeaponAttack weapon, int? feet, int powerful, bool vital)
     {
-        var bonus = DamageBonus(attacker, weapon).Total;
+        var bonus = DamageBonus(attacker, weapon, feet).Total + powerful;
+        var packet = Fold(weapon, bonus);
+
+        // Vital Strike rolls the weapon's dice again — dice only, and not multiplied on a
+        // critical, which is the same shape as precision damage.
+        if (vital)
+        {
+            foreach (var component in weapon.Damage.Components.Where(c => c.MultipliedOnCritical))
+            {
+                packet.Add(DamageComponent.Extra(component.Amount.DiceOnly(), component.Type));
+            }
+        }
+
+        return packet;
+    }
+
+    private static DamagePacket Fold(WeaponAttack weapon, int bonus)
+    {
         if (bonus == 0)
         {
-            return weapon.Damage;
+            return new DamagePacket(weapon.Damage.Components);
         }
 
         var packet = new DamagePacket();
@@ -346,16 +464,18 @@ public static class Strike
     /// Hands the damage to the target, letting regeneration turn all but a few damage types into
     /// nonlethal. Damage that regeneration cannot absorb also stops it for a round.
     /// </summary>
-    private static (DamageApplication Applied, int Nonlethal) Apply(Creature target, DamageTaken taken)
+    /// <param name="total">What actually lands, which a defensive roll may have halved from
+    /// <see cref="DamageTaken.Total"/>.</param>
+    private static (DamageApplication Applied, int Nonlethal) Apply(Creature target, DamageTaken taken, int total)
     {
         if (target.Effects.Regeneration is not { IsSuspended: false } regeneration)
         {
-            return (target.HitPoints.Take(taken.Total), 0);
+            return (target.HitPoints.Take(total), 0);
         }
 
-        var lethal = taken.Entries
+        var lethal = Math.Min(total, taken.Entries
             .Where(entry => regeneration.IsSuspendedBy(entry.Type))
-            .Sum(entry => entry.Taken);
+            .Sum(entry => entry.Taken));
 
         if (lethal > 0)
         {
@@ -363,7 +483,7 @@ public static class Strike
         }
 
         var applied = target.HitPoints.Take(lethal);
-        var nonlethal = target.HitPoints.TakeNonlethal(taken.Total - lethal);
+        var nonlethal = target.HitPoints.TakeNonlethal(total - lethal);
 
         return (applied, nonlethal);
     }

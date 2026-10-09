@@ -1,0 +1,15 @@
+// Favoured weapon by id: the game has one.
+{
+  "kind": "deity",
+  "id": "iomedae",
+  "name": "Iomedae",
+  "alignment": "LG",
+  "domains": [
+    "glory",
+    "good",
+    "law",
+    "sun",
+    "war"
+  ],
+  "favoredWeapon": "longsword"
+}

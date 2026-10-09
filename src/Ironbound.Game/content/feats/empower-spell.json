@@ -1,0 +1,10 @@
+// Metamagic: half as much again of every number the spell rolls, for a slot two levels higher.
+// The difficulty class stays the spell's own.
+{
+  "kind": "feat",
+  "id": "empower-spell",
+  "name": "Empower Spell",
+  "metamagic": true,
+  "description": "Variable numbers increase by half; the spell takes a slot two levels higher.",
+  "effect": "EmpowerSpell"
+}

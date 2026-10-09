@@ -159,6 +159,12 @@ public sealed class Encounter
                 events.Add(woken);
             }
 
+            // And whose rage has outlasted their consciousness.
+            if (Classes.Rage.Sync(combatant.Creature) is { } calmed)
+            {
+                events.Add(calmed with { Description = $"{combatant.Creature.Name}'s rage ends as they fall" });
+            }
+
             events.AddRange(combatant.Creature.Effects.Advance(elapsed, Random));
         }
 
@@ -189,6 +195,30 @@ public sealed class Encounter
     }
 
     /// <summary>
+    /// Whether somebody is caught with their guard down as far as one attacker is concerned.
+    /// </summary>
+    /// <remarks>
+    /// Usually the same answer for everybody. The exception is a rogue with the surprise attack
+    /// talent, to whom everyone is flat-footed for the whole of a surprise round — even those
+    /// who have already had their turn in it.
+    /// </remarks>
+    public bool IsFlatFootedTo(Creature target, Creature attacker)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(attacker);
+
+        return IsFlatFooted(target)
+            || (IsSurpriseRound && attacker.Choices.HasTalent(Classes.TalentEffect.SurpriseAttack));
+    }
+
+    /// <summary>
+    /// The opening round of a fight that somebody walked into unawares. Remembered on the
+    /// combatants rather than worked out from who is unaware now, because being unaware ends
+    /// with the surprised creature's first turn and the round does not.
+    /// </summary>
+    public bool IsSurpriseRound => Round == 1 && _combatants.Any(combatant => combatant.WasSurprised);
+
+    /// <summary>
     /// Marks somebody as having walked into this without knowing. They lose their first turn
     /// and are flat-footed until they take one.
     /// </summary>
@@ -201,6 +231,7 @@ public sealed class Encounter
             if (ReferenceEquals(combatant.Creature, creature))
             {
                 combatant.IsUnaware = true;
+                combatant.WasSurprised = true;
                 return true;
             }
         }

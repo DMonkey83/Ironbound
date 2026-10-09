@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "strength-surge",
+  "name": "Strength Surge",
+  "list": "rage-power",
+  "effect": "StrengthSurge",
+  "description": "Once a rage, declared before a combat manoeuvre: her barbarian level on the check."
+}

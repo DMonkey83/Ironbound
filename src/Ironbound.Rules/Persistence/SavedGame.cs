@@ -31,11 +31,13 @@ public sealed record SavedGame(
     SavedCombatant[] Order,
     SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 12;
+    public const int CurrentVersion = 13;
 
     /// <summary>
     /// The oldest version still read. Twelve only added a field that eleven did without, so an
     /// eleven reads as a twelve that never had a level in it — which is exactly what it was.
+    /// Thirteen added class features; an older file is given what its creatures' own content
+    /// files choose, with every daily pool full and nobody raging.
     /// </summary>
     public const int OldestReadable = 11;
 }
@@ -95,7 +97,9 @@ public sealed record SavedCombatant(
     bool IsUnaware,
     bool HasStandard,
     bool HasMove,
-    bool HasSwift);
+    bool HasSwift,
+    bool WasSurprised = false,
+    bool HasUsedOpportunist = false);
 
 public sealed record SavedHitPoints(
     int Base,
@@ -120,11 +124,16 @@ public sealed record SavedDefenses(
 
 public sealed record SavedSlot(int Level, int Maximum, int Remaining);
 
+/// <param name="Specialty">Domain or school slots. Null in a save from before thirteen, which
+/// had them counted in with the rest.</param>
+/// <param name="Spellbook">What a wizard has written down. Null before thirteen.</param>
 public sealed record SavedSpellcasting(
     Ability CastingAbility,
     int CasterLevel,
     SavedSlot[] Slots,
-    string[] Prepared);
+    string[] Prepared,
+    SavedSlot[]? Specialty = null,
+    string[]? Spellbook = null);
 
 public sealed record SavedDamageComponent(string Amount, DamageType Type, bool MultipliedOnCritical);
 
@@ -150,7 +159,10 @@ public sealed record SavedWeapon(
     SavedModifier[] DamageModifiers,
     SavedDamageComponent[] Damage,
     int RangeIncrement,
-    int MaximumIncrements);
+    int MaximumIncrements,
+    string? Kind = null,
+    string[]? Groups = null,
+    bool Finesse = false);
 
 /// <summary>
 /// A running effect.
@@ -175,7 +187,31 @@ public sealed record SavedEffect(
     int? Heal,
     DamageType[]? SuspendedBy,
     bool Suspended,
-    Conditions.Condition? Condition);
+    Conditions.Condition? Condition,
+    string? Detail = null);
+
+/// <summary>How much of one daily pool had been spent.</summary>
+public readonly record struct SavedPool(string Pool, int Spent);
+
+/// <summary>
+/// What a creature chose for its class features, and how much of its day it has spent.
+/// </summary>
+/// <remarks>
+/// Ids rather than definitions, like feats and levels: the load looks them up again, so a god or
+/// a talent renamed in its file is renamed in every save.
+/// </remarks>
+public sealed record SavedFeatures(
+    string[] WeaponGroups,
+    string[] Talents,
+    string? Deity,
+    string[] Domains,
+    Classes.ChannelKind? Channel,
+    string? School,
+    Magic.SpellSchool[] Opposition,
+    bool BondedObject,
+    string? WeaponMasterFeat,
+    SavedPool[] Spent,
+    Combat.Stance[] RageSpent);
 
 public sealed record SavedCreature(
     string Name,
@@ -202,4 +238,5 @@ public sealed record SavedCreature(
     SavedSpellcasting Spells,
     SavedWeapon[] Weapons,
     SavedEffect[] Effects,
-    SavedSquare? Square);
+    SavedSquare? Square,
+    SavedFeatures? Features = null);

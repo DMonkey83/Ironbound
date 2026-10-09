@@ -4,6 +4,7 @@
   "kind": "feat",
   "id": "weapon-specialization",
   "name": "Weapon Specialization",
+  "combat": true,
   "description": "+2 on weapon damage.",
   "grants": [
     { "target": "damage", "value": 2, "type": "Untyped" }

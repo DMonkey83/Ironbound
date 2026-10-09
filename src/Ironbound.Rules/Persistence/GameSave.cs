@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Ironbound.Rules.Abilities;
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
@@ -99,7 +100,9 @@ public static class GameSave
         combatant.IsUnaware,
         combatant.Budget.HasStandard,
         combatant.Budget.HasMove,
-        combatant.Budget.HasSwift);
+        combatant.Budget.HasSwift,
+        combatant.WasSurprised,
+        combatant.HasUsedOpportunist);
 
     private static SavedModifier[] Capture(ModifierStack stack) =>
         [.. stack.Modifiers.Select(m => new SavedModifier(m.Value, m.Type, m.Source))];
@@ -115,7 +118,7 @@ public static class GameSave
         creature.Speed,
         creature.BaseAttackBonus,
         creature.BaseAttacksOfOpportunity,
-        [.. creature.Feats.Select(feat => feat.Id)],
+        [.. creature.Feats.Select(feat => feat.Key)],
         [.. creature.Equipment.Worn.Select(entry => new SavedItem(entry.Item.Id, entry.Slot))],
         [.. creature.Levels.Select(level => new SavedClassLevel(level.Class.Id, level.Level))],
         [.. Skills.SkillInfo.All
@@ -141,7 +144,26 @@ public static class GameSave
         CaptureSpells(creature.Spells),
         [.. creature.Attacks.Select(Capture)],
         [.. creature.Effects.Active.Select(Capture)],
-        field?.SquareOf(creature) is { } square ? new SavedSquare(square.X, square.Y) : null);
+        field?.SquareOf(creature) is { } square ? new SavedSquare(square.X, square.Y) : null,
+        CaptureFeatures(creature));
+
+    private static SavedFeatures CaptureFeatures(Creature creature)
+    {
+        var choices = creature.Choices;
+
+        return new SavedFeatures(
+            [.. choices.WeaponGroups],
+            [.. choices.Talents.Select(talent => talent.Id)],
+            choices.Deity?.Id,
+            [.. choices.Domains.Select(domain => domain.Id)],
+            choices.Channel,
+            choices.School?.Id,
+            [.. choices.Opposition],
+            choices.BondedObject,
+            choices.WeaponMasterFeat?.Id,
+            [.. creature.DailyUses.Spent.Select(entry => new SavedPool(entry.Key, entry.Value))],
+            [.. creature.Stances.Spent]);
+    }
 
     private static SavedAbility CaptureAbility(AbilityScore score) =>
         new(score.HasScore ? score.Base : 0, score.HasScore, Capture(score.Modifiers));
@@ -156,7 +178,9 @@ public static class GameSave
         spells.CastingAbility,
         spells.CasterLevel,
         [.. spells.SlotLevels.Order().Select(l => new SavedSlot(l, spells.SlotsMaximum(l), spells.SlotsRemaining(l)))],
-        [.. spells.Prepared.Select(s => s.Id)]);
+        [.. spells.Prepared.Select(s => s.Id)],
+        [.. spells.SpecialtyLevels.Order().Select(l => new SavedSlot(l, spells.SpecialtyMaximum(l), spells.SpecialtyRemaining(l)))],
+        [.. spells.Spellbook.Select(s => s.Id)]);
 
     private static SavedWeapon Capture(WeaponAttack weapon) => new(
         weapon.Name,
@@ -172,7 +196,10 @@ public static class GameSave
         [.. weapon.Damage.Components.Select(c =>
             new SavedDamageComponent(c.Amount.ToString(), c.Type, c.MultipliedOnCritical))],
         weapon.RangeIncrement,
-        weapon.MaximumIncrements);
+        weapon.MaximumIncrements,
+        weapon.Kind,
+        [.. weapon.Groups],
+        weapon.Finesse);
 
     private static SavedEffect Capture(Effect effect)
     {
@@ -197,7 +224,8 @@ public static class GameSave
             (effect as RegenerationEffect)?.IsSuspended
                 ?? (effect as BleedingOutEffect)?.IsStable
                 ?? false,
-            effect.Condition);
+            effect.Condition,
+            (effect as Classes.BorrowedFeatEffect)?.Feat.Key);
     }
 
     // ---- restore ----
@@ -234,6 +262,8 @@ public static class GameSave
                 HasTakenFiveFootStep = saved.HasTakenFiveFootStep,
                 HasActed = saved.HasActed,
                 IsUnaware = saved.IsUnaware,
+                WasSurprised = saved.WasSurprised,
+                HasUsedOpportunist = saved.HasUsedOpportunist,
             };
 
             combatant.Budget.Restore(saved.HasStandard, saved.HasMove, saved.HasSwift);
@@ -313,7 +343,7 @@ public static class GameSave
         // feats the rules ask about by name.
         foreach (var id in saved.Feats)
         {
-            creature.Feats.Add(library.GetFeat(id) ?? throw new InvalidDataException(
+            creature.Feats.Add(library.GetFeatWithChoice(id) ?? throw new InvalidDataException(
                 $"The save has a feat '{id}', which no content file defines."));
         }
 
@@ -322,7 +352,7 @@ public static class GameSave
 
         foreach (var weapon in saved.Weapons)
         {
-            creature.Attacks.Add(Restore(weapon));
+            creature.Attacks.Add(Restore(weapon, saved.Items, library));
         }
 
         // Equipment, like feats, comes back by identity only: its bonuses were captured with
@@ -366,7 +396,7 @@ public static class GameSave
 
         foreach (var effect in saved.Effects)
         {
-            creature.Effects.Reattach(Restore(effect), effect.TicksRemaining, effect.TicksUntilPeriod);
+            creature.Effects.Reattach(Restore(effect, library), effect.TicksRemaining, effect.TicksUntilPeriod);
         }
 
         if (saved.Square is { } square && field is not null)
@@ -374,7 +404,107 @@ public static class GameSave
             field.Place(creature, new GridSquare(square.X, square.Y));
         }
 
+        RestoreFeatures(creature, saved, library);
+
         return creature;
+    }
+
+    /// <summary>
+    /// Puts back what the creature chose and what it has spent today — or, from a save that
+    /// predates class features, what its content file chooses, with every pool full.
+    /// </summary>
+    private static void RestoreFeatures(Creature creature, SavedCreature saved, ContentLibrary library)
+    {
+        if (saved.Features is { } features)
+        {
+            var choices = creature.Choices;
+
+            foreach (var group in features.WeaponGroups)
+            {
+                choices.WeaponGroups.Add(group);
+            }
+
+            foreach (var id in features.Talents)
+            {
+                choices.Talents.Add(library.GetTalent(id) ?? throw new InvalidDataException(
+                    $"The save has a talent '{id}', which no content file defines."));
+            }
+
+            choices.Deity = features.Deity is { } god ? library.GetDeity(god) : null;
+
+            foreach (var id in features.Domains)
+            {
+                choices.Domains.Add(library.GetDomain(id) ?? throw new InvalidDataException(
+                    $"The save has a domain '{id}', which no content file defines."));
+            }
+
+            choices.Channel = features.Channel;
+            choices.School = features.School is { } school ? library.GetSchool(school) : null;
+
+            foreach (var opposed in features.Opposition)
+            {
+                choices.Opposition.Add(opposed);
+            }
+
+            choices.BondedObject = features.BondedObject;
+            choices.WeaponMasterFeat = features.WeaponMasterFeat is { } feat ? library.GetFeat(feat) : null;
+
+            foreach (var pool in features.Spent)
+            {
+                creature.DailyUses.Set(pool.Pool, pool.Spent);
+            }
+
+            creature.Stances.RestoreSpent(features.RageSpent);
+        }
+        else if (creature.DefinitionId is { } id && library.GetCreature(id) is { } definition)
+        {
+            definition.ChooseFor(creature, library);
+        }
+
+        // The spellbook came back if it was saved; a save that never had one gets the default.
+        foreach (var spell in saved.Spells.Spellbook?.Select(library.GetSpell).OfType<Spell>() ?? [])
+        {
+            creature.Spells.Inscribe(spell);
+        }
+
+        if (saved.Spells.Specialty is null)
+        {
+            Migrate(creature);
+        }
+
+        // Without refilling anything: only what the save could not hold — the spontaneous
+        // list, which is a fact about the library — and whatever an old save never had.
+        ClassFeatures.Establish(creature, library, refill: false);
+    }
+
+    /// <summary>
+    /// Re-deals the slots of a caster saved before domain and school slots were counted apart.
+    /// </summary>
+    /// <remarks>
+    /// Her class table used to include the domain slot; now it does not, and the slot is kept
+    /// separately. The same number of slots comes out the other side, with whatever she had
+    /// spent taken from the general ones first.
+    /// </remarks>
+    private static void Migrate(Creature creature)
+    {
+        var specialty = ClassFeatures.SpecialtyLevels(creature).ToHashSet();
+        if (specialty.Count == 0 || creature.Levels.Count == 0)
+        {
+            return;
+        }
+
+        var general = Classes.Progression.SlotsFor(
+            creature.Levels, creature.Abilities[creature.Spells.CastingAbility].Modifier);
+
+        foreach (var level in creature.Spells.SlotLevels.ToList())
+        {
+            var spent = creature.Spells.SlotsMaximum(level) - creature.Spells.SlotsRemaining(level);
+            var maximum = general.GetValueOrDefault(level);
+            var extra = specialty.Contains(level) ? 1 : 0;
+
+            creature.Spells.RestoreSlots(level, maximum, Math.Max(0, maximum - spent));
+            creature.Spells.RestoreSpecialtySlots(level, extra, Math.Max(0, extra - Math.Max(0, spent - maximum)));
+        }
     }
 
     private static void Fill(ModifierStack stack, SavedModifier[] modifiers)
@@ -419,6 +549,11 @@ public static class GameSave
             spells.RestoreSlots(slot.Level, slot.Maximum, slot.Remaining);
         }
 
+        foreach (var slot in saved.Specialty ?? [])
+        {
+            spells.RestoreSpecialtySlots(slot.Level, slot.Maximum, slot.Remaining);
+        }
+
         // By identifier, not by display name: renaming "Fireball" must not quietly empty every
         // wizard's spellbook in every existing save.
         //
@@ -435,8 +570,13 @@ public static class GameSave
         }
     }
 
-    private static WeaponAttack Restore(SavedWeapon saved)
+    /// <param name="items">What the creature was carrying, so a weapon saved before weapons knew
+    /// what kind they were can be matched to the item it came from and told.</param>
+    private static WeaponAttack Restore(SavedWeapon saved, SavedItem[] items, ContentLibrary library)
     {
+        var kind = saved.Kind ?? KindOf(saved.Name, items, library);
+        var definition = kind is null ? null : library.GetWeapon(kind);
+
         var attack = new Attack
         {
             Critical = new CriticalProfile(saved.ThreatsOn, saved.Multiplier),
@@ -454,6 +594,9 @@ public static class GameSave
 
         var weapon = new WeaponAttack(saved.Name, attack, packet)
         {
+            Kind = kind,
+            Groups = saved.Groups ?? definition?.Groups ?? [],
+            Finesse = saved.Kind is null ? definition?.Finesse ?? false : saved.Finesse,
             Qualities = saved.Qualities,
             AttackAbility = saved.AttackAbility,
             DamageAbility = saved.DamageAbility,
@@ -466,7 +609,26 @@ public static class GameSave
         return weapon;
     }
 
-    private static Effect Restore(SavedEffect saved)
+    /// <summary>
+    /// The weapon definition an old save's weapon was built from: the item of that name it was
+    /// paired with, or a weapon of that name outright.
+    /// </summary>
+    private static string? KindOf(string name, SavedItem[] items, ContentLibrary library)
+    {
+        foreach (var carried in items)
+        {
+            if (library.GetItem(carried.Id) is { Weapon: { } weapon } item
+                && string.Equals(item.Name, name, StringComparison.Ordinal))
+            {
+                return weapon;
+            }
+        }
+
+        return library.WeaponIds.FirstOrDefault(id =>
+            string.Equals(library.GetWeapon(id)?.Name, name, StringComparison.Ordinal));
+    }
+
+    private static Effect Restore(SavedEffect saved, ContentLibrary library)
     {
         var duration = saved.Duration.Permanent
             ? Duration.Permanent
@@ -519,6 +681,15 @@ public static class GameSave
                 }
 
                 return regeneration;
+
+            case nameof(Classes.RageEffect):
+                return new Classes.RageEffect(duration);
+
+            case nameof(Classes.BorrowedFeatEffect):
+                return new Classes.BorrowedFeatEffect(
+                    library.GetFeatWithChoice(saved.Detail ?? string.Empty) ?? throw new InvalidDataException(
+                        $"The save has a borrowed feat '{saved.Detail}', which no content file defines."),
+                    duration);
 
             default:
                 throw new InvalidDataException($"Unknown effect kind '{saved.Kind}'.");

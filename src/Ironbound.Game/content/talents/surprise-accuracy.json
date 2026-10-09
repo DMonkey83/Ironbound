@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "surprise-accuracy",
+  "name": "Surprise Accuracy",
+  "list": "rage-power",
+  "effect": "SurpriseAccuracy",
+  "description": "Once a rage, declared before a swing: +1 morale on the attack roll, +1 more for every four barbarian levels."
+}

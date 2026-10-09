@@ -13,7 +13,10 @@ public class CharacterSheetTests
         var sheet = CharacterSheet.Of(ContentFiles.Default.BuildCreature("valeria")!);
 
         Assert.Equal(
-            ["Who", "Abilities", "Defence", "Saving throws", "Attacks", "Skills", "Gear and training", "Magic", "Conditions"],
+            [
+                "Who", "Abilities", "Defence", "Saving throws", "Attacks", "Class features", "Skills",
+                "Gear and training", "Magic", "Conditions",
+            ],
             sheet.Select(section => section.Heading));
     }
 
@@ -33,8 +36,9 @@ public class CharacterSheetTests
         var valeria = ContentFiles.Default.BuildCreature("valeria")!;
         var defence = Section(valeria, "Defence");
 
-        // This is what the whole Explain() habit was for: not "AC 19" but why.
-        Assert.Contains(defence, line => line.Contains("Armour class 19"));
+        // This is what the whole Explain() habit was for: not "AC 20" but why. (Nineteen before
+        // class features gave her the Shield Focus a fighter 6 is owed.)
+        Assert.Contains(defence, line => line.Contains("Armour class 20"));
         Assert.Contains(defence, line => line.Contains("chain shirt") && line.Contains("heavy shield"));
         Assert.Contains(defence, line => line.Contains("Dodge"));
     }
@@ -59,7 +63,7 @@ public class CharacterSheetTests
         // than quietly omitting it, because "where did my ring go?" is the question.
         valeria.ArmorClass.Modifiers.Add(2, BonusType.Armor, "Bracers");
 
-        Assert.Equal(19, valeria.ArmorClass.Total);
+        Assert.Equal(20, valeria.ArmorClass.Total);
         Assert.Contains(Section(valeria, "Defence"), line => line.Contains("Bracers"));
     }
 
@@ -77,8 +81,13 @@ public class CharacterSheetTests
     public void SpentSlotsShowAsSpent()
     {
         var merrin = ContentFiles.Default.BuildCreature("merrin")!;
-        merrin.Spells.Spend(merrin.Spells.Prepared.First(spell => spell.Level == 3));
+        var fireball = merrin.Spells.Prepared.First(spell => spell.Level == 3);
 
+        // An evocation comes out of her school slot first, then the general ones.
+        merrin.Spells.Spend(fireball);
+        Assert.Contains(Section(merrin, "Magic"), line => line.Contains("Level 3 slots: 2 of 2, school 0 of 1"));
+
+        merrin.Spells.Spend(fireball);
         Assert.Contains(Section(merrin, "Magic"), line => line.Contains("Level 3 slots: 1 of 2"));
     }
 

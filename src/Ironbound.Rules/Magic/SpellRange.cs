@@ -54,8 +54,16 @@ public readonly record struct SpellRange
     public int InFeet(Creature caster)
     {
         ArgumentNullException.ThrowIfNull(caster);
+        return InFeet(caster, caster.Spells.CasterLevel);
+    }
 
-        var level = caster.Spells.CasterLevel;
+    /// <summary>
+    /// The range at a given level rather than the caster's spellcasting one: a cleric's domain
+    /// power reaches as far as her cleric level says, whatever else she casts at.
+    /// </summary>
+    public int InFeet(Creature caster, int level)
+    {
+        ArgumentNullException.ThrowIfNull(caster);
 
         return Kind switch
         {

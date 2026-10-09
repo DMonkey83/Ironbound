@@ -2,6 +2,7 @@
   "kind": "feat",
   "id": "improved-initiative",
   "name": "Improved Initiative",
+  "combat": true,
   "description": "+4 on initiative checks.",
   "grants": [
     { "target": "initiative", "value": 4, "type": "Untyped" }

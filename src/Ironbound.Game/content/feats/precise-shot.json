@@ -1,0 +1,10 @@
+// The answer to the -4 for shooting into a melee your own side is part of.
+{
+  "kind": "feat",
+  "id": "precise-shot",
+  "name": "Precise Shot",
+  "combat": true,
+  "description": "No penalty for shooting into melee.",
+  "effect": "PreciseShot",
+  "requires": { "feats": ["point-blank-shot"] }
+}

@@ -1,0 +1,9 @@
+// The feat itself is the level's bonus feat choice.
+{
+  "kind": "talent",
+  "id": "combat-trick",
+  "name": "Combat Trick",
+  "list": "rogue-talent",
+  "effect": "CombatTrick",
+  "description": "A bonus combat feat."
+}

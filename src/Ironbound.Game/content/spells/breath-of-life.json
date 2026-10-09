@@ -1,0 +1,17 @@
+// The Healing domain's fifth. Half of it: the healing. The other half — calling back somebody who
+// died within the last round — needs the dead to be something a spell can reach, and in this
+// engine nothing heals the dead. Not a cure spell by the book's naming, so neither blessed nor
+// spontaneous.
+{
+  "kind": "spell",
+  "id": "breath-of-life",
+  "name": "Breath of Life",
+  "level": 5,
+  "school": "Conjuration",
+  "range": "touch",
+  "target": { "shape": "single" },
+  "affects": "Allies",
+  "does": [
+    { "heal": { "fixed": "5d8", "plusPerLevel": 1, "plusMaximum": 25 } }
+  ]
+}

@@ -72,6 +72,7 @@ public sealed class Equipment(Creature owner)
         if (slot != EquipmentSlot.Carried)
         {
             item.ApplyTo(_owner);
+            Cap(item);
         }
 
         if (weapon is not null)
@@ -97,6 +98,7 @@ public sealed class Equipment(Creature owner)
         if (entry.IsWorn)
         {
             entry.Item.RemoveFrom(_owner);
+            _owner.ArmorClass.RemoveDexterityCap(entry.Item.Name);
         }
 
         if (entry.Weapon is not null)
@@ -114,9 +116,47 @@ public sealed class Equipment(Creature owner)
     /// No bonuses are applied and no attack is added: both came back with the modifier stacks
     /// and the weapon list. Only the identity is missing, and without it taking the thing off
     /// later would remove nothing.
+    /// <para>
+    /// The Dexterity cap is the exception, because it is not a modifier and was never saved:
+    /// it is put back here from the item, which is the only place it was ever written down.
+    /// </para>
     /// </remarks>
-    internal void Reattach(ItemDefinition item, WeaponAttack? weapon, EquipmentSlot slot) =>
+    internal void Reattach(ItemDefinition item, WeaponAttack? weapon, EquipmentSlot slot)
+    {
         _worn.Add(new EquippedItem(item, weapon, slot));
+
+        if (slot != EquipmentSlot.Carried)
+        {
+            Cap(item);
+        }
+    }
+
+    /// <summary>The heaviest body armour being worn, or none.</summary>
+    public ArmourCategory ArmourWorn => _worn
+        .Where(entry => entry.IsWorn && entry.Item.IsBodyArmour)
+        .Select(entry => entry.Item.Armour)
+        .DefaultIfEmpty(ArmourCategory.None)
+        .Max();
+
+    /// <summary>Whether a shield is on the arm.</summary>
+    public bool HasShield => _worn.Any(entry => entry.IsWorn && entry.Item.Armour == ArmourCategory.Shield);
+
+    /// <summary>
+    /// The check penalty of everything worn, split into the body armour's and the shield's —
+    /// because a fighter's armour training eases the first and not the second.
+    /// </summary>
+    public (int Armour, int Shield) CheckPenalties => (
+        _worn.Where(entry => entry.IsWorn && entry.Item.IsBodyArmour).Sum(entry => entry.Item.CheckPenalty),
+        _worn.Where(entry => entry.IsWorn && entry.Item.Armour == ArmourCategory.Shield)
+            .Sum(entry => entry.Item.CheckPenalty));
+
+    private void Cap(ItemDefinition item)
+    {
+        if (item.MaxDexterity is { } most)
+        {
+            _owner.ArmorClass.CapDexterity(item.Name, most);
+        }
+    }
 
     public override string ToString() =>
         _worn.Count == 0 ? "nothing" : string.Join(", ", _worn);

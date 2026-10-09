@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "finesse-rogue",
+  "name": "Finesse Rogue",
+  "list": "rogue-talent",
+  "effect": "FinesseRogue",
+  "description": "Weapon Finesse as a bonus feat."
+}

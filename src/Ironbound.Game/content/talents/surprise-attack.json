@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "surprise-attack",
+  "name": "Surprise Attack",
+  "list": "rogue-talent",
+  "effect": "SurpriseAttack",
+  "description": "In the surprise round, every opponent is flat-footed to her, even one that has already acted."
+}

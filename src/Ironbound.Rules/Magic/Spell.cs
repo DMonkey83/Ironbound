@@ -45,8 +45,23 @@ public enum SaveOutcome
 /// <summary>What shape the spell comes in.</summary>
 public abstract record SpellTarget;
 
-/// <summary>The caster, and nobody else.</summary>
-public sealed record SelfTarget : SpellTarget;
+/// <summary>
+/// The caster — and, with a radius, everyone within it of the caster: a burst that goes where
+/// she goes and is never aimed anywhere else.
+/// </summary>
+/// <remarks>
+/// Channel energy is the reason for the radius. It is a thirty-foot burst, but centred on the
+/// cleric and nowhere else, so asking the player where to put it would be asking a question with
+/// one answer. A burst on oneself is still "self" as far as aiming goes.
+/// </remarks>
+public sealed record SelfTarget : SpellTarget
+{
+    /// <summary>Zero for the caster alone; otherwise how far around her it reaches, in feet.</summary>
+    public int RadiusFeet { get; init; }
+}
+
+/// <summary>A spot on the ground and nobody in particular: where a teleport lands.</summary>
+public sealed record PointTarget : SpellTarget;
 
 /// <summary>One creature within range. No attack roll.</summary>
 public sealed record SingleTarget : SpellTarget;
@@ -63,6 +78,16 @@ public abstract record SpellEffect;
 public sealed record DealDamage(SpellDice Amount, DamageType Type) : SpellEffect;
 
 public sealed record Restore(SpellDice Amount) : SpellEffect;
+
+/// <summary>
+/// Temporary hit points. Spent before real ones, and never healed back.
+/// </summary>
+/// <remarks>
+/// The engine's temporary hit points have no clock of their own, so these last until they are
+/// used up or the next rest rather than for the spell's duration. Divine Power is the one spell
+/// that hands them out, and the difference is a handful of points that linger.
+/// </remarks>
+public sealed record Bolster(SpellDice Amount) : SpellEffect;
 
 /// <param name="Effect">Described rather than constructed, so the spell can live in a file.
 /// A fresh copy is built per target, at the caster's level, because durations are usually
@@ -100,10 +125,35 @@ public sealed record Spell(string Id, string Name, int Level, SpellSchool School
 
     public ActionCost CastingTime { get; init; } = ActionCost.Standard;
 
-    /// <summary>Whether this spell needs somewhere to aim rather than someone.</summary>
-    public bool NeedsAPoint => Target is BurstTarget;
+    /// <summary>
+    /// What kind of magic it is, in words: <c>fear</c>, <c>cure</c>. Rules elsewhere ask —
+    /// bravery against anything that frightens, a cleric's spontaneous cures.
+    /// </summary>
+    /// <remarks>
+    /// <c>cure</c> is not a Pathfinder descriptor; the book calls them "cure spells" by name. It
+    /// is a tag here so a spell's family is a fact in its file rather than a guess at its id.
+    /// </remarks>
+    public IReadOnlyList<string> Descriptors { get; init; } = [];
 
-    public override string ToString() => $"{Name} (level {Level} {School.ToString().ToLowerInvariant()})";
+    /// <summary>
+    /// Cast with Empower Spell: half as much again of every number it rolls, for a slot two
+    /// levels higher. The difficulty class stays the spell's own.
+    /// </summary>
+    public bool Empowered { get; init; }
+
+    /// <summary>The level of slot it takes: its own, or two more empowered.</summary>
+    public int SlotLevel => Level + (Empowered ? 2 : 0);
+
+    public bool Has(string descriptor) => Descriptors.Contains(descriptor, StringComparer.Ordinal);
+
+    /// <summary>The same spell, empowered.</summary>
+    public Spell Empower() => this with { Empowered = true };
+
+    /// <summary>Whether this spell needs somewhere to aim rather than someone.</summary>
+    public bool NeedsAPoint => Target is BurstTarget or PointTarget;
+
+    public override string ToString() =>
+        $"{(Empowered ? "empowered " : string.Empty)}{Name} (level {Level} {School.ToString().ToLowerInvariant()})";
 }
 
 /// <summary>Where a spell is being pointed: at somebody, or at a spot on the ground.</summary>

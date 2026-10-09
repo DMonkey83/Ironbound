@@ -49,7 +49,16 @@ public sealed class Creature
         Skills = new SkillSet(this);
         Stances = new Stances(this);
         Equipment = new Equipment(this);
-        HitPoints = new HitPoints(baseHitPoints, hitDice, abilities.Constitution, Rules);
+        HitPoints = new HitPoints(baseHitPoints, hitDice, abilities.Constitution, Rules)
+        {
+            // Resiliency is the only thing that answers yet; asked only as a blow is about to
+            // take somebody below nought.
+            Dropping = () => RogueDefences.Resiliency(this),
+        };
+
+        // Both read live, so a level gained or a shield taken up changes them on the spot.
+        ArmorClass.CapRelief = () => Martial.ArmorTraining(this);
+        ArmorClass.Situational = options => Martial.Situational(this, options);
     }
 
     /// <summary>Builds a creature whose hit points come from its hit die, per the rule options.</summary>
@@ -191,6 +200,38 @@ public sealed class Creature
     /// </summary>
     public IList<FeatDefinition> Feats { get; } = [];
 
+    /// <summary>What the creature chose as its class features arrived: talents, domains, a school.</summary>
+    public ClassChoices Choices { get; } = new();
+
+    /// <summary>How much of each daily allowance — channels, rage rounds, a bonded spell — is spent.</summary>
+    public DailyUses DailyUses { get; } = new();
+
+    /// <summary>What it can use a few times a day that is not a spell from a slot, in a stable order.</summary>
+    public IReadOnlyList<Power> Powers => ClassPowers.For(this);
+
+    /// <summary>What is left today of the pool this power draws on.</summary>
+    public int UsesLeft(Power power)
+    {
+        ArgumentNullException.ThrowIfNull(power);
+        return ClassPowers.Left(this, power.Pool);
+    }
+
+    /// <summary>How much that pool holds each day.</summary>
+    public int UsesPerDay(Power power)
+    {
+        ArgumentNullException.ThrowIfNull(power);
+        return ClassPowers.PerDay(this, power.Pool);
+    }
+
+    /// <summary>In the middle of a barbarian's rage.</summary>
+    public bool IsRaging => Rage.IsRaging(this);
+
+    /// <summary>Rounds of rage left today, counting the one a running rage is in.</summary>
+    public int RageRoundsLeft => Rage.RoundsLeft(this);
+
+    /// <summary>Rounds of rage a day: nought for anybody who cannot rage.</summary>
+    public int RageRoundsPerDay => Rage.RoundsPerDay(this);
+
     public bool HasFeat(string id) =>
         Feats.Any(feat => string.Equals(feat.Id, id, StringComparison.Ordinal));
 
@@ -224,11 +265,17 @@ public sealed class Creature
     /// halving is deliberately not a modifier: a percentage that stacked with Haste's flat bonus
     /// in one pass would give the wrong answer whichever order they landed in.
     /// </summary>
+    /// <remarks>
+    /// The order is the rulebook's: a barbarian's fast movement is added to her base speed
+    /// first, and then medium or heavy armour cuts the total — a human barbarian's forty in a
+    /// breastplate is thirty, not a human's twenty plus ten.
+    /// </remarks>
     public int CurrentSpeed
     {
         get
         {
-            var speed = Math.Max(0, Speed + SpeedModifiers.Total);
+            var land = Speed + ClassFeatures.SpeedBonus(this);
+            var speed = Math.Max(0, Martial.ArmouredSpeed(this, land) + SpeedModifiers.Total);
 
             foreach (var condition in Conditions)
             {

@@ -1,0 +1,15 @@
+// Favoured weapon in words: the game has no such weapon yet.
+{
+  "kind": "deity",
+  "id": "cayden-cailean",
+  "name": "Cayden Cailean",
+  "alignment": "CG",
+  "domains": [
+    "chaos",
+    "charm",
+    "good",
+    "strength",
+    "travel"
+  ],
+  "favoredWeapon": "rapier"
+}

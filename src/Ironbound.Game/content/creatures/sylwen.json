@@ -20,7 +20,15 @@
   // has gone wrong.
   "items": ["shortbow", "dagger"],
 
-  // One first-level slot from the table and one from Intelligence 17: two missiles a day,
-  // and choosing when to spend them is most of what she does.
-  "spells": ["magic-missile"]
+  // One first-level slot from the table and one from Intelligence 17, and a conjuration slot
+  // besides, which only grease or mage armour may use. Missiles first: the automatic hand
+  // works down the list.
+  "spells": ["magic-missile", "grease", "mage-armor"],
+
+  // A conjurer who gave up enchantment and necromancy, so a charm or a fear spell would cost her
+  // two slots. The bond is to an object — the bow, as she tells it — worth one spell a day from
+  // her book without a slot. Acid dart is the school's: a few times a day once the slots are gone.
+  "school": "conjuration",
+  "opposition": ["Enchantment", "Necromancy"],
+  "arcaneBond": "object"
 }

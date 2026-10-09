@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "point-blank-shot",
+  "name": "Point-Blank Shot",
+  "combat": true,
+  "description": "+1 on attack and damage rolls with ranged weapons within 30 feet.",
+  "effect": "PointBlankShot"
+}

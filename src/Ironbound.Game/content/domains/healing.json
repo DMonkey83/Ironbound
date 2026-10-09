@@ -1,0 +1,19 @@
+// Healing: a touch that pulls the dying back, and cures that heal half as much again from sixth
+// level. The spells are the cures in order, then breath of life.
+{
+  "kind": "domain",
+  "id": "healing",
+  "name": "Healing",
+  "description": "Your touch staves off pain and death, and your healing magic is particularly potent.",
+  "spells": [
+    "cure-light-wounds",
+    "cure-moderate-wounds",
+    "cure-serious-wounds",
+    "cure-critical-wounds",
+    "breath-of-life"
+  ],
+  "powers": [
+    { "level": 1, "effect": "RebukeDeath" },
+    { "level": 6, "effect": "HealersBlessing" }
+  ]
+}

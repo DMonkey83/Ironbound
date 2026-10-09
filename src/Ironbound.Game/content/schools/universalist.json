@@ -1,0 +1,12 @@
+// No school slot and no opposition schools. Its two powers — a thrown weapon that comes back, and
+// metamagic without the higher slot — are recorded and not built yet.
+{
+  "kind": "school",
+  "id": "universalist",
+  "name": "Universalist",
+  "description": "Wizards who do not specialize have the most diversity of all arcane spellcasters.",
+  "powers": [
+    { "level": 1, "effect": "HandOfTheApprentice" },
+    { "level": 8, "effect": "MetamagicMastery" }
+  ]
+}

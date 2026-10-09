@@ -1,0 +1,14 @@
+// Summoner's Charm makes summoned things last longer; there is no summoning yet, so it is recorded
+// and nothing more.
+{
+  "kind": "school",
+  "id": "conjuration",
+  "name": "Conjuration",
+  "school": "Conjuration",
+  "description": "The conjurer focuses on the study of summoning monsters and magic alike to bend to her will.",
+  "powers": [
+    { "level": 1, "effect": "SummonersCharm" },
+    { "level": 1, "effect": "AcidDart" },
+    { "level": 8, "effect": "DimensionalSteps" }
+  ]
+}

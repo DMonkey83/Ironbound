@@ -1,8 +1,9 @@
-// Medium armour. Strictly it caps Dexterity at three and slows the wearer to twenty feet; the
-// rules have neither yet, and nobody wearing it has the Dexterity for the first to bite.
+// Medium armour: it caps Dexterity at three, costs four on climbing and creeping, and slows the
+// wearer to twenty feet until a fighter has trained in it.
 {
   "kind": "item", "id": "scale-mail", "name": "scale mail",
   "description": "Overlapping plates on a leather coat. Heavy, and worth it.",
   "slot": "Armour",
+  "armour": "Medium", "maxDex": 3, "checkPenalty": -4,
   "grants": [ { "target": "armourClass", "value": 4, "type": "Armor" } ]
 }

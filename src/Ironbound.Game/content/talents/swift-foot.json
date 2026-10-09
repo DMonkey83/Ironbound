@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "swift-foot",
+  "name": "Swift Foot",
+  "list": "rage-power",
+  "effect": "SwiftFoot",
+  "description": "+5 feet of speed while raging."
+}

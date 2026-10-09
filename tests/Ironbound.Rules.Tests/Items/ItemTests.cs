@@ -243,7 +243,7 @@ public class ShippedEquipmentTests
     {
         var valeria = TestContent.Library.BuildCreature("valeria")!;
 
-        Assert.Equal(19, valeria.ArmorClass.Total);   // unchanged by the conversion
+        Assert.Equal(20, valeria.ArmorClass.Total);   // the conversion's 19, and Shield Focus
         Assert.Equal(
             ["chain shirt", "heavy shield", "longsword"],
             valeria.Equipment.Items.Select(item => item.Name));

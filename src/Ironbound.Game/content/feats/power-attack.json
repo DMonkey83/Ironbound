@@ -4,6 +4,7 @@
   "kind": "feat",
   "id": "power-attack",
   "name": "Power Attack",
+  "combat": true,
   "description": "Trade accuracy for damage on melee attacks. The trade steepens with skill.",
   "effect": "PowerAttack",
 

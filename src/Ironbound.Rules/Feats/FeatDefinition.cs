@@ -36,6 +36,51 @@ public enum FeatEffect
 
     /// <summary>Lets a creature trade accuracy for armour class.</summary>
     CombatExpertise,
+
+    /// <summary>+1 to hit with one kind of weapon, named by <see cref="FeatDefinition.Choice"/>.</summary>
+    WeaponFocus,
+
+    /// <summary>Dexterity rather than Strength to hit with a light or finesse weapon.</summary>
+    WeaponFinesse,
+
+    /// <summary>One more point from whatever shield is on the arm.</summary>
+    ShieldFocus,
+
+    /// <summary>Twice the threat range with one kind of weapon.</summary>
+    ImprovedCritical,
+
+    /// <summary>+1 to hit and damage with a shot inside thirty feet.</summary>
+    PointBlankShot,
+
+    /// <summary>No penalty for shooting into a melee.</summary>
+    PreciseShot,
+
+    /// <summary>One more shot on a full attack, every shot at -2.</summary>
+    RapidShot,
+
+    /// <summary>A single attack rolls the weapon's dice twice.</summary>
+    VitalStrike,
+
+    /// <summary>A hit lets the same swing carry on into the next foe.</summary>
+    Cleave,
+
+    /// <summary>Three hit points, and one more for every hit die past the third.</summary>
+    Toughness,
+
+    /// <summary>Channel energy that leaves some of the burst out.</summary>
+    SelectiveChanneling,
+
+    /// <summary>Half as much again of every variable number, for a slot two levels up.</summary>
+    EmpowerSpell,
+}
+
+/// <summary>What a feat asks to be told when it is taken, if anything.</summary>
+public enum FeatChoice
+{
+    None,
+
+    /// <summary>A kind of weapon, by its content id: Weapon Focus (longsword).</summary>
+    Weapon,
 }
 
 /// <summary>
@@ -58,6 +103,12 @@ public sealed record FeatRequirements
     public int BaseAttack { get; init; }
 
     public int Level { get; init; }
+
+    /// <summary>
+    /// Class features that must already be had, by feature id: Selective Channeling asks for
+    /// <c>channel-energy</c>, which no amount of Charisma can stand in for.
+    /// </summary>
+    public IReadOnlyList<string> Features { get; init; } = [];
 
     /// <summary>Whether a creature qualifies, and if not, what it is short of.</summary>
     public IReadOnlyList<string> Unmet(Creatures.Creature creature)
@@ -89,6 +140,11 @@ public sealed record FeatRequirements
             missing.Add($"level {Level}");
         }
 
+        foreach (var feature in Features.Where(id => !Classes.ClassFeatures.Has(creature, id)))
+        {
+            missing.Add(feature);
+        }
+
         return missing;
     }
 
@@ -108,6 +164,8 @@ public sealed record FeatRequirements
         {
             parts = parts.Append($"level {Level}");
         }
+
+        parts = parts.Concat(Features);
 
         var written = string.Join(", ", parts);
         return written.Length == 0 ? "none" : written;
@@ -140,12 +198,61 @@ public sealed record FeatDefinition
     /// <summary>What it asks of you first.</summary>
     public FeatRequirements Requires { get; init; } = new();
 
-    /// <summary>Whether a creature could take it: qualified, and does not already have it.</summary>
+    /// <summary>
+    /// A combat feat: one a fighter may take as a bonus feat, and a rogue through a combat trick.
+    /// </summary>
+    /// <remarks>
+    /// A flag on the feat rather than a list in the fighter's file, because the rulebook marks
+    /// the feat and not the class — every class that hands out "a bonus combat feat" means the
+    /// same set, and a second list would be a second thing to keep in step.
+    /// </remarks>
+    public bool Combat { get; init; }
+
+    /// <summary>A metamagic feat, which a wizard may take as a bonus feat.</summary>
+    public bool Metamagic { get; init; }
+
+    /// <summary>An item creation feat, which a wizard may also take as a bonus feat.</summary>
+    public bool ItemCreation { get; init; }
+
+    /// <summary>What it needs to be told when taken. Weapon Focus needs a weapon.</summary>
+    public FeatChoice Takes { get; init; } = FeatChoice.None;
+
+    /// <summary>
+    /// What was chosen, once it has been: the weapon id for Weapon Focus. Null on the feat as
+    /// written in its file, and on any feat that takes no choice at all.
+    /// </summary>
+    /// <remarks>
+    /// A field on a copy rather than a separate feat file per weapon: <c>feat with { Choice =
+    /// "longsword" }</c> is Weapon Focus (longsword), and its <see cref="Id"/> is still
+    /// <c>weapon-focus</c>, so a prerequisite naming the feat finds it whichever weapon it was.
+    /// </remarks>
+    public string? Choice { get; init; }
+
+    /// <summary>The id with the choice folded in — "weapon-focus:longsword" — as a save keeps it.</summary>
+    public string Key => Choice is null ? Id : $"{Id}:{Choice}";
+
+    /// <summary>"Weapon Focus (longsword)", or just the name for a feat with no choice.</summary>
+    public string Title => Choice is null ? Name : $"{Name} ({Choice})";
+
+    /// <summary>
+    /// Whether a creature could take it: qualified, and does not already have it. A feat taken
+    /// once per weapon may be taken again, for a different one.
+    /// </summary>
     public bool AvailableTo(Creatures.Creature creature)
     {
         ArgumentNullException.ThrowIfNull(creature);
 
-        return !creature.HasFeat(Id) && Requires.Unmet(creature).Count == 0;
+        if (Takes == FeatChoice.None && creature.HasFeat(Id))
+        {
+            return false;
+        }
+
+        if (Choice is not null && creature.Feats.Any(held => held.Key == Key))
+        {
+            return false;
+        }
+
+        return Requires.Unmet(creature).Count == 0;
     }
 
     /// <summary>Hands the feat's static bonuses to a creature. Called once, when it is built.</summary>
@@ -159,5 +266,5 @@ public sealed record FeatDefinition
         }
     }
 
-    public override string ToString() => Name;
+    public override string ToString() => Title;
 }

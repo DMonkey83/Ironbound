@@ -1,0 +1,15 @@
+// Favoured weapon by id: the game has one.
+{
+  "kind": "deity",
+  "id": "abadar",
+  "name": "Abadar",
+  "alignment": "LN",
+  "domains": [
+    "earth",
+    "law",
+    "nobility",
+    "protection",
+    "travel"
+  ],
+  "favoredWeapon": "light-crossbow"
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "cleave",
+  "name": "Cleave",
+  "combat": true,
+  "description": "A standard action: if the swing hits, the same swing carries on into a foe beside the first. -2 armour class until your next turn.",
+  "effect": "Cleave",
+  "requires": { "str": 13, "baseAttack": 1, "feats": ["power-attack"] }
+}

@@ -33,8 +33,9 @@ public sealed class SavingThrows
         Save save,
         int difficultyClass,
         IRandomSource random,
-        RuleOptions? rules = null) =>
-        this[save].Roll(difficultyClass, random, rules);
+        RuleOptions? rules = null,
+        IEnumerable<Modifiers.Modifier>? situational = null) =>
+        this[save].Roll(difficultyClass, random, rules, situational);
 
     public override string ToString() => string.Join(", ", _saves.Select(s => s.ToString()));
 }

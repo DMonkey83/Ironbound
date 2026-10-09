@@ -1,0 +1,29 @@
+// The War domain's fourth: +1 luck on attack and damage for every three caster levels (to +6),
+// and a temporary hit point a level. Not done: the extra attack at full bonus on a full attack,
+// and the bonus on Strength checks. The temporary hit points do not wear off with the spell —
+// the engine's temporary hit points last until spent.
+{
+  "kind": "spell",
+  "id": "divine-power",
+  "name": "Divine Power",
+  "level": 4,
+  "school": "Evocation",
+  "range": "personal",
+  "target": { "shape": "self" },
+  "affects": "Caster",
+  "does": [
+    { "temporary": { "perLevel": 1, "maxDice": 20 } },
+    {
+      "effect": {
+        "name": "Divine Power",
+        "roundsPerLevel": 1,
+        "scaleEvery": 3,
+        "scaleMaximum": 6,
+        "grants": [
+          { "target": "attack", "value": 1, "type": "Luck" },
+          { "target": "damage", "value": 1, "type": "Luck" }
+        ]
+      }
+    }
+  ]
+}

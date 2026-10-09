@@ -1,0 +1,10 @@
+// One more point from the shield on your arm, and nothing at all without one.
+{
+  "kind": "feat",
+  "id": "shield-focus",
+  "name": "Shield Focus",
+  "combat": true,
+  "description": "+1 to the armour class a shield gives.",
+  "effect": "ShieldFocus",
+  "requires": { "baseAttack": 1 }
+}

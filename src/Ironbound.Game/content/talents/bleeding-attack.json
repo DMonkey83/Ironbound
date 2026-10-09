@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "bleeding-attack",
+  "name": "Bleeding Attack",
+  "list": "rogue-talent",
+  "effect": "BleedingAttack",
+  "description": "A sneak attack also leaves the target bleeding a point a round per sneak attack die, until it is magically healed."
+}

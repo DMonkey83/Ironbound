@@ -1,0 +1,8 @@
+// Not a combat feat, so not one a fighter's bonus can buy — the book is particular about that.
+{
+  "kind": "feat",
+  "id": "toughness",
+  "name": "Toughness",
+  "description": "+3 hit points, or +1 per hit die past the third if that is more.",
+  "effect": "Toughness"
+}

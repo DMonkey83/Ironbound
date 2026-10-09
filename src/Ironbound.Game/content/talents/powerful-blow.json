@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "powerful-blow",
+  "name": "Powerful Blow",
+  "list": "rage-power",
+  "effect": "PowerfulBlow",
+  "description": "Once a rage, declared before a swing: +1 damage on it, +1 more for every four barbarian levels."
+}

@@ -3,5 +3,10 @@
   "id": "light-mace",
   "name": "light mace",
   "damage": "1d6",
-  "damageType": "Bludgeoning"
+  "damageType": "Bludgeoning",
+
+  // Fighter weapon groups, for weapon training.
+  "groups": ["hammers"],
+  // Light or natural: Weapon Finesse can aim it with Dexterity.
+  "finesse": true
 }

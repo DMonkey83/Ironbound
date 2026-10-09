@@ -1,0 +1,9 @@
+{
+  "kind": "talent",
+  "id": "improved-evasion",
+  "name": "Improved Evasion",
+  "list": "rogue-talent",
+  "effect": "ImprovedEvasion",
+  "advanced": true,
+  "description": "As evasion, and half damage even on a failed Reflex save."
+}

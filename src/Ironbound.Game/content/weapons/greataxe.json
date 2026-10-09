@@ -6,5 +6,8 @@
   "damageType": "Slashing",
   "threatsOn": 20,
   "multiplier": 3,
-  "scale": "OneAndAHalf"
+  "scale": "OneAndAHalf",
+
+  // Fighter weapon groups, for weapon training.
+  "groups": ["axes"]
 }

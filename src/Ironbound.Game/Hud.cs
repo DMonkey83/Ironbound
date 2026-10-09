@@ -38,6 +38,7 @@ public partial class Main
 	{
 		Move, Attack, Full, Trip, Shove, Help, Cast,
 		Stand, EndTurn, PowerAttack, Expertise, Defend,
+		Rage, PowerfulBlow, SurpriseAccuracy, StrengthSurge,
 		Log, Sheet, Save, Load,
 	}
 
@@ -53,7 +54,7 @@ public partial class Main
 	}
 
 	/// <summary>Which buttons the bar offers whoever it is showing.</summary>
-	private sealed record Offer(bool Hotbar, bool Cast, IReadOnlyList<Stance> Stances, bool Stand, bool Help);
+	private sealed record Offer(bool Hotbar, bool Cast, IReadOnlyList<Stance> Stances, bool Stand, bool Help, bool Rage);
 
 	private void ShowOffer(Offer offer)
 	{
@@ -62,6 +63,7 @@ public partial class Main
 		_spells.Visible = offer.Cast;
 		_modes[Mode.Help].Visible = offer.Help;
 		_stand.Visible = offer.Stand;
+		_rage.Visible = offer.Rage;
 
 		// Left holding a mode that has just vanished — the friend was stabilised, say — is a
 		// click that does nothing. Back to Move, which is always there.
@@ -380,6 +382,11 @@ public partial class Main
 			[Stance.PowerAttack] = (Glyph.PowerAttack, Key.Z, "Power Attack"),
 			[Stance.CombatExpertise] = (Glyph.Expertise, Key.X, "Combat Expertise"),
 			[Stance.FightingDefensively] = (Glyph.Defend, Key.C, "Fight defensively"),
+
+			// The barbarian's once-a-rage tricks: offered only while raging and unspent.
+			[Stance.PowerfulBlow] = (Glyph.PowerfulBlow, Key.V, "Powerful blow (next hit)"),
+			[Stance.SurpriseAccuracy] = (Glyph.SurpriseAccuracy, Key.B, "Surprise accuracy (next attack)"),
+			[Stance.StrengthSurge] = (Glyph.StrengthSurge, Key.N, "Strength surge (next manoeuvre)"),
 		};
 
 		foreach (var (stance, (glyph, key, name)) in stanceKeys)
@@ -391,6 +398,11 @@ public partial class Main
 		}
 
 		bar.AddChild(new VSeparator());
+
+		// Rage is a free action, on and off; lit while it lasts.
+		_rage = Hot(Glyph.Rage, "Rage", Key.R, toggle: true);
+		_rage.Pressed += OnRage;
+		bar.AddChild(_rage);
 
 		_stand = Hot(Glyph.Stand, "Stand up", Key.G, toggle: false);
 		_stand.Pressed += OnStandUp;
@@ -620,6 +632,25 @@ public partial class Main
 				break;
 			case Glyph.Expertise:
 				Shield(false); Line(-6, 8, 7, -9);
+				break;
+			case Glyph.Rage:
+				// A mouth open in a roar: jaw, teeth, and the heat coming off it.
+				Poly(-14, -4, 14, -4, 9, 12, -9, 12);
+				Line(-8, -4, -6, 2, 2f); Line(0, -4, 0, 2, 2f); Line(8, -4, 6, 2, 2f);
+				Line(-10, -9, -6, -16); Line(0, -9, 0, -17); Line(10, -9, 6, -16);
+				break;
+			case Glyph.PowerfulBlow:
+				Poly(-4, -16, 6, -16, 6, -2, 14, -2, 14, 8, -4, 8);
+				Line(-14, 14, -2, 8, 4f);
+				break;
+			case Glyph.SurpriseAccuracy:
+				button.DrawArc(P(0, 0), 13f, 0, Mathf.Tau, 32, ink, 2.5f, true);
+				button.DrawArc(P(0, 0), 6f, 0, Mathf.Tau, 24, ink, 2.5f, true);
+				Line(-17, 0, 17, 0, 1.5f); Line(0, -17, 0, 17, 1.5f);
+				break;
+			case Glyph.StrengthSurge:
+				Poly(-10, 16, -10, -2, -4, -10, 4, -10, 10, -2, 10, 16);
+				Line(-4, -10, -4, -16); Line(4, -10, 4, -16);
 				break;
 			case Glyph.Defend:
 				Shield(true);

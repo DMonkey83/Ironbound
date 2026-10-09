@@ -138,6 +138,13 @@ public static class Levelling
         creature.Spells.CasterLevel = Progression.CasterLevel(creature.Levels);
         creature.HitPoints.GainHitDie(PerLevel(taken, rules));
 
+        // Toughness is three hit points or one a die, whichever is more: past the third die,
+        // every new one brings another.
+        if (creature.HasFeat(Feats.FeatEffect.Toughness) && creature.HitPoints.HitDice > 3)
+        {
+            creature.HitPoints.Base += 1;
+        }
+
         // Raised rather than set: a wizard who levels mid-day gets the new slots and keeps the
         // ones they spent this morning spent.
         var casting = creature.Abilities[creature.Spells.CastingAbility].Modifier;
@@ -146,6 +153,10 @@ public static class Levelling
         {
             creature.Spells.RaiseSlots(level, count);
         }
+
+        // Whatever the level brings that needs no choosing: a domain or school slot at a new
+        // spell level, a barbarian's damage reduction. The choices are the caller's.
+        ClassFeatures.Grow(creature);
 
         return true;
     }

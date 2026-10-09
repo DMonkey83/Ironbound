@@ -1,0 +1,10 @@
+// What to do with a turn spent moving: one swing, with the weapon's dice rolled twice.
+{
+  "kind": "feat",
+  "id": "vital-strike",
+  "name": "Vital Strike",
+  "combat": true,
+  "description": "A single attack rolls the weapon's damage dice twice. The extra dice are not multiplied on a critical.",
+  "effect": "VitalStrike",
+  "requires": { "baseAttack": 6 }
+}

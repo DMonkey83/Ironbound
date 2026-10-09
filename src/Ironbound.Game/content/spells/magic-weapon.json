@@ -1,0 +1,26 @@
+// The War domain's first. A +1 enhancement to attack and damage, which does not stack with a
+// weapon's own enhancement — the stacking rules see to that. Simplified in two ways: it lands on
+// the creature rather than on one weapon, so it improves whatever she swings; and it does not
+// make the weapon count as magic against damage reduction.
+{
+  "kind": "spell",
+  "id": "magic-weapon",
+  "name": "Magic Weapon",
+  "level": 1,
+  "school": "Transmutation",
+  "range": "touch",
+  "target": { "shape": "single" },
+  "affects": "Allies",
+  "does": [
+    {
+      "effect": {
+        "name": "Magic Weapon",
+        "minutesPerLevel": 1,
+        "grants": [
+          { "target": "attack", "value": 1, "type": "Enhancement" },
+          { "target": "damage", "value": 1, "type": "Enhancement" }
+        ]
+      }
+    }
+  ]
+}

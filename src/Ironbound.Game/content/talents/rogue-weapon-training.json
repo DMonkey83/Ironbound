@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "rogue-weapon-training",
+  "name": "Weapon Training",
+  "list": "rogue-talent",
+  "effect": "WeaponTraining",
+  "description": "Weapon Focus as a bonus feat, in the weapon she fights with."
+}

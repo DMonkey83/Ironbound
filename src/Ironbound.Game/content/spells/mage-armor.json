@@ -1,0 +1,23 @@
+// An armour bonus of four for an hour a level. An armour bonus, so it does nothing for somebody
+// already in better armour — and nothing against a touch attack, just as the real thing.
+{
+  "kind": "spell",
+  "id": "mage-armor",
+  "name": "Mage Armor",
+  "level": 1,
+  "school": "Conjuration",
+  "range": "touch",
+  "target": { "shape": "single" },
+  "affects": "Allies",
+  "does": [
+    {
+      "effect": {
+        "name": "Mage Armor",
+        "hoursPerLevel": 1,
+        "grants": [
+          { "target": "armourClass", "value": 4, "type": "Armor" }
+        ]
+      }
+    }
+  ]
+}

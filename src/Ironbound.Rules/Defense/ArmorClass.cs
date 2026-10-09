@@ -38,7 +38,25 @@ public sealed class ArmorClass(AbilityScore dexterity)
     /// held per source so that taking off a tower shield restores the breastplate's limit
     /// instead of removing the cap entirely.
     /// </summary>
-    public int? MaxDexterityBonus => _dexterityCaps.Count == 0 ? null : _dexterityCaps.Values.Min();
+    public int? MaxDexterityBonus =>
+        _dexterityCaps.Count == 0 ? null : _dexterityCaps.Values.Min() + Math.Max(0, CapRelief?.Invoke() ?? 0);
+
+    /// <summary>
+    /// How far the wearer's training lifts every cap: a fighter's armour training, one point a
+    /// step. Read live, so a level gained mid-day loosens the breastplate on the spot.
+    /// </summary>
+    public Func<int>? CapRelief { get; set; }
+
+    /// <summary>
+    /// Contributions that depend on what is being defended against rather than on the defender
+    /// alone: a shield focused on, a stance guarded against swords and not arrows.
+    /// </summary>
+    /// <remarks>
+    /// A function rather than modifiers in the stack because each one is a question about the
+    /// attack — is it a touch attack, is it a melee one — and a modifier cannot ask. Whoever owns
+    /// the armour class sets it; the rules that answer live with the class features.
+    /// </remarks>
+    public Func<DefenseOptions, IEnumerable<Modifier>>? Situational { get; set; }
 
     public void CapDexterity(string source, int maximum)
     {
@@ -60,7 +78,8 @@ public sealed class ArmorClass(AbilityScore dexterity)
 
     public int Value(DefenseOptions options = DefenseOptions.None) =>
         BaseValue + SizeModifier + DexterityContribution(options)
-        + Modifiers.TotalWhere(m => Applies(m, options));
+        + Modifiers.TotalWhere(m => Applies(m, options))
+        + (Situational?.Invoke(options).Sum(m => m.Value) ?? 0);
 
     /// <summary>
     /// The full sum with the base and Dexterity written in as entries, so the log line
@@ -92,6 +111,12 @@ public sealed class ArmorClass(AbilityScore dexterity)
             }
         }
 
+        // Untyped, so they always add, exactly as Value counts them.
+        foreach (var modifier in Situational?.Invoke(options) ?? [])
+        {
+            stack.Add(modifier with { Type = BonusType.Untyped });
+        }
+
         return stack.Explain();
     }
 
@@ -115,8 +140,12 @@ public sealed class ArmorClass(AbilityScore dexterity)
 
     private static bool Applies(Modifier modifier, DefenseOptions options)
     {
+        // An enhancement bonus to armour class is only ever an enhancement of armour, a shield or
+        // a hide — Magic Vestment, an amulet of natural armour — so a touch attack ignores it
+        // along with the thing it enhances.
         if ((options & DefenseOptions.TouchAttack) != 0
-            && modifier.Type is BonusType.Armor or BonusType.Shield or BonusType.NaturalArmor)
+            && modifier.Type is BonusType.Armor or BonusType.Shield or BonusType.NaturalArmor
+                or BonusType.Enhancement)
         {
             return false;
         }

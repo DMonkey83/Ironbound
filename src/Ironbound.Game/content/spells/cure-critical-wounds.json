@@ -1,0 +1,14 @@
+{
+  "kind": "spell",
+  "id": "cure-critical-wounds",
+  "name": "Cure Critical Wounds",
+  "level": 4,
+  "school": "Conjuration",
+  "range": "touch",
+  "target": { "shape": "single" },
+  "affects": "Allies",
+  "descriptors": ["cure"],
+  "does": [
+    { "heal": { "fixed": "4d8", "plusPerLevel": 1, "plusMaximum": 20 } }
+  ]
+}

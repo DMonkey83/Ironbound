@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "slow-reactions",
+  "name": "Slow Reactions",
+  "list": "rogue-talent",
+  "effect": "SlowReactions",
+  "description": "Whoever she sneak attacks cannot make attacks of opportunity for a round."
+}

@@ -18,8 +18,17 @@
 
   "speed": 30,
   // A fighter's feats: quick on her feet, punishes anyone who walks past her, and knows
-  // how to put somebody on the floor without opening her guard.
-  "feats": ["dodge", "combat-reflexes", "improved-trip", "weapon-specialization", "combat-expertise"],
+  // how to put somebody on the floor without opening her guard. A human fighter 6 has eight —
+  // three for her levels, one for being human, four fighter bonus feats — and the last two
+  // here filled the gap with the combat feats the longsword-and-board fighter wants. That is
+  // seven: one bonus feat is still unspent, and left for whoever plays her to choose.
+  "feats": [
+    "dodge", "combat-reflexes", "improved-trip", "weapon-specialization", "combat-expertise",
+    "weapon-focus:longsword", "shield-focus"
+  ],
+
+  // Weapon training at fifth level, in the group her longsword is in.
+  "weaponTraining": ["heavy-blades"],
   // Worn and held, rather than a bare "+6 armour" that says nothing about why.
   "items": ["chain-shirt", "heavy-shield", "longsword"]
 }

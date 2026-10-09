@@ -1,0 +1,9 @@
+{
+  "kind": "talent",
+  "id": "opportunist",
+  "name": "Opportunist",
+  "list": "rogue-talent",
+  "effect": "Opportunist",
+  "advanced": true,
+  "description": "Once a round, an attack of opportunity against a foe an ally has just struck in melee."
+}

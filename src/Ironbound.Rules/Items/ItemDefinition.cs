@@ -32,6 +32,23 @@ public static class EquipmentSlots
     };
 }
 
+/// <summary>How much armour something is, which decides what it costs the wearer.</summary>
+public enum ArmourCategory
+{
+    /// <summary>Not armour at all: a sword, a ring, a cloak.</summary>
+    None,
+
+    Light,
+
+    /// <summary>Slows the wearer, unless a fighter has trained in it.</summary>
+    Medium,
+
+    Heavy,
+
+    /// <summary>Carried on the arm. Has a check penalty and no effect on speed.</summary>
+    Shield,
+}
+
 /// <summary>
 /// A thing that can be owned, worn or wielded.
 /// </summary>
@@ -79,6 +96,24 @@ public sealed record ItemDefinition
     public DamageBypass Qualities { get; init; }
 
     public bool IsWeapon => Weapon is not null;
+
+    /// <summary>Light, medium or heavy armour, a shield, or nothing of the sort.</summary>
+    public ArmourCategory Armour { get; init; } = ArmourCategory.None;
+
+    /// <summary>
+    /// The most Dexterity bonus that still reaches armour class through it, or null when it
+    /// does not care. A breastplate's three is why the nimble do not wear one.
+    /// </summary>
+    public int? MaxDexterity { get; init; }
+
+    /// <summary>
+    /// What it costs on Strength- and Dexterity-based skills while worn: zero or negative.
+    /// Climbing in scale mail is hard, and this is the number that says how hard.
+    /// </summary>
+    public int CheckPenalty { get; init; }
+
+    /// <summary>Body armour, as opposed to a shield or anything else.</summary>
+    public bool IsBodyArmour => Armour is ArmourCategory.Light or ArmourCategory.Medium or ArmourCategory.Heavy;
 
     /// <summary>
     /// Everything this item lets an attack slip past: what it is made of, plus magic if it is

@@ -3,3 +3,6 @@ obj/
 .godot/
 *.user
 
+
+# Rules reference pasted from the Archives of Nethys (Paizo content); local only, not for the public repo.
+reference/

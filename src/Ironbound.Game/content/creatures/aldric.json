@@ -19,6 +19,9 @@
   "feats": ["power-attack", "combat-reflexes", "dodge"],
 
   // No shield: the greatsword wants both hands. The merchant's own blade is the upgrade waiting
-  // in the storeroom.
+  // in the storeroom. Scale mail is medium armour, so until a fighter's armour training at third
+  // level it slows him to twenty feet; that is the price of the four points.
+  // Weapon training arrives at fifth level; left to choose then, when heavy blades — the
+  // greatsword's group — is what the level offers him first.
   "items": ["scale-mail", "greatsword"]
 }

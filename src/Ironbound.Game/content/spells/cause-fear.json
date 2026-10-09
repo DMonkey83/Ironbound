@@ -9,6 +9,9 @@
   "range": "close",
   "target": { "shape": "single" },
   "affects": "Enemies",
+
+  // What a fighter's bravery is measured against.
+  "descriptors": ["fear", "mind-affecting"],
   "save": "Will",
   "onSave": "Negates",
   "does": [

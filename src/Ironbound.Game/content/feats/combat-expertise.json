@@ -2,6 +2,7 @@
   "kind": "feat",
   "id": "combat-expertise",
   "name": "Combat Expertise",
+  "combat": true,
   "description": "Trade accuracy for armour class. The trade steepens with skill.",
   "effect": "CombatExpertise",
   "requires": { "int": 13 }

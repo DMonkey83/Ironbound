@@ -1,4 +1,9 @@
 {
   "kind": "weapon", "id": "bite", "name": "bite",
-  "damage": "1d8", "damageType": "Piercing", "threatsOn": 20, "multiplier": 2
+  "damage": "1d8", "damageType": "Piercing", "threatsOn": 20, "multiplier": 2,
+
+  // Fighter weapon groups, for weapon training.
+  "groups": ["natural"],
+  // Light or natural: Weapon Finesse can aim it with Dexterity.
+  "finesse": true
 }

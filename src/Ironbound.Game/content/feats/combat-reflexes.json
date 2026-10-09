@@ -4,6 +4,7 @@
   "kind": "feat",
   "id": "combat-reflexes",
   "name": "Combat Reflexes",
+  "combat": true,
   "description": "Additional attacks of opportunity equal to your Dexterity bonus.",
   "effect": "CombatReflexes",
   "requires": { "dex": 13 }

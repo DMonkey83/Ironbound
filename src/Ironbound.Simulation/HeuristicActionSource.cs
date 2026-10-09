@@ -1,3 +1,4 @@
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Creatures;
@@ -72,6 +73,13 @@ public sealed class HeuristicActionSource : IActionSource
             return null;
         }
 
+        // Rage first: it is free, it is only worth having before the swing, and the round it
+        // starts in is already paid for whether she swings or not.
+        if (playsWell && ShouldRage(turn, actor, enemies) && turn.CanTake(new RageAction()))
+        {
+            return new RageAction();
+        }
+
         // On the floor. Getting up costs the move action and a free swing from anyone standing
         // over you; staying down costs -4 to hit and -4 to armour class against all of them,
         // every round. Standing is almost always the cheaper of the two.
@@ -80,11 +88,33 @@ public sealed class HeuristicActionSource : IActionSource
             return new StandUpAction();
         }
 
+        // A channel that catches two or more hurt friends beats anything else a cleric can do
+        // with the turn — and it picks the dying up off the floor along the way.
+        if (playsWell && turn.Budget.HasStandard && Channel(turn, actor) is { } channel)
+        {
+            return channel;
+        }
+
         // A friend on the floor is worth more than a swing. They are losing a point a round and
         // will be dead in a few of them; the enemy will still be there afterwards.
         if (playsWell && turn.Budget.HasStandard && Bleedingout(turn, actor) is { } patient)
         {
+            // Rebuke death closes the wound as well as stopping the bleeding, so it comes first.
+            if (Touch(turn, actor, PowerRequirement.TargetDying, patient) is { } rebuke)
+            {
+                return rebuke;
+            }
+
             return new StabiliseAction(patient);
+        }
+
+        // Badly hurt in the middle of a rage: renewed vigor is the one heal she has.
+        if (playsWell && turn.Budget.HasStandard && actor.IsRaging
+            && actor.HitPoints.Current * 2 <= actor.HitPoints.Maximum
+            && OwnPower(turn, actor, power => power.Requires == PowerRequirement.Raging
+                && power.Effect.Does.OfType<Restore>().Any()) is { } vigour)
+        {
+            return vigour;
         }
 
         if (playsWell && IsBadlyHurt(actor) && turn.Budget.HasStandard)
@@ -99,6 +129,18 @@ public sealed class HeuristicActionSource : IActionSource
         if (playsWell && turn.Budget.HasStandard && ChooseSpell(turn, actor, target) is { } cast)
         {
             return cast;
+        }
+
+        // Out of slots, the bonded object is one more spell; then the school's own missile.
+        if (playsWell && turn.Budget.HasStandard && ChoosePower(turn, actor, target) is { } power)
+        {
+            return power;
+        }
+
+        // A cleric with nobody to hit this turn can at least make somebody else hit harder.
+        if (playsWell && turn.Budget.HasStandard && Encourage(turn, actor) is { } encourage)
+        {
+            return encourage;
         }
 
         // Having just thrown a spell, a caster does not then stroll into the front line.
@@ -187,14 +229,29 @@ public sealed class HeuristicActionSource : IActionSource
             && turn.Budget.HasStandard
             && !target.IsProne
             && target.AttacksPerFullAttack > 1
-            && Maneuvers.Bonus(actor, ManeuverKind.Trip).Total + 11 >= Maneuvers.Defense(target)
+            && Maneuvers.Bonus(actor, ManeuverKind.Trip).Total + 11 + Surge(actor) >= Maneuvers.Defense(target)
             && turn.CanTake(new TripAction(target)))
         {
+            // A strength surge is worth its once-a-rage on a check the barbarian means to make.
+            if (Surge(actor) > 0)
+            {
+                actor.Stances.Adopt(Stance.StrengthSurge);
+            }
+
             return new TripAction(target);
         }
 
         // A wizard out of spells has nothing useful left, and that is a legitimate answer.
-        return InClose(actor) is { } weapon ? Swing(turn, weapon, target) : null;
+        var swing = InClose(actor) is { } weapon ? Swing(turn, weapon, target) : null;
+
+        // Declared only when a swing is actually coming: a declaration left standing at the end
+        // of the turn would be spent on whatever attack of opportunity came along first.
+        if (playsWell && swing is not null)
+        {
+            Declare(actor, target, turn.Encounter.Battlefield);
+        }
+
+        return swing;
     }
 
     /// <summary>
@@ -278,6 +335,214 @@ public sealed class HeuristicActionSource : IActionSource
         }
     }
 
+    /// <summary>
+    /// Whether to fly into a rage now: an enemy in reach, or close enough to charge — twice her
+    /// speed — so the rounds are spent on fighting rather than on walking.
+    /// </summary>
+    private static bool ShouldRage(Turn turn, Creature actor, IReadOnlyList<Creature> enemies)
+    {
+        if (actor.IsRaging || !Rage.CanStart(actor))
+        {
+            return false;
+        }
+
+        if (turn.Encounter.Battlefield is not { } field)
+        {
+            return true;
+        }
+
+        return enemies.Any(enemy =>
+            field.IsWithinReach(actor, enemy)
+            || field.DistanceInFeet(actor, enemy) is { } feet && feet <= actor.CurrentSpeed * 2);
+    }
+
+    /// <summary>What a strength surge would add to the next manoeuvre, if one can be declared.</summary>
+    private static int Surge(Creature actor) =>
+        actor.Stances.IsActive(Stance.StrengthSurge) || actor.Stances.CanAdopt(Stance.StrengthSurge)
+            ? actor.Stances.RageBonus(Stance.StrengthSurge)
+            : 0;
+
+    /// <summary>
+    /// The once-a-rage declarations, made before a swing that is worth them: powerful blow on a
+    /// blow likely to land, surprise accuracy on one that needs the help to.
+    /// </summary>
+    private static void Declare(Creature actor, Creature target, Battlefield? field)
+    {
+        if (!actor.IsRaging || InClose(actor) is not { } weapon)
+        {
+            return;
+        }
+
+        var bare = Strike.AttackBonus(actor, weapon, target, field).Total;
+        var armour = target.ArmorClass.Total;
+
+        // Better than even after everything: the extra damage will probably land.
+        if (bare + 11 >= armour && actor.Stances.CanAdopt(Stance.PowerfulBlow))
+        {
+            actor.Stances.Adopt(Stance.PowerfulBlow);
+        }
+
+        // Worse than three in four: the accuracy is worth more here than on an easy swing later.
+        if (!actor.Stances.IsActive(Stance.SurpriseAccuracy)
+            && bare + 6 < armour
+            && actor.Stances.CanAdopt(Stance.SurpriseAccuracy))
+        {
+            actor.Stances.Adopt(Stance.SurpriseAccuracy);
+        }
+    }
+
+    /// <summary>
+    /// A channel, when it would land on at least two hurt friends and do them more good than it
+    /// does the enemies standing among them — it heals everyone in the burst.
+    /// </summary>
+    private static GameAction? Channel(Turn turn, Creature actor)
+    {
+        if (turn.Encounter.Battlefield is not { } field
+            || field.SquareOf(actor) is not { } middle
+            || actor.Powers.FirstOrDefault(power => power.Id == ClassPowers.ChannelPool) is not { } channel
+            || !channel.Effect.Does.OfType<Restore>().Any())
+        {
+            return null;
+        }
+
+        var caught = field.CreaturesWithin(middle, ClassPowers.ChannelRadius)
+            .Where(other => other.IsAlive && other.HitPoints.Damage > 0)
+            .ToList();
+
+        var friends = caught.Where(other => !actor.IsEnemyOf(other)).ToList();
+        var foes = caught.Where(actor.IsEnemyOf).ToList();
+
+        if (friends.Count < 2 || friends.Sum(Wound) <= foes.Sum(Wound))
+        {
+            return null;
+        }
+
+        var action = UsePowerAction.Self(channel);
+        return turn.CanTake(action) ? action : null;
+    }
+
+    private static int Wound(Creature creature) => Math.Max(0, creature.HitPoints.Maximum - creature.HitPoints.Current);
+
+    /// <summary>A touch power of this kind on this ally, if the actor has one and can use it.</summary>
+    private static GameAction? Touch(Turn turn, Creature actor, PowerRequirement requires, Creature ally)
+    {
+        foreach (var power in actor.Powers.Where(power => power.Requires == requires && power.Use == PowerUse.Effect))
+        {
+            var action = UsePowerAction.At(power, ally);
+            if (turn.CanTake(action))
+            {
+                return action;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>One of the actor's own powers on herself, matching a test, if usable.</summary>
+    private static GameAction? OwnPower(Turn turn, Creature actor, Func<Power, bool> wanted)
+    {
+        foreach (var power in actor.Powers.Where(wanted))
+        {
+            var action = UsePowerAction.Self(power);
+            if (turn.CanTake(action))
+            {
+                return action;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A power to throw at the enemy once the slots are gone: a spell from the bonded object
+    /// first, chosen the way a prepared one would be, then a school's missile or dart.
+    /// </summary>
+    private GameAction? ChoosePower(Turn turn, Creature actor, Creature target)
+    {
+        var field = turn.Encounter.Battlefield;
+
+        foreach (var power in actor.Powers.Where(power => power.Use == PowerUse.Spell).OrderByDescending(power => power.Effect.Level))
+        {
+            if (actor.UsesLeft(power) <= 0)
+            {
+                continue;
+            }
+
+            var spell = power.Effect;
+            GameAction? action = null;
+
+            if (spell.Does.OfType<DealDamage>().Any())
+            {
+                if (spell.Target is BurstTarget burst)
+                {
+                    if (field is not null && BestCentre(field, actor, spell, burst) is { } centre)
+                    {
+                        action = UsePowerAction.At(power, centre);
+                    }
+                }
+                else if (spell.Affects == SpellAffects.Enemies)
+                {
+                    action = UsePowerAction.At(power, target);
+                }
+            }
+
+            if (action is not null && turn.CanTake(action))
+            {
+                return action;
+            }
+        }
+
+        foreach (var power in actor.Powers.Where(power =>
+            power.Use == PowerUse.Effect
+            && power.Effect.Affects == SpellAffects.Enemies
+            && power.Effect.Does.OfType<DealDamage>().Any()))
+        {
+            var action = UsePowerAction.At(power, target);
+            if (turn.CanTake(action))
+            {
+                return action;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Battle rage, or anything like it, on an ally who is in the thick of it — but only when
+    /// the actor has nobody within reach to swing at herself, so the turn is not given up.
+    /// </summary>
+    private GameAction? Encourage(Turn turn, Creature actor)
+    {
+        if (turn.Encounter.Battlefield is not { } field
+            || _battle.EnemiesOf(actor).Any(enemy => field.IsWithinReach(actor, enemy)))
+        {
+            return null;
+        }
+
+        foreach (var power in actor.Powers.Where(power =>
+            power.Use == PowerUse.Effect
+            && power.Effect.Affects == SpellAffects.Allies
+            && power.Effect.Does.OfType<Bestow>().Any()))
+        {
+            var name = power.Effect.Does.OfType<Bestow>().First().Name;
+
+            foreach (var ally in _battle.Party.Concat(_battle.Foes).Where(other =>
+                (ReferenceEquals(other, actor) || other.IsAllyOf(actor))
+                && other.IsConscious
+                && !other.Effects.Has(name)
+                && _battle.EnemiesOf(actor).Any(enemy => field.IsWithinReach(other, enemy))))
+            {
+                var action = UsePowerAction.At(power, ally);
+                if (turn.CanTake(action))
+                {
+                    return action;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>The nearest ally bleeding out within arm's reach, if there is one.</summary>
     private static Creature? Bleedingout(Turn turn, Creature actor)
     {
@@ -319,6 +584,14 @@ public sealed class HeuristicActionSource : IActionSource
             var close = enemies.Where(enemy => field.IsWithinReach(actor, enemy)).ToList();
             if (close.Count > 0)
             {
+                // A rogue goes for whoever her sneak attack works on: flanked, or caught flat-footed.
+                if (SneakAttack.Dice(actor) > 0
+                    && close.Where(enemy => Strike.FlankingPartner(actor, enemy, field) is not null
+                        || turn.Encounter.IsFlatFootedTo(enemy, actor)).ToList() is { Count: > 0 } exposed)
+                {
+                    return exposed.MinBy(enemy => enemy.HitPoints.Current)!;
+                }
+
                 return close.MinBy(enemy => enemy.HitPoints.Current)!;
             }
         }
@@ -339,8 +612,16 @@ public sealed class HeuristicActionSource : IActionSource
     {
         var field = turn.Encounter.Battlefield;
 
-        foreach (var spell in actor.Spells.Prepared.OrderByDescending(spell => spell.Level))
+        foreach (var prepared in actor.Spells.Prepared.OrderByDescending(spell => spell.Level))
         {
+            // A damaging spell whose own slots are gone can still go out empowered from a higher
+            // one, which is the best use of a slot nothing else of its level wants.
+            var spell = !actor.Spells.CanCast(prepared)
+                && prepared.Does.OfType<DealDamage>().Any()
+                && actor.Spells.CanCast(prepared.Empower())
+                    ? prepared.Empower()
+                    : prepared;
+
             if (!actor.Spells.CanCast(spell))
             {
                 continue;

@@ -43,9 +43,14 @@ public sealed class Combatant
     /// Being dazed, stunned or asleep takes the opportunities away with the turn. A swing at
     /// somebody walking past is still an action, and a creature that can take none of those
     /// cannot take that one either — least of all one that is snoring.
+    /// <para>
+    /// So does a rogue's slow reactions: somebody she has sneak attacked spends the next round
+    /// too off balance to punish anybody.
+    /// </para>
     /// </remarks>
     public bool CanTakeOpportunity =>
-        IsActive && Creature.CanAct && OpportunitiesUsed < Creature.AttacksOfOpportunityPerRound;
+        IsActive && Creature.CanAct && OpportunitiesUsed < Creature.AttacksOfOpportunityPerRound
+        && !Classes.SneakAttack.IsSlowed(Creature);
 
     /// <summary>Set by ordinary movement. Bars a five-foot step for the rest of the turn.</summary>
     /// <summary>
@@ -67,6 +72,12 @@ public sealed class Combatant
     /// encounter has been called since long before it could do it.
     /// </remarks>
     public bool IsUnaware { get; internal set; }
+
+    /// <summary>Whether they started the fight unaware, which is what makes round one a surprise round.</summary>
+    public bool WasSurprised { get; internal set; }
+
+    /// <summary>Whether a rogue's opportunist talent has been used since her last turn.</summary>
+    public bool HasUsedOpportunist { get; internal set; }
 
     /// <summary>Caught with their guard down: before their first turn, or surprised entirely.</summary>
     public bool IsFlatFooted => !HasActed || IsUnaware;
@@ -102,6 +113,7 @@ public sealed class Combatant
         }
 
         OpportunitiesUsed = 0;
+        HasUsedOpportunist = false;
         HasMoved = false;
         HasTakenFiveFootStep = false;
     }

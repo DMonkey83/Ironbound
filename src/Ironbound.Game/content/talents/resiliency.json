@@ -1,0 +1,9 @@
+// The book's minute is not kept: these last until they are spent.
+{
+  "kind": "talent",
+  "id": "resiliency",
+  "name": "Resiliency",
+  "list": "rogue-talent",
+  "effect": "Resiliency",
+  "description": "Once a day, as she drops below 0 hit points, temporary hit points equal to her rogue level."
+}

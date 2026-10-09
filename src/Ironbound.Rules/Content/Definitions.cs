@@ -49,10 +49,16 @@ public sealed record WeaponDefinition
 
     public int MaximumIncrements { get; init; } = WeaponAttack.ProjectileIncrements;
 
+    /// <summary>The fighter weapon groups it belongs to, by id.</summary>
+    public IReadOnlyList<string> Groups { get; init; } = [];
+
+    /// <summary>Light, natural, or otherwise a weapon Weapon Finesse can aim with Dexterity.</summary>
+    public bool Finesse { get; init; }
+
     public WeaponAttack Build(string? name = null)
     {
         name ??= Name;
-        var weapon = RangeIncrement > 0
+        var built = RangeIncrement > 0
             ? WeaponAttack.Ranged(
                 name,
                 Damage,
@@ -71,6 +77,21 @@ public sealed record WeaponDefinition
                 Scale,
                 AttackAbility,
                 DamageAbility);
+
+        // Init-only, and the factory methods know nothing of content ids, so the identity is
+        // stamped on a copy of the shell that shares the very same attack and damage objects.
+        var weapon = new WeaponAttack(built.Name, built.Attack, built.Damage)
+        {
+            Kind = Id,
+            Groups = Groups,
+            Finesse = Finesse,
+            Qualities = built.Qualities,
+            AttackAbility = built.AttackAbility,
+            DamageAbility = built.DamageAbility,
+            DamageScale = built.DamageScale,
+            RangeIncrement = built.RangeIncrement,
+            MaximumIncrements = built.MaximumIncrements,
+        };
 
         if (Enhancement != 0)
         {
@@ -165,6 +186,36 @@ public sealed record CreatureDefinition
 
     public IReadOnlyList<string> Spells { get; init; } = [];
 
+    /// <summary>What a wizard has written down, by id. Empty means the same as what she prepares.</summary>
+    public IReadOnlyList<string> Spellbook { get; init; } = [];
+
+    /// <summary>A fighter's weapon groups, by id, in the order picked: the first is trained deepest.</summary>
+    public IReadOnlyList<string> WeaponTraining { get; init; } = [];
+
+    /// <summary>Rogue talents and rage powers, by id, in the order taken.</summary>
+    public IReadOnlyList<string> Talents { get; init; } = [];
+
+    /// <summary>A cleric's god by id, "none" for a cleric of no god, or null for anybody else.</summary>
+    public string? Deity { get; init; }
+
+    /// <summary>A cleric's two domains, by id.</summary>
+    public IReadOnlyList<string> Domains { get; init; } = [];
+
+    /// <summary>How a cleric of a neutral god channels. A good or evil god decides for her.</summary>
+    public ChannelKind? Channel { get; init; }
+
+    /// <summary>A wizard's arcane school, by id.</summary>
+    public string? School { get; init; }
+
+    /// <summary>The two schools a specialist gave up.</summary>
+    public IReadOnlyList<SpellSchool> Opposition { get; init; } = [];
+
+    /// <summary>What a wizard's arcane bond is to: "object", the only one there is.</summary>
+    public string? ArcaneBond { get; init; }
+
+    /// <summary>The combat feat a War cleric's Weapon Master lends her, by id.</summary>
+    public string? WeaponMaster { get; init; }
+
     public Creature Build(ContentLibrary library, RuleOptions? rules = null, string? name = null)
     {
         ArgumentNullException.ThrowIfNull(library);
@@ -225,10 +276,9 @@ public sealed record CreatureDefinition
         // in place by the time one is handed over.
         foreach (var feat in Feats)
         {
-            if (library.GetFeat(feat) is { } taken)
+            if (library.GetFeatWithChoice(feat) is { } taken)
             {
-                creature.Feats.Add(taken);
-                taken.ApplyTo(creature);
+                ClassFeatures.Take(creature, taken);
             }
         }
 
@@ -293,7 +343,56 @@ public sealed record CreatureDefinition
             }
         }
 
+        ChooseFor(creature, library);
+        ClassFeatures.Establish(creature, library);
+
         return creature;
+    }
+
+    /// <summary>
+    /// Hands the creature what its file chose for its class features. Anything the library has
+    /// never heard of is already in its problems and is left out here.
+    /// </summary>
+    /// <remarks>
+    /// Also how a save from before class features is brought up to date: its creatures are
+    /// given whatever their files choose now.
+    /// </remarks>
+    internal void ChooseFor(Creature creature, ContentLibrary library)
+    {
+        var choices = creature.Choices;
+
+        foreach (var group in WeaponTraining)
+        {
+            choices.WeaponGroups.Add(group);
+        }
+
+        foreach (var talent in Talents.Select(library.GetTalent).OfType<TalentDefinition>())
+        {
+            choices.Talents.Add(talent);
+        }
+
+        choices.Deity = Deity is { } god ? library.GetDeity(god) : null;
+
+        foreach (var domain in Domains.Select(library.GetDomain).OfType<DomainDefinition>())
+        {
+            choices.Domains.Add(domain);
+        }
+
+        choices.Channel = Channel;
+        choices.School = School is { } school ? library.GetSchool(school) : null;
+
+        foreach (var opposed in Opposition)
+        {
+            choices.Opposition.Add(opposed);
+        }
+
+        choices.BondedObject = ArcaneBond == "object";
+        choices.WeaponMasterFeat = WeaponMaster is { } feat ? library.GetFeat(feat) : null;
+
+        foreach (var spell in Spellbook.Select(library.GetSpell).OfType<Spell>())
+        {
+            creature.Spells.Inscribe(spell);
+        }
     }
 }
 

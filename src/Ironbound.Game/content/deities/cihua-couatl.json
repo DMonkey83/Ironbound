@@ -1,0 +1,15 @@
+// Favoured weapon by id: the game has one.
+{
+  "kind": "deity",
+  "id": "cihua-couatl",
+  "name": "Cihua Couatl",
+  "alignment": "NG",
+  "domains": [
+    "good",
+    "healing",
+    "protection",
+    "strength",
+    "war"
+  ],
+  "favoredWeapon": "shortspear"
+}

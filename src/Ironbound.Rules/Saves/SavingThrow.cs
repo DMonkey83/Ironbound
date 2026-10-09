@@ -49,7 +49,9 @@ public sealed class SavingThrow
     public int Total => _base + Ability.Modifier + Modifiers.Total;
 
     /// <summary>The whole number accounted for, base and ability included.</summary>
-    public ModifierBreakdown Explain()
+    /// <param name="situational">Bonuses that hold against this one thing only — bravery
+    /// against fear, superstition against magic — and so live with the roll, not the stack.</param>
+    public ModifierBreakdown Explain(IEnumerable<Modifier>? situational = null)
     {
         var stack = new ModifierStack();
         if (_base != 0)
@@ -67,16 +69,25 @@ public sealed class SavingThrow
             stack.Add(modifier);
         }
 
+        foreach (var modifier in situational ?? [])
+        {
+            stack.Add(modifier);
+        }
+
         return stack.Explain();
     }
 
     /// <param name="difficultyClass">Set by whatever is being resisted. Meeting it is enough.</param>
-    public SavingThrowResult Roll(int difficultyClass, IRandomSource random, RuleOptions? rules = null)
+    public SavingThrowResult Roll(
+        int difficultyClass,
+        IRandomSource random,
+        RuleOptions? rules = null,
+        IEnumerable<Modifier>? situational = null)
     {
         ArgumentNullException.ThrowIfNull(random);
         rules ??= RuleOptions.Pathfinder;
 
-        var bonus = Explain();
+        var bonus = Explain(situational);
         var natural = random.NextDie(DieSides);
         var total = natural + bonus.Total;
 

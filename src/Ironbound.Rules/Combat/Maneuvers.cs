@@ -83,6 +83,24 @@ public static class Maneuvers
             innate.Add(size, BonusType.Size, "Size");
         }
 
+        // A trip is made with the weapon in hand, so a fighter trained in its group is better at
+        // it. A bull rush is made with the whole body and gets nothing from the blade.
+        if (kind == ManeuverKind.Trip
+            && creature.MeleeAttack is { } weapon
+            && Classes.Martial.WeaponTraining(creature, weapon) is > 0 and var trained)
+        {
+            innate.Add(trained, BonusType.Untyped, "Weapon training");
+        }
+
+        // Declared before the check: the barbarian's whole level on this one.
+        if (kind is not null && creature.Stances.IsActive(Stance.StrengthSurge))
+        {
+            innate.Add(
+                creature.Stances.RageBonus(Stance.StrengthSurge),
+                BonusType.Untyped,
+                Stances.Name(Stance.StrengthSurge));
+        }
+
         return ModifierStack.Combine(innate, creature.AttackModifiers);
     }
 
@@ -154,6 +172,9 @@ public static class Maneuvers
         var bonus = Bonus(attacker, kind);
         var defense = Defense(target);
         var natural = random.NextDie(Attack.DieSides);
+
+        // Whatever was declared for this check is used by it, success or not.
+        attacker.Stances.Spend(Stance.StrengthSurge);
 
         return new ManeuverResult
         {

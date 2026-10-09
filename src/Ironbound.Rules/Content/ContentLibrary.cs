@@ -41,6 +41,10 @@ public sealed class ContentLibrary
     private readonly Dictionary<string, CampaignDefinition> _campaigns = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TerrainDefinition> _terrains = new(StringComparer.Ordinal);
     private readonly Dictionary<string, LevelDefinition> _levels = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TalentDefinition> _talents = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DomainDefinition> _domains = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, SchoolDefinition> _schools = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DeityDefinition> _deities = new(StringComparer.Ordinal);
     private readonly List<ContentProblem> _problems = [];
 
     /// <summary>
@@ -94,6 +98,22 @@ public sealed class ContentLibrary
 
     public IReadOnlyCollection<string> LevelIds => _levels.Keys;
 
+    public IReadOnlyCollection<string> TalentIds => _talents.Keys;
+
+    public IReadOnlyCollection<string> DomainIds => _domains.Keys;
+
+    public IReadOnlyCollection<string> SchoolIds => _schools.Keys;
+
+    public IReadOnlyCollection<string> DeityIds => _deities.Keys;
+
+    /// <summary>Every rogue talent and rage power, ordered by id so a list never reshuffles.</summary>
+    public IReadOnlyList<TalentDefinition> Talents =>
+        [.. _talents.Values.OrderBy(talent => talent.Id, StringComparer.Ordinal)];
+
+    /// <summary>Every god, ordered by name.</summary>
+    public IReadOnlyList<DeityDefinition> Deities =>
+        [.. _deities.Values.OrderBy(deity => deity.Name, StringComparer.Ordinal)];
+
     /// <summary>Every level, ordered by id so the list is the same every launch.</summary>
     public IReadOnlyList<LevelDefinition> Levels =>
         [.. _levels.Values.OrderBy(level => level.Id, StringComparer.Ordinal)];
@@ -129,6 +149,33 @@ public sealed class ContentLibrary
     public FeatDefinition? GetFeat(string id) => _feats.GetValueOrDefault(id);
 
     public ItemDefinition? GetItem(string id) => _items.GetValueOrDefault(id);
+
+    public TalentDefinition? GetTalent(string id) => _talents.GetValueOrDefault(id);
+
+    public DomainDefinition? GetDomain(string id) => _domains.GetValueOrDefault(id);
+
+    public SchoolDefinition? GetSchool(string id) => _schools.GetValueOrDefault(id);
+
+    public DeityDefinition? GetDeity(string id) => _deities.GetValueOrDefault(id);
+
+    public WeaponDefinition? GetWeapon(string id) => _weapons.GetValueOrDefault(id);
+
+    /// <summary>
+    /// A feat as a creature file or a save names it: "weapon-focus", or "weapon-focus:longsword"
+    /// with the choice made. Null when the feat does not exist.
+    /// </summary>
+    public FeatDefinition? GetFeatWithChoice(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        var split = key.IndexOf(':', StringComparison.Ordinal);
+        if (split < 0)
+        {
+            return GetFeat(key);
+        }
+
+        return GetFeat(key[..split]) is { } feat ? feat with { Choice = key[(split + 1)..] } : null;
+    }
 
     public WeaponAttack? BuildWeapon(string id, string? name = null) =>
         _weapons.GetValueOrDefault(id)?.Build(name);
@@ -213,6 +260,22 @@ public sealed class ContentLibrary
                     Keep(_levels, reader, ReadLevel(reader), level => level.Id, "level");
                     break;
 
+                case "talent":
+                    Keep(_talents, reader, ReadTalent(reader), talent => talent.Id, "talent");
+                    break;
+
+                case "domain":
+                    Keep(_domains, reader, ReadDomain(reader), domain => domain.Id, "domain");
+                    break;
+
+                case "school":
+                    Keep(_schools, reader, ReadSchool(reader), school => school.Id, "school");
+                    break;
+
+                case "deity":
+                    Keep(_deities, reader, ReadDeity(reader), deity => deity.Id, "deity");
+                    break;
+
                 case "":
                     break;
 
@@ -246,11 +309,12 @@ public sealed class ContentLibrary
                     $"creature '{creature.Id}'", "items", $"no item called '{item}'."));
             }
 
-            foreach (var feat in creature.Feats.Where(id => !_feats.ContainsKey(id)))
+            foreach (var feat in creature.Feats)
             {
-                _problems.Add(new ContentProblem(
-                    $"creature '{creature.Id}'", "feats", $"no feat called '{feat}'."));
+                ValidateFeatKey($"creature '{creature.Id}'", "feats", feat);
             }
+
+            ValidateChoices(creature);
 
             foreach (var spell in creature.Spells.Where(id => !_spells.ContainsKey(id)))
             {
@@ -268,6 +332,38 @@ public sealed class ContentLibrary
             {
                 _problems.Add(new ContentProblem(
                     $"feat '{feat.Id}'", "requires", $"no feat called '{wanted}'."));
+            }
+        }
+
+        foreach (var taken in _classes.Values)
+        {
+            ValidateClass(taken);
+        }
+
+        foreach (var talent in _talents.Values)
+        {
+            foreach (var wanted in talent.Requires.Where(id => !_talents.ContainsKey(id)))
+            {
+                _problems.Add(new ContentProblem(
+                    $"talent '{talent.Id}'", "requires", $"no talent called '{wanted}'."));
+            }
+        }
+
+        foreach (var domain in _domains.Values)
+        {
+            foreach (var spell in domain.Spells.Where(id => id.Length > 0 && !_spells.ContainsKey(id)))
+            {
+                _problems.Add(new ContentProblem(
+                    $"domain '{domain.Id}'", "spells", $"no spell called '{spell}'."));
+            }
+        }
+
+        foreach (var weapon in _weapons.Values)
+        {
+            foreach (var group in weapon.Groups.Where(group => !Martial.WeaponGroups.Contains(group)))
+            {
+                _problems.Add(new ContentProblem(
+                    $"weapon '{weapon.Id}'", "groups", $"'{group}' is not a weapon group."));
             }
         }
 
@@ -327,6 +423,163 @@ public sealed class ContentLibrary
         }
     }
 
+    /// <summary>A class's feature table: every row an id the code knows, with parameters it accepts.</summary>
+    private void ValidateClass(ClassDefinition taken)
+    {
+        var source = $"class '{taken.Id}'";
+
+        foreach (var row in taken.Features)
+        {
+            if (!FeatureIds.Known.TryGetValue(row.Id, out var accepts))
+            {
+                _problems.Add(new ContentProblem(source, "features", $"'{row.Id}' is not a class feature this game has."));
+                continue;
+            }
+
+            foreach (var (name, value) in row.Parameters)
+            {
+                if (!accepts.TryGetValue(name, out var allowed))
+                {
+                    _problems.Add(new ContentProblem(source, "features", $"'{row.Id}' takes no '{name}'."));
+                }
+                else if (allowed.Count > 0 && !allowed.Contains(value))
+                {
+                    _problems.Add(new ContentProblem(
+                        source, "features", $"'{row.Id}' {name} '{value}' is not one of {string.Join(", ", allowed)}."));
+                }
+            }
+
+            if (row.Level < 1)
+            {
+                _problems.Add(new ContentProblem(source, "features", $"'{row.Id}' is at level {row.Level}."));
+            }
+        }
+    }
+
+    /// <summary>"weapon-focus" or "weapon-focus:longsword": the feat exists, and so does what it was taken for.</summary>
+    private void ValidateFeatKey(string source, string field, string key)
+    {
+        var split = key.IndexOf(':', StringComparison.Ordinal);
+        var id = split < 0 ? key : key[..split];
+
+        if (!_feats.TryGetValue(id, out var feat))
+        {
+            _problems.Add(new ContentProblem(source, field, $"no feat called '{id}'."));
+            return;
+        }
+
+        if (split >= 0 && feat.Takes == FeatChoice.Weapon && !_weapons.ContainsKey(key[(split + 1)..]))
+        {
+            _problems.Add(new ContentProblem(source, field, $"no weapon called '{key[(split + 1)..]}' for {feat.Name}."));
+        }
+        else if (split >= 0 && feat.Takes == FeatChoice.None)
+        {
+            _problems.Add(new ContentProblem(source, field, $"{feat.Name} is not taken for anything in particular."));
+        }
+    }
+
+    /// <summary>
+    /// What a creature chose for its class features: everything named exists, a cleric's domains
+    /// are her god's, a specialist gives up two schools that are not her own.
+    /// </summary>
+    /// <remarks>
+    /// A deity's alignment domains — Good, Law and the rest — would also want the cleric's own
+    /// alignment to match. Creatures have no alignment yet, so that half is not checked.
+    /// </remarks>
+    private void ValidateChoices(CreatureDefinition creature)
+    {
+        var source = $"creature '{creature.Id}'";
+        void Problem(string field, string message) => _problems.Add(new ContentProblem(source, field, message));
+
+        foreach (var group in creature.WeaponTraining.Where(group => !Martial.WeaponGroups.Contains(group)))
+        {
+            Problem("weaponTraining", $"'{group}' is not a weapon group.");
+        }
+
+        foreach (var talent in creature.Talents.Where(id => !_talents.ContainsKey(id)))
+        {
+            Problem("talents", $"no talent called '{talent}'.");
+        }
+
+        DeityDefinition? deity = null;
+        if (creature.Deity is { } god && god != "none" && !_deities.TryGetValue(god, out deity))
+        {
+            Problem("deity", $"no deity called '{god}'.");
+        }
+
+        var cleric = creature.Classes.Any(level =>
+            _classes.TryGetValue(level.ClassId, out var taken)
+            && taken.Features.Any(row => row.Id == FeatureIds.Domains));
+
+        if (cleric && creature.Deity is null)
+        {
+            Problem("deity", "a cleric needs a god, or \"none\".");
+        }
+
+        if (creature.Domains.Count > 2)
+        {
+            Problem("domains", $"a cleric has two domains, not {creature.Domains.Count}.");
+        }
+
+        foreach (var domain in creature.Domains)
+        {
+            if (!_domains.ContainsKey(domain))
+            {
+                Problem("domains", $"no domain called '{domain}'.");
+            }
+            else if (deity is not null && !deity.Offers(domain))
+            {
+                Problem("domains", $"{deity.Name} does not grant the {domain} domain.");
+            }
+        }
+
+        if (creature.School is { } school)
+        {
+            if (!_schools.TryGetValue(school, out var found))
+            {
+                Problem("school", $"no arcane school called '{school}'.");
+            }
+            else if (found.IsUniversalist && creature.Opposition.Count > 0)
+            {
+                Problem("opposition", "a universalist gives up no schools.");
+            }
+            else if (!found.IsUniversalist && creature.Opposition.Count != 2)
+            {
+                Problem("opposition", $"a specialist gives up two schools, not {creature.Opposition.Count}.");
+            }
+            else if (found.School is { } own && creature.Opposition.Contains(own))
+            {
+                Problem("opposition", $"{found.Name} cannot be its own opposition school.");
+            }
+        }
+        else if (creature.Opposition.Count > 0)
+        {
+            Problem("opposition", "only a specialist with a school gives any up.");
+        }
+
+        foreach (var spell in creature.Spellbook.Where(id => !_spells.ContainsKey(id)))
+        {
+            Problem("spellbook", $"no spell called '{spell}'.");
+        }
+
+        if (creature.ArcaneBond is { } bond && bond != "object")
+        {
+            Problem("arcaneBond", $"'{bond}' is not a bond the game has; only 'object' is.");
+        }
+
+        if (creature.WeaponMaster is { } master)
+        {
+            if (!_feats.TryGetValue(master, out var feat))
+            {
+                Problem("weaponMaster", $"no feat called '{master}'.");
+            }
+            else if (!feat.Combat)
+            {
+                Problem("weaponMaster", $"{feat.Name} is not a combat feat.");
+            }
+        }
+    }
+
     private void Keep<T>(
         Dictionary<string, T> into,
         Reader reader,
@@ -378,13 +631,17 @@ public sealed class ContentLibrary
             {
                 does.Add(new Restore(ReadDice(part.Object("heal"))));
             }
+            else if (part.Has("temporary"))
+            {
+                does.Add(new Bolster(ReadDice(part.Object("temporary"))));
+            }
             else if (part.Has("effect"))
             {
                 does.Add(new Bestow(ReadEffect(part.Object("effect"))));
             }
             else
             {
-                part.Problem("does", "needs one of 'damage', 'heal' or 'effect'.");
+                part.Problem("does", "needs one of 'damage', 'heal', 'temporary' or 'effect'.");
             }
         }
 
@@ -401,9 +658,11 @@ public sealed class ContentLibrary
                 : target.StringOr("shape", "single") switch
                 {
                     "ray" => new RayTarget(),
-                    "self" => new SelfTarget(),
+                    "self" => new SelfTarget { RadiusFeet = target.Int("radius") },
+                    "point" => new PointTarget(),
                     _ => new SingleTarget(),
                 },
+            Descriptors = [.. reader.Array("descriptors").Select(e => e.GetString() ?? string.Empty)],
             Affects = reader.Enum("affects", SpellAffects.Enemies),
             Save = reader.Has("save") ? reader.Enum("save", Save.Reflex) : null,
             OnSave = reader.Enum("onSave", SaveOutcome.Negates),
@@ -428,13 +687,21 @@ public sealed class ContentLibrary
         return SpellRange.Close;
     }
 
-    private static SpellDice ReadDice(Reader reader) => reader.Has("fixed")
-        ? SpellDice.Fixed(reader.StringOr("fixed", "1d6"))
-        : SpellDice.PerLevel(
-            reader.Int("perLevel", 6),
-            reader.Int("maxDice", 10),
-            reader.Int("levelsPerDie", 1),
-            reader.Int("flatPerDie", 0));
+    private static SpellDice ReadDice(Reader reader)
+    {
+        var dice = reader.Has("fixed")
+            ? SpellDice.Fixed(reader.StringOr("fixed", "1d6"))
+            : SpellDice.PerLevel(
+                reader.Int("perLevel", 6),
+                reader.Int("maxDice", 10),
+                reader.Int("levelsPerDie", 1),
+                reader.Int("flatPerDie", 0));
+
+        // "plusPerLevel": the cure spells' +1 a caster level, to "plusMaximum".
+        return reader.Has("plusPerLevel")
+            ? dice.PlusPerLevel(reader.Int("plusPerLevel"), reader.Int("plusMaximum"))
+            : dice;
+    }
 
     private EffectDefinition ReadEffect(Reader reader)
     {
@@ -459,7 +726,10 @@ public sealed class ContentLibrary
             DurationTicks = reader.Int("rounds") * Duration.TicksPerRound
                 + (reader.Int("minutes") * Duration.TicksPerMinute),
             TicksPerLevel = reader.Int("roundsPerLevel") * Duration.TicksPerRound
-                + (reader.Int("minutesPerLevel") * Duration.TicksPerMinute),
+                + (reader.Int("minutesPerLevel") * Duration.TicksPerMinute)
+                + (reader.Int("hoursPerLevel") * Duration.TicksPerHour),
+            ScaleEvery = reader.Int("scaleEvery"),
+            ScaleMaximum = reader.Int("scaleMaximum"),
             PeriodTicks = reader.Int("periodRounds") * Duration.TicksPerRound,
             Grants = grants,
             Amount = reader.Has("amount") ? reader.StringOr("amount", "1d6") : null,
@@ -538,11 +808,34 @@ public sealed class ContentLibrary
                 : []);
         }
 
+        var features = new List<ClassFeatureDefinition>();
+        foreach (var entry in reader.Array("features"))
+        {
+            var row = new Reader(entry, reader.Source, _problems);
+            var parameters = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            if (entry.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in entry.EnumerateObject())
+                {
+                    if (property.Name is not ("level" or "id"))
+                    {
+                        parameters[property.Name] = property.Value.ValueKind == JsonValueKind.String
+                            ? property.Value.GetString() ?? string.Empty
+                            : property.Value.ToString();
+                    }
+                }
+            }
+
+            features.Add(new ClassFeatureDefinition(row.Int("level", 1), row.String("id"), parameters));
+        }
+
         return new ClassDefinition
         {
             Id = id,
             Name = reader.StringOr("name", id),
             HitDie = reader.Int("hitDie", 8),
+            Features = features,
             Attack = reader.Enum("attack", AttackProgression.ThreeQuarters),
             GoodSaves = good,
             Casting = reader.Enum("casting", CasterProgression.None),
@@ -589,11 +882,16 @@ public sealed class ContentLibrary
                 Feats = [.. wants.Array("feats").Select(e => e.GetString() ?? string.Empty)],
                 BaseAttack = wants.Int("baseAttack"),
                 Level = wants.Int("level"),
+                Features = [.. wants.Array("features").Select(e => e.GetString() ?? string.Empty)],
             },
             Name = reader.StringOr("name", id),
             Description = reader.StringOr("description", string.Empty),
             Grants = grants,
             Effect = reader.Enum("effect", FeatEffect.None),
+            Combat = reader.Bool("combat"),
+            Metamagic = reader.Bool("metamagic"),
+            ItemCreation = reader.Bool("itemCreation"),
+            Takes = reader.Enum("takes", FeatChoice.None),
         };
     }
 
@@ -637,6 +935,9 @@ public sealed class ContentLibrary
             Weapon = reader.Has("weapon") ? reader.StringOr("weapon", string.Empty) : null,
             Enhancement = reader.Int("enhancement"),
             Qualities = qualities,
+            Armour = reader.Enum("armour", ArmourCategory.None),
+            MaxDexterity = reader.Has("maxDex") ? reader.Int("maxDex") : null,
+            CheckPenalty = reader.Int("checkPenalty"),
         };
     }
 
@@ -657,6 +958,8 @@ public sealed class ContentLibrary
             Enhancement = reader.Int("enhancement"),
             RangeIncrement = reader.Int("rangeIncrement"),
             MaximumIncrements = reader.Int("maximumIncrements", WeaponAttack.ProjectileIncrements),
+            Groups = [.. reader.Array("groups").Select(e => e.GetString() ?? string.Empty)],
+            Finesse = reader.Bool("finesse"),
         };
     }
 
@@ -746,6 +1049,133 @@ public sealed class ContentLibrary
             CasterLevel = reader.Int("casterLevel"),
             Slots = slots,
             Spells = [.. reader.Array("spells").Select(e => e.GetString() ?? string.Empty)],
+            Spellbook = [.. reader.Array("spellbook").Select(e => e.GetString() ?? string.Empty)],
+            WeaponTraining = [.. reader.Array("weaponTraining").Select(e => e.GetString() ?? string.Empty)],
+            Talents = [.. reader.Array("talents").Select(e => e.GetString() ?? string.Empty)],
+            Deity = reader.Has("deity") ? reader.StringOr("deity", string.Empty) : null,
+            Domains = [.. reader.Array("domains").Select(e => e.GetString() ?? string.Empty)],
+            Channel = reader.Has("channel") ? reader.Enum("channel", ChannelKind.Positive) : null,
+            School = reader.Has("school") ? reader.StringOr("school", string.Empty) : null,
+            Opposition = [.. reader.Array("opposition")
+                .Select(e => System.Enum.TryParse<SpellSchool>(e.GetString(), true, out var school) ? (SpellSchool?)school : null)
+                .Select((school, index) =>
+                {
+                    if (school is null)
+                    {
+                        reader.Problem("opposition", $"entry {index + 1} is not a school of magic.");
+                    }
+
+                    return school;
+                })
+                .OfType<SpellSchool>()],
+            ArcaneBond = reader.Has("arcaneBond") ? reader.StringOr("arcaneBond", "object") : null,
+            WeaponMaster = reader.Has("weaponMaster") ? reader.StringOr("weaponMaster", string.Empty) : null,
+        };
+    }
+
+    private TalentDefinition? ReadTalent(Reader reader)
+    {
+        var id = reader.String("id");
+        if (id.Length == 0)
+        {
+            return null;
+        }
+
+        var list = reader.String("list");
+        if (list.Length > 0 && list is not (FeatureIds.RogueTalents or FeatureIds.RagePowers))
+        {
+            reader.Problem("list", $"'{list}' is not a list of talents. Try {FeatureIds.RogueTalents} or {FeatureIds.RagePowers}.");
+        }
+
+        if (!reader.Has("effect"))
+        {
+            reader.Problem("effect", "is required: it is what the code knows the talent by.");
+        }
+
+        return new TalentDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            Description = reader.StringOr("description", string.Empty),
+            List = list,
+            Effect = reader.Enum("effect", TalentEffect.BleedingAttack),
+            Advanced = reader.Bool("advanced"),
+            MinimumLevel = reader.Int("minimumLevel"),
+            Requires = [.. reader.Array("requires").Select(e => e.GetString() ?? string.Empty)],
+        };
+    }
+
+    private List<GrantedPower> ReadGrantedPowers(Reader reader)
+    {
+        var powers = new List<GrantedPower>();
+        foreach (var entry in reader.Array("powers"))
+        {
+            var power = new Reader(entry, reader.Source, _problems);
+            if (!power.Has("effect"))
+            {
+                power.Problem("powers", "every granted power needs an 'effect'.");
+                continue;
+            }
+
+            powers.Add(new GrantedPower(power.Int("level", 1), power.Enum("effect", GrantedPowerEffect.RebukeDeath)));
+        }
+
+        return powers;
+    }
+
+    private DomainDefinition? ReadDomain(Reader reader)
+    {
+        var id = reader.String("id");
+
+        return id.Length == 0 ? null : new DomainDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            Description = reader.StringOr("description", string.Empty),
+            Spells = [.. reader.Array("spells").Select(e => e.ValueKind == JsonValueKind.String
+                ? e.GetString() ?? string.Empty
+                : string.Empty)],
+            Powers = ReadGrantedPowers(reader),
+        };
+    }
+
+    private SchoolDefinition? ReadSchool(Reader reader)
+    {
+        var id = reader.String("id");
+
+        return id.Length == 0 ? null : new SchoolDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            Description = reader.StringOr("description", string.Empty),
+            School = reader.Has("school") ? reader.Enum("school", SpellSchool.Evocation) : null,
+            Powers = ReadGrantedPowers(reader),
+        };
+    }
+
+    private DeityDefinition? ReadDeity(Reader reader)
+    {
+        var id = reader.String("id");
+        if (id.Length == 0)
+        {
+            return null;
+        }
+
+        var written = reader.String("alignment");
+        var alignment = Alignments.Parse(written);
+        if (alignment is null && written.Length > 0)
+        {
+            reader.Problem("alignment", $"'{written}' is not an alignment. Try LG, NG, CG, LN, N, CN, LE, NE or CE.");
+        }
+
+        return new DeityDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            Alignment = alignment ?? Alignment.Neutral,
+            Domains = [.. reader.Array("domains").Select(e => (e.GetString() ?? string.Empty).ToLowerInvariant())],
+            FavoredWeapon = reader.StringOr("favoredWeapon", string.Empty),
+            Description = reader.StringOr("description", string.Empty),
         };
     }
 

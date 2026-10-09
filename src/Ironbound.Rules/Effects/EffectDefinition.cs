@@ -46,6 +46,27 @@ public sealed record EffectDefinition
     public IReadOnlyList<ModifierGrant> Grants { get; init; } = [];
 
     /// <summary>
+    /// Every so many caster levels, each grant counts once more: Magic Vestment's +1 per four
+    /// levels, Divine Power's +1 per three. Zero leaves the grants as written.
+    /// </summary>
+    public int ScaleEvery { get; init; }
+
+    /// <summary>How many times over a scaled grant may count at most. Zero is no ceiling.</summary>
+    public int ScaleMaximum { get; init; }
+
+    /// <summary>How many times over the grants count at a caster level: at least once.</summary>
+    public int ScaleAt(int casterLevel)
+    {
+        if (ScaleEvery <= 0)
+        {
+            return 1;
+        }
+
+        var times = Math.Max(1, Math.Max(0, casterLevel) / ScaleEvery);
+        return ScaleMaximum > 0 ? Math.Min(times, ScaleMaximum) : times;
+    }
+
+    /// <summary>
     /// The named condition this imposes, if any. Set it and the condition's own penalties are
     /// used, so a spell file says <c>"condition": "Shaken"</c> rather than transcribing the
     /// rulebook's four separate -2s and getting one of them wrong.
@@ -92,9 +113,10 @@ public sealed record EffectDefinition
                 }
 
                 var effect = new ModifierEffect(Name, duration);
+                var times = ScaleAt(casterLevel);
                 foreach (var grant in Grants)
                 {
-                    effect.Grants(grant.Value, grant.Type, grant.Target);
+                    effect.Grants(grant.Value * times, grant.Type, grant.Target);
                 }
 
                 return effect;

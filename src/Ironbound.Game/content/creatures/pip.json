@@ -1,7 +1,6 @@
-// Small, quick, and much better at not being hit than at hitting. The rules have no sneak
-// attack yet, which takes away the reason a rogue goes looking for a flank — so for now Pip
-// earns a place with the locks, the climb across the crevice, and a crossbow found in a
-// storeroom.
+// Small, quick, and much better at not being hit than at hitting — until something is flanked or
+// caught flat-footed, when a d6 of sneak attack rides on every blow. Trapfinding is the other
+// half of first level: half her rogue level, at least one, on every lock she picks.
 {
   "kind": "creature",
   "id": "pip",

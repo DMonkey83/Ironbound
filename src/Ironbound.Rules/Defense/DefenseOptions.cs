@@ -22,4 +22,10 @@ public enum DefenseOptions
     /// not stop hurting because you were caught off guard.
     /// </summary>
     DexterityDenied = 2,
+
+    /// <summary>
+    /// A swing rather than a shot. Changes nothing in the armour class itself; it is there so
+    /// that what guards against blades and not arrows — a barbarian's guarded stance — can tell.
+    /// </summary>
+    Melee = 4,
 }

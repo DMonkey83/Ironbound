@@ -1,0 +1,15 @@
+// Favoured weapon by id: the game has one.
+{
+  "kind": "deity",
+  "id": "nethys",
+  "name": "Nethys",
+  "alignment": "N",
+  "domains": [
+    "destruction",
+    "knowledge",
+    "magic",
+    "protection",
+    "rune"
+  ],
+  "favoredWeapon": "quarterstaff"
+}

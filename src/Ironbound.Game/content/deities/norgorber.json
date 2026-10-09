@@ -1,0 +1,15 @@
+// Favoured weapon by id: the game has one.
+{
+  "kind": "deity",
+  "id": "norgorber",
+  "name": "Norgorber",
+  "alignment": "NE",
+  "domains": [
+    "charm",
+    "death",
+    "evil",
+    "knowledge",
+    "trickery"
+  ],
+  "favoredWeapon": "short-sword"
+}

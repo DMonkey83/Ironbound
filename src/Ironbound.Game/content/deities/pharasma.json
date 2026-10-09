@@ -1,0 +1,15 @@
+// Favoured weapon by id: the game has one.
+{
+  "kind": "deity",
+  "id": "pharasma",
+  "name": "Pharasma",
+  "alignment": "N",
+  "domains": [
+    "death",
+    "healing",
+    "knowledge",
+    "repose",
+    "water"
+  ],
+  "favoredWeapon": "dagger"
+}

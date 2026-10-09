@@ -1,0 +1,10 @@
+// Dexterity instead of Strength to hit with a light weapon, a natural one, or anything else the
+// weapon's file marks as finesse — and only when Dexterity is the better of the two.
+{
+  "kind": "feat",
+  "id": "weapon-finesse",
+  "name": "Weapon Finesse",
+  "combat": true,
+  "description": "Use Dexterity rather than Strength on attack rolls with light and finesse weapons.",
+  "effect": "WeaponFinesse"
+}

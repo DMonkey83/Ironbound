@@ -65,10 +65,68 @@ public static class Opportunities
                 DefenseOptions.None,
                 encounter.Rules,
                 field,
-                flatFooted: encounter.IsFlatFooted(mover)));
+                flatFooted: encounter.IsFlatFootedTo(mover, threatener)));
 
             // Dropped before it could get away. Nobody else gets a swing at a falling target.
             if (!mover.IsConscious)
+            {
+                break;
+            }
+        }
+
+        return taken;
+    }
+
+    /// <summary>
+    /// A rogue's opportunist talent: once a round, a free swing at a foe an ally has just struck
+    /// in melee. Taken out of her ordinary allowance of attacks of opportunity.
+    /// </summary>
+    /// <remarks>
+    /// Asked after every melee blow that lands, by whatever landed it. Like every opportunity it
+    /// is taken whenever it is available rather than offered, for the same reason: asking would
+    /// mean stopping in the middle of somebody else's turn.
+    /// </remarks>
+    public static IReadOnlyList<StrikeResult> Opportunist(Encounter encounter, Creature striker, Creature struck)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        ArgumentNullException.ThrowIfNull(striker);
+        ArgumentNullException.ThrowIfNull(struck);
+
+        if (encounter.Battlefield is not { } field || field.SquareOf(struck) is not { } square || !struck.IsConscious)
+        {
+            return [];
+        }
+
+        var taken = new List<StrikeResult>();
+
+        foreach (var combatant in encounter.Order)
+        {
+            var rogue = combatant.Creature;
+
+            if (!rogue.IsAllyOf(striker)
+                || !rogue.IsEnemyOf(struck)
+                || combatant.HasUsedOpportunist
+                || !combatant.CanTakeOpportunity
+                || !rogue.Choices.HasTalent(Classes.TalentEffect.Opportunist)
+                || rogue.MeleeAttack is not { } weapon
+                || !field.Threatens(rogue, square))
+            {
+                continue;
+            }
+
+            combatant.HasUsedOpportunist = true;
+            combatant.OpportunitiesUsed++;
+            taken.Add(Strike.Resolve(
+                rogue,
+                weapon,
+                struck,
+                encounter.Random,
+                DefenseOptions.None,
+                encounter.Rules,
+                field,
+                flatFooted: encounter.IsFlatFootedTo(struck, rogue)));
+
+            if (!struck.IsConscious)
             {
                 break;
             }

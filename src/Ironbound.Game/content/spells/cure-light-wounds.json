@@ -8,6 +8,10 @@
   "range": "touch",
   "target": { "shape": "single" },
   "affects": "Allies",
+
+  // A cure spell: what a good cleric may cast in place of anything prepared, and what a Healing
+  // cleric's blessing empowers.
+  "descriptors": ["cure"],
   "does": [
     // Simplified: the rules scale the flat part with caster level to a maximum of
     // five, and this simply uses the maximum. Scaling a flat bonus needs another

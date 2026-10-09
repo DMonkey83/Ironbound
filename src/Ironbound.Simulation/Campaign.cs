@@ -193,6 +193,10 @@ public sealed partial class Campaign
             creature.Effects.Clear();
             creature.HitPoints.Restore();
             creature.Spells.Rest();
+
+            // Channels, rage rounds, the bonded spell — and the fatigue clearing the effects
+            // just left behind on anybody who was still raging.
+            ClassFeatures.Rest(creature);
         }
 
         return true;
@@ -204,6 +208,16 @@ public sealed partial class Campaign
     /// </summary>
     public int Collect()
     {
+        // Whatever else is or is not collected, a fight that is over is over for the rage too.
+        // (Before the first chapter there is no fight at all, and nothing to end.)
+        if ((IsLevel || Chapter > 0) && State != CampaignState.Fighting)
+        {
+            foreach (var member in Party)
+            {
+                ClassFeatures.EndFight(member);
+            }
+        }
+
         if (IsLevel)
         {
             return CollectArea();
@@ -348,23 +362,65 @@ public sealed partial class Campaign
     /// is refused rather than quietly ignored, because silently dropping somebody's choice is
     /// worse than telling them it was not theirs to make.
     /// </remarks>
-    public bool LevelUp(Creature creature, ClassDefinition taken, FeatDefinition? feat = null)
+    public bool LevelUp(Creature creature, ClassDefinition taken, FeatDefinition? feat = null) =>
+        LevelUp(creature, taken, feat, new LevelChoices());
+
+    /// <summary>
+    /// Takes a level with the class features it brings chosen too: a fighter's bonus feat and
+    /// weapon group, a rogue's talent, a barbarian's rage power, a wizard's bonus feat.
+    /// </summary>
+    /// <remarks>
+    /// Anything the level needs and the choices leave out is picked sensibly — which is how a
+    /// headless run, and the overload without choices, level at all. Anything chosen that the
+    /// level does not offer is refused, and nothing changes; <see cref="LevelRefusal"/> says why.
+    /// </remarks>
+    public bool LevelUp(Creature creature, ClassDefinition taken, FeatDefinition? feat, LevelChoices choices)
     {
         ArgumentNullException.ThrowIfNull(taken);
+        ArgumentNullException.ThrowIfNull(choices);
+        LevelRefusal = null;
 
         if (!CanLevel(creature) || _library.GetClass(taken.Id) is null)
         {
+            LevelRefusal = $"{creature.Name} cannot take a level now.";
             return false;
+        }
+
+        // A feat taken for a weapon, offered without one, is taken for the one in her hand.
+        if (feat is { Takes: not FeatChoice.None, Choice: null } open)
+        {
+            feat = ClassLevelling.ChooseFor(creature, open);
+
+            if (feat is null)
+            {
+                LevelRefusal = $"{creature.Name} carries nothing left to take {open.Name} for.";
+                return false;
+            }
         }
 
         if (feat is not null
             && (!Levelling.GrantsFeatAt(creature.Level + 1) || !feat.AvailableTo(creature)))
         {
+            LevelRefusal = $"{feat.Title} is not a feat {creature.Name} can take at this level.";
+            return false;
+        }
+
+        var (resolved, refusal) = ClassLevelling.Resolve(creature, taken, choices, _library);
+        if (resolved is null)
+        {
+            LevelRefusal = refusal;
+            return false;
+        }
+
+        if (feat is not null && resolved.BonusFeat is { } bonus && bonus.Key == feat.Key)
+        {
+            LevelRefusal = $"{feat.Title} cannot be both the level's feat and its bonus feat.";
             return false;
         }
 
         if (!Levelling.Gain(creature, taken, _rules))
         {
+            LevelRefusal = $"{creature.Name} is at the top of the table.";
             return false;
         }
 
@@ -372,11 +428,26 @@ public sealed partial class Campaign
         {
             // Both halves, exactly once: the list is the identity and ApplyTo is the only thing
             // that pushes the bonuses into the stacks, and it is not idempotent.
-            creature.Feats.Add(feat);
-            feat.ApplyTo(creature);
+            ClassFeatures.Take(creature, feat);
         }
 
+        ClassLevelling.Apply(creature, resolved, _library);
         return true;
+    }
+
+    /// <summary>Why the last <see cref="LevelUp(Creature, ClassDefinition, FeatDefinition?, LevelChoices)"/> was refused, or null.</summary>
+    public string? LevelRefusal { get; private set; }
+
+    /// <summary>
+    /// What a level in this class would ask to be chosen — bonus feats, weapon groups, talents —
+    /// with everything on offer. Empty lists where the level asks for nothing.
+    /// </summary>
+    public LevelNeeds NeedsFor(Creature creature, ClassDefinition taken)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        ArgumentNullException.ThrowIfNull(taken);
+
+        return ClassLevelling.NeedsFor(creature, taken, _library);
     }
 
     /// <summary>Every class the level could be taken in, by name so a picker does not shuffle.</summary>

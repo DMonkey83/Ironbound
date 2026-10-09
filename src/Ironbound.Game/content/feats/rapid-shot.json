@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "rapid-shot",
+  "name": "Rapid Shot",
+  "combat": true,
+  "description": "One extra ranged attack on a full attack, every attack at -2.",
+  "effect": "RapidShot",
+  "requires": { "dex": 13, "feats": ["point-blank-shot"] }
+}

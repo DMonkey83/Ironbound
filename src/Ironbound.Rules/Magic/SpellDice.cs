@@ -31,6 +31,32 @@ public sealed record SpellDice
 
     public int FlatPerDie { get; }
 
+    /// <summary>
+    /// A flat bonus per caster level on top of the dice: the cure spells' "+1 per level".
+    /// </summary>
+    public int BonusPerLevel { get; private init; }
+
+    /// <summary>The most <see cref="BonusPerLevel"/> may come to: five for a light wound. Zero is no limit.</summary>
+    public int BonusMaximum { get; private init; }
+
+    /// <summary>
+    /// The same dice plus so much a caster level, to a ceiling — "2d8 + 1 per level (maximum
+    /// 10)". The dial the cure spells wanted.
+    /// </summary>
+    public SpellDice PlusPerLevel(int perLevel, int maximum)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(perLevel);
+        ArgumentOutOfRangeException.ThrowIfNegative(maximum);
+
+        return this with { BonusPerLevel = perLevel, BonusMaximum = maximum };
+    }
+
+    private int LevelBonus(int casterLevel)
+    {
+        var bonus = BonusPerLevel * Math.Max(0, casterLevel);
+        return BonusMaximum > 0 ? Math.Min(bonus, BonusMaximum) : bonus;
+    }
+
     /// <summary>Always the same, whoever casts it.</summary>
     public static SpellDice Fixed(string expression) =>
         new(DiceExpression.Parse(expression), 0, 0, 1, 0);
@@ -56,13 +82,19 @@ public sealed record SpellDice
     {
         if (FixedAmount is { } amount)
         {
-            return amount;
+            return BonusPerLevel == 0 ? amount : amount.Plus(LevelBonus(casterLevel));
         }
 
         var dice = DiceAt(casterLevel);
-        return DiceExpression.Parse($"{dice}d{Sides}").Plus(dice * FlatPerDie);
+        return DiceExpression.Parse($"{dice}d{Sides}").Plus((dice * FlatPerDie) + LevelBonus(casterLevel));
     }
 
-    public override string ToString() =>
-        FixedAmount?.ToString() ?? $"1d{Sides} per {LevelsPerDie} level(s), max {MaximumDice}";
+    public override string ToString()
+    {
+        var dice = FixedAmount?.ToString() ?? $"1d{Sides} per {LevelsPerDie} level(s), max {MaximumDice}";
+
+        return BonusPerLevel == 0
+            ? dice
+            : $"{dice} + {BonusPerLevel} per level" + (BonusMaximum > 0 ? $" (max {BonusMaximum})" : string.Empty);
+    }
 }

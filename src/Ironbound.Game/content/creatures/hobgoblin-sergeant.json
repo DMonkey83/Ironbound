@@ -14,6 +14,9 @@
   ],
   "speed": 30,
   "feats": ["combat-reflexes", "weapon-specialization", "power-attack"],
+
+  // A fighter 6 trains in a weapon group at fifth level: the longsword's.
+  "weaponTraining": ["heavy-blades"],
   // The silvered blade is on his belt, not in his hand — he has no use for it against
   // three humans. Kill him and it is the answer to what is waiting in the clearing.
   "items": ["chain-shirt", "heavy-shield", "longsword", "silvered-longsword"]

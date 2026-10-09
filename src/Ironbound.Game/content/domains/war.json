@@ -1,0 +1,20 @@
+// War: a touch that makes an ally hit harder, and at eighth level a combat feat borrowed a round at
+// a time. Spiritual Weapon — a weapon that fights by itself — needs a creature the rules do not
+// have yet, so the second-level entry is empty and the domain slot there holds nothing of its own.
+{
+  "kind": "domain",
+  "id": "war",
+  "name": "War",
+  "description": "You are a crusader for your god, always ready and willing to fight to defend your faith.",
+  "spells": [
+    "magic-weapon",
+    "",
+    "magic-vestment",
+    "divine-power",
+    "flame-strike"
+  ],
+  "powers": [
+    { "level": 1, "effect": "BattleRage" },
+    { "level": 8, "effect": "WeaponMaster" }
+  ]
+}

@@ -34,5 +34,16 @@
     [4, 4, 4, 4, 4, 4, 3, 3, 2],
     [4, 4, 4, 4, 4, 4, 4, 3, 3],
     [4, 4, 4, 4, 4, 4, 4, 4, 4]
+  ],
+
+  // The school and the bond are chosen in the creature's file. The bonus feats at 5 and 10 are a
+  // wizard's kind: metamagic, item creation, or Spell Mastery.
+  "features": [
+    { "level": 1, "id": "arcane-bond" },
+    { "level": 1, "id": "arcane-school" },
+    { "level": 1, "id": "cantrips" },
+    { "level": 1, "id": "scribe-scroll" },
+    { "level": 5, "id": "bonus-feat", "kind": "wizard" },
+    { "level": 10, "id": "bonus-feat", "kind": "wizard" }
   ]
 }

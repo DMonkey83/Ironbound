@@ -1,4 +1,5 @@
 using Ironbound.Rules.Abilities;
+using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Creatures;
@@ -42,6 +43,7 @@ public static class CharacterSheet
             Defence(creature),
             Saves(creature),
             Attacks(creature),
+            Features(creature),
             Training(creature),
             Gear(creature),
             Magic(creature),
@@ -123,6 +125,38 @@ public static class CharacterSheet
         return new SheetSection("Attacks", lines);
     }
 
+    /// <summary>
+    /// What the classes hand out, line by line, and then what is left of each daily allowance —
+    /// the numbers a player checks before deciding whether this is the fight to spend them on.
+    /// </summary>
+    private static SheetSection Features(Creature creature)
+    {
+        var lines = ClassFeatures.Describe(creature).Select(line => line.ToString()).ToList();
+
+        // Powers that share a pool — every spell an arcane bond can cast — are one allowance,
+        // so they are one line.
+        foreach (var pool in creature.Powers.GroupBy(power => power.Pool))
+        {
+            var first = pool.First();
+            var left = creature.UsesLeft(first);
+            var perDay = creature.UsesPerDay(first);
+            var unit = pool.Key == Rage.Pool ? " rounds of rage" : pool.Key == "dimensional-steps" ? " ft" : string.Empty;
+
+            lines.Add(pool.Count() == 1
+                ? $"{first.Name}: {left} of {perDay}{unit} left today"
+                : $"{Title(pool.Key)}: {left} of {perDay}{unit} left today — "
+                    + string.Join(", ", pool.Select(power => power.Effect.Name)));
+        }
+
+        return new SheetSection("Class features", lines);
+    }
+
+    private static string Title(string pool) => pool switch
+    {
+        ClassPowers.ArcaneBondPool => "Bonded object",
+        _ => pool,
+    };
+
     private static SheetSection Training(Creature creature) => new(
         "Skills",
         [.. creature.Skills.Trained.Select(skill =>
@@ -143,8 +177,8 @@ public static class CharacterSheet
         foreach (var feat in creature.Feats)
         {
             lines.Add(feat.Description.Length > 0
-                ? $"{feat.Name} — {feat.Description}"
-                : feat.Name);
+                ? $"{feat.Title} — {feat.Description}"
+                : feat.Title);
         }
 
         return new SheetSection("Gear and training", lines);
@@ -162,10 +196,22 @@ public static class CharacterSheet
             $"Caster level {creature.Spells.CasterLevel}, {creature.Spells.CastingAbility}",
         };
 
-        foreach (var level in creature.Spells.SlotLevels.OrderBy(level => level))
+        // A domain's or a school's slot holds only its own spells, so it is shown beside the
+        // general ones rather than added to them.
+        var specialty = creature.Choices.Domains.Count > 0 ? "domain" : "school";
+
+        foreach (var level in creature.Spells.SlotLevels.Union(creature.Spells.SpecialtyLevels).Order())
         {
-            lines.Add($"Level {level} slots: "
-                + $"{creature.Spells.SlotsRemaining(level)} of {creature.Spells.SlotsMaximum(level)}");
+            var line = $"Level {level} slots: "
+                + $"{creature.Spells.SlotsRemaining(level)} of {creature.Spells.SlotsMaximum(level)}";
+
+            if (creature.Spells.SpecialtyMaximum(level) > 0)
+            {
+                line += $", {specialty} {creature.Spells.SpecialtyRemaining(level)} "
+                    + $"of {creature.Spells.SpecialtyMaximum(level)}";
+            }
+
+            lines.Add(line);
         }
 
         foreach (var spell in creature.Spells.Prepared)

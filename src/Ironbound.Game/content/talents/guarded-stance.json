@@ -1,0 +1,8 @@
+{
+  "kind": "talent",
+  "id": "guarded-stance",
+  "name": "Guarded Stance",
+  "list": "rage-power",
+  "effect": "GuardedStance",
+  "description": "A move action: +1 dodge against melee attacks (+1 more every six levels) for her Constitution bonus in rounds."
+}

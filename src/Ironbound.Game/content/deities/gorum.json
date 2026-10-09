@@ -1,0 +1,15 @@
+// Favoured weapon by id: the game has one.
+{
+  "kind": "deity",
+  "id": "gorum",
+  "name": "Gorum",
+  "alignment": "CN",
+  "domains": [
+    "chaos",
+    "destruction",
+    "glory",
+    "strength",
+    "war"
+  ],
+  "favoredWeapon": "greatsword"
+}

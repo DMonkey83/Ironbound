@@ -14,10 +14,15 @@
   ],
   "speed": 30,
   "feats": ["dodge", "great-fortitude"],
+
+  // Cihua Couatl, the feathered serpent: neutral good, so Hale channels positive energy and
+  // casts cures in place of anything prepared. Healing and War are both hers to grant.
+  "deity": "cihua-couatl",
+  "domains": ["healing", "war"],
   "items": ["scale-mail", "heavy-shield", "light-mace"],
 
-  // Three slots: two from the table, counting the domain one, and one from Wisdom 15. Bless
-  // first, because it is the one the automatic hand knows how to use — it never heals on its
-  // own initiative, so Cure Light Wounds is the player's call.
+  // Three slots: one from the table, one from Wisdom 15, and the domain slot, which only a
+  // Healing or War spell may use — Cure Light Wounds, here. Bless first, because it is the one
+  // the automatic hand reaches for when nobody is hurt.
   "spells": ["bless", "cure-light-wounds"]
 }

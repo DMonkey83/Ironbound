@@ -1,0 +1,15 @@
+// Favoured weapon in words: the game has no such weapon yet.
+{
+  "kind": "deity",
+  "id": "desna",
+  "name": "Desna",
+  "alignment": "CG",
+  "domains": [
+    "chaos",
+    "good",
+    "liberation",
+    "luck",
+    "travel"
+  ],
+  "favoredWeapon": "starknife"
+}

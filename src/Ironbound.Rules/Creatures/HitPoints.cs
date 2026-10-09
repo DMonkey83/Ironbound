@@ -164,12 +164,27 @@ public sealed class HitPoints
     /// <summary>Nonlethal damage past current hit points: out cold, but not dying.</summary>
     public bool IsUnconsciousFromNonlethal => Current > 0 && Nonlethal > Current;
 
+    /// <summary>
+    /// Asked once, as a blow is about to take a creature from nought or above to below it, for
+    /// temporary hit points to put in its way. Whatever it hands back is granted before the blow
+    /// lands. A rogue's resiliency is the one thing that answers.
+    /// </summary>
+    internal Func<int>? Dropping { get; init; }
+
     /// <summary>Applies damage, spending temporary hit points first.</summary>
     public DamageApplication Take(int amount)
     {
         if (amount <= 0)
         {
             return default;
+        }
+
+        if (Dropping is { } reserve
+            && Current >= 0
+            && Current - (amount - Math.Min(Temporary, amount)) < 0
+            && reserve() is > 0 and var granted)
+        {
+            GrantTemporary(granted);
         }
 
         var absorbed = Math.Min(Temporary, amount);

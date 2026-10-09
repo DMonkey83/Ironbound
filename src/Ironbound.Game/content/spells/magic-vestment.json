@@ -1,0 +1,26 @@
+// The War domain's third: +1 enhancement to armour class for every four caster levels, to +5,
+// for an hour a level. An enhancement of armour, so a touch attack ignores it as it ignores the
+// armour. Simplified: it is not tied to one suit or one shield, and it does not need either.
+{
+  "kind": "spell",
+  "id": "magic-vestment",
+  "name": "Magic Vestment",
+  "level": 3,
+  "school": "Transmutation",
+  "range": "touch",
+  "target": { "shape": "single" },
+  "affects": "Allies",
+  "does": [
+    {
+      "effect": {
+        "name": "Magic Vestment",
+        "hoursPerLevel": 1,
+        "scaleEvery": 4,
+        "scaleMaximum": 5,
+        "grants": [
+          { "target": "armourClass", "value": 1, "type": "Enhancement" }
+        ]
+      }
+    }
+  ]
+}

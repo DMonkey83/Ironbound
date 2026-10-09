@@ -3,6 +3,7 @@
   "kind": "feat",
   "id": "improved-trip",
   "name": "Improved Trip",
+  "combat": true,
   "description": "Tripping does not provoke, and the check is +2.",
   "effect": "ImprovedTrip",
 

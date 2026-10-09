@@ -9,5 +9,8 @@
   "multiplier": 2,
   "rangeIncrement": 80,
   "attackAbility": "Dexterity",
-  "scale": "None"
+  "scale": "None",
+
+  // Fighter weapon groups, for weapon training.
+  "groups": ["crossbows"]
 }
