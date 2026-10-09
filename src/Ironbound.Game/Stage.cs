@@ -668,6 +668,14 @@ public partial class Main
 
 	private void PlayClip(Creature creature, bool loop, params string[] wanted)
 	{
+		// The fallen stay down. A beat staged before they fell — their own swing at somebody
+		// running past, shown after the blow that dropped them — would otherwise play over the
+		// death clip and stand a corpse back up, frozen on the last frame of an attack.
+		if (_fallen.Contains(creature) && Array.IndexOf(wanted, "death") < 0)
+		{
+			return;
+		}
+
 		if (!_figures.TryGetValue(creature, out var figure)
 			|| Animations(figure) is not { } player
 			|| FindClip(player, wanted) is not { } clip)

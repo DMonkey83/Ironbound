@@ -48,6 +48,16 @@ public sealed class Battlefield
         return this;
     }
 
+    /// <summary>
+    /// Opens a square that was blocked: a door forced, a bridge tied off. Nothing else about
+    /// the square changes, and opening one that was never shut does nothing.
+    /// </summary>
+    public Battlefield Unblock(GridSquare square)
+    {
+        _blocked.Remove(square);
+        return this;
+    }
+
     public bool IsBlocked(GridSquare square) => _blocked.Contains(square);
 
     /// <summary>Rubble, undergrowth, a body — costs double to enter.</summary>

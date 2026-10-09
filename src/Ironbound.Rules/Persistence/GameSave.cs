@@ -210,7 +210,7 @@ public static class GameSave
         ArgumentNullException.ThrowIfNull(save);
         ArgumentNullException.ThrowIfNull(library);
 
-        if (save.Version != SavedGame.CurrentVersion)
+        if (save.Version is < SavedGame.OldestReadable or > SavedGame.CurrentVersion)
         {
             throw new InvalidDataException(
                 $"Save version {save.Version} cannot be read by version {SavedGame.CurrentVersion}.");

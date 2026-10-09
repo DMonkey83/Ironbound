@@ -101,6 +101,13 @@ public static class Scenarios
 
         battle.Ambush(hiding);
 
+        // And anybody it says was asleep stays that way until somebody makes a mistake.
+        battle.Lull(definition.Placements
+            .Where(placement => placement.Asleep)
+            .Select(placement => field.OccupantOf(new GridSquare(placement.X, placement.Y)))
+            .OfType<Creature>()
+            .ToList());
+
         return battle;
     }
 

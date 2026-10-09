@@ -1,0 +1,6 @@
+{
+  "kind": "item", "id": "leather-armour", "name": "leather armour",
+  "description": "Boiled and stitched. Light enough to climb in.",
+  "slot": "Armour",
+  "grants": [ { "target": "armourClass", "value": 2, "type": "Armor" } ]
+}

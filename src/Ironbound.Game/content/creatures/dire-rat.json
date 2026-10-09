@@ -1,0 +1,24 @@
+// The guard's pet, about the size of a terrier and a good deal less friendly. The book's rat
+// carries a disease, which the rules have no way to express yet; this one only bites.
+{
+  "kind": "creature",
+  "id": "dire-rat",
+  "name": "Dire Rat",
+  "model": "res://art/dire-rat.glb",
+  "abilities": [10, 15, 12, 1, 12, 4],
+  "hitDice": 1,
+  "hitPoints": 4,
+  "size": "Small",
+  "speed": 40,
+  "naturalArmour": 1,
+  "goodSave": "Fortitude",
+
+  "skills": [
+    { "skill": "Stealth", "ranks": 4 },
+    { "skill": "Perception", "ranks": 4 },
+    { "skill": "Climb", "ranks": 4 }
+  ],
+
+  // A weapon rather than an item, so that killing it does not leave its teeth in the sack.
+  "weapons": ["rat-bite"]
+}

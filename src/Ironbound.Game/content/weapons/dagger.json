@@ -1,0 +1,10 @@
+// The weapon of last resort, and of people who were not expecting a fight.
+{
+  "kind": "weapon",
+  "id": "dagger",
+  "name": "dagger",
+  "damage": "1d4",
+  "damageType": "Piercing",
+  "threatsOn": 19,
+  "multiplier": 2
+}

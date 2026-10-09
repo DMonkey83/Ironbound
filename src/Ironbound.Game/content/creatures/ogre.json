@@ -1,0 +1,26 @@
+// The chief. Four hit dice of raw size against a party with one each, and ten feet of reach
+// that makes walking up to him cost a swing. Gentler than the book's ogre in two places — fewer
+// hit points and a smaller axe — because the book's would kill a first-level wizard in one
+// blow and a fighter in two, and the point is that he can be beaten.
+{
+  "kind": "creature",
+  "id": "ogre",
+  "name": "Ogre",
+  "model": "res://art/ogre.glb",
+  "abilities": [16, 8, 15, 6, 10, 7],
+  "hitDice": 4,
+
+  // Sixteen, plus two a die for Constitution: twenty-four in all.
+  "hitPoints": 16,
+  "baseAttack": 3,
+  "size": "Large",
+  "speed": 30,
+  "naturalArmour": 4,
+  "goodSave": "Fortitude",
+
+  "skills": [
+    { "skill": "Perception", "ranks": 2 },
+    { "skill": "Climb", "ranks": 4 }
+  ],
+  "items": ["hide-armour", "ogre-axe"]
+}

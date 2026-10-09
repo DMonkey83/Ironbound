@@ -31,7 +31,9 @@ using Ironbound.Simulation;
 public partial class Main : Node3D
 {
 	/// <summary>Resolves to the per-user data directory; on Linux, under ~/.local/share/godot.</summary>
-	private const string SavePath = "user://ironbound.save";
+	/// <summary>The one save slot — except for the headless proof, which writes its own file so
+	/// that checking the build never overwrites somebody's game.</summary>
+	private static string SavePath => DisplayServer.GetName() == "headless" ? "user://headless-proof.save" : "user://ironbound.save";
 
 	/// <summary>The run the game opens on. Picking between them is a menu this has no need of yet.</summary>
 	private const string CampaignId = "the-long-road";
@@ -138,7 +140,29 @@ public partial class Main : Node3D
 	public override void _Ready()
 	{
 		_content = GodotContent.Load();
-		_campaign = Campaign.Begin(_content, CampaignId);
+
+		// The front door, unless the command line already said which fight to run.
+		if (SkipMenu(out var campaignId))
+		{
+			StartCampaign(Campaign.Begin(_content, campaignId));
+			return;
+		}
+
+		// -- --menu adventures: straight to the choice of adventure, for looking at it.
+		var menu = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--menu");
+		if (menu >= 0 && OS.GetCmdlineUserArgs().ElementAtOrDefault(menu + 1) == "adventures")
+		{
+			ShowAdventures();
+			return;
+		}
+
+		ShowTitle();
+	}
+
+	/// <summary>Everything that used to happen at start-up, now that start-up has a menu in front of it.</summary>
+	private void StartCampaign(Campaign campaign)
+	{
+		_campaign = campaign;
 		Begin(_campaign.Battle);
 
 		_instant = DisplayServer.GetName() == "headless";
@@ -168,7 +192,12 @@ public partial class Main : Node3D
 			RunCameraTour();
 		}
 
-		ReportInitiative();
+		// Walking a level, nobody has rolled for anything yet; the order comes with the first fight.
+		if (!Exploring)
+		{
+			ReportInitiative();
+		}
+
 		StartNextTurn();
 	}
 
@@ -202,11 +231,19 @@ public partial class Main : Node3D
 		{
 			if (_battle.BeginTurn() is not { } turn)
 			{
+				var finished = _campaign.CurrentArea;
 				if (_campaign.Collect() is > 0 and var taken)
 				{
 					// Through the queue like every other line, or the looting is reported in
 					// round one of a fight that is still being shown.
 					Append($"— {taken} thing(s) taken from the fallen —", []);
+				}
+
+				if (_campaign.IsLevel)
+				{
+					// After the last blow has been shown, not while it is still in the air.
+					Enqueue(0.0, () => AfterLevelFight(finished));
+					return;
 				}
 
 				Prompt(Verdict());
@@ -265,6 +302,9 @@ public partial class Main : Node3D
 	/// <summary>What to say once the fighting stops, which depends on what is left of the run.</summary>
 	private string Verdict() => _campaign.State switch
 	{
+		CampaignState.Exploring => _campaign.CanRest
+			? "Click to walk; click a door, a crossing or a chest to use it. You have a rest in hand."
+			: "Click to walk; click a door, a crossing or a chest to use it.",
 		CampaignState.Between => _campaign.CanRest
 			? $"Chapter {_campaign.Chapter} won. Press on, or spend your one rest."
 			: $"Chapter {_campaign.Chapter} won. Press on — there is no rest left.",
@@ -550,6 +590,11 @@ public partial class Main : Node3D
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
+		if (_campaign is null)
+		{
+			return;
+		}
+
 		// The camera first: wheel, middle-drag and its keys are never a move or an attack. Being
 		// *unhandled* input, a wheel over the log panel has already been eaten by the log.
 		if (CameraInput(@event) || HudInput(@event))
@@ -568,7 +613,15 @@ public partial class Main : Node3D
 		// puts somebody where you pointed. The board is a camp rather than a battlefield.
 		if (_campaign.State != CampaignState.Fighting)
 		{
-			Wander(square);
+			if (_campaign.IsLevel)
+			{
+				Travel(square);
+			}
+			else
+			{
+				Wander(square);
+			}
+
 			return;
 		}
 
@@ -857,8 +910,17 @@ public partial class Main : Node3D
 
 	public override void _Process(double delta)
 	{
+		// Nothing to run until the menu has started something.
+		if (_campaign is null)
+		{
+			return;
+		}
+
 		PlayStage(delta);
 		CameraKeys(delta);
+		StepWalkers(delta);
+		TendLevel(delta);
+		AnnounceExperience();
 
 		if (_cursor is null)
 		{
@@ -953,12 +1015,22 @@ public partial class Main : Node3D
 		_campaign = restored;
 		Begin(_campaign.Battle);
 
+		// Whatever was walking or being read belongs to the run being replaced.
+		_walkers.Clear();
+		_held = false;
+		_page?.QueueFree();
+		_page = null;
+
 		// The bodies were built for the fight that is being replaced, so they go with it.
 		RebuildWorld();
 
 		_log.Clear();
 		_log.AddText("— loaded —\n");
-		ReportInitiative();
+		if (!Exploring)
+		{
+			ReportInitiative();
+		}
+
 		StartNextTurn();
 	}
 
@@ -1010,6 +1082,7 @@ public partial class Main : Node3D
 			TonemapMode = Godot.Environment.ToneMapper.Filmic,
 		};
 
+		_air = air;
 		AddChild(new WorldEnvironment { Environment = air });
 	}
 
@@ -1215,16 +1288,29 @@ public partial class Main : Node3D
 
 		var light = new DirectionalLight3D { ShadowEnabled = true };
 		_world.AddChild(light);
+		_sun = light;
+		if (_air is not null)
+		{
+			// Daylight again; a cave level dims it in LightLevel.
+			_air.AmbientLightEnergy = 0.35f;
+			_air.AmbientLightColor = new Color(0.58f, 0.62f, 0.72f);
+		}
+
 		light.Position = centre + new Vector3(5, 10, 3);
 		light.LookAt(centre);
 
 		// What the fight is fought on, if the encounter file says. Both are null for a bare
 		// floor, and every path below falls back to the shapes that were there before.
-		var terrain = CurrentTerrain();
+		var level = _campaign.IsLevel;
+		var terrain = level ? null : CurrentTerrain();
 		var tile = Model(terrain?.Ground);
 		var prop = Model(terrain?.Blocked);
 
-		if (tile is not null)
+		if (level)
+		{
+			BuildLevel();
+		}
+		else if (tile is not null)
 		{
 			LayTiles(tile, width, height);
 		}
@@ -1239,14 +1325,15 @@ public partial class Main : Node3D
 
 			// Without the shader this plane is an opaque slab, and an opaque slab laid over the
 			// terrain would hide it. Losing the grid is survivable; losing the ground is not.
-			Visible = _groundPaint is not null || tile is null,
+			Visible = _groundPaint is not null || (tile is null && !level),
 		};
 
 		_world.AddChild(ground);
+		_gridPlane = ground;
 
 		// Over the terrain rather than instead of it: the lines keep their alpha and everything
 		// between them turns to glass.
-		_groundPaint?.SetShaderParameter("floor_alpha", tile is null ? 1.0f : 0.0f);
+		_groundPaint?.SetShaderParameter("floor_alpha", tile is null && !level ? 1.0f : 0.0f);
 		ground.Position = centre + new Vector3(0, GridHeight, 0);
 
 		// Where the current actor could get to. One draw call however many squares light up.
@@ -1299,8 +1386,8 @@ public partial class Main : Node3D
 
 		_world.AddChild(_turnMarker);
 
-		// Cover the player cannot see is cover the player will call a bug.
-		if (field is not null)
+		// Cover the player cannot see is cover the player will call a bug. A level drew its own.
+		if (field is not null && !level)
 		{
 			for (var x = 0; x < width; x++)
 			{
@@ -2121,6 +2208,7 @@ public partial class Main : Node3D
 		}
 
 		_press.Disabled = !_campaign.CanAdvance;
+		_press.Visible = !_campaign.IsLevel;
 		_rest.Disabled = !_campaign.CanRest;
 		RefreshStash();
 
@@ -2352,8 +2440,14 @@ public partial class Main : Node3D
 			? $"xp {_campaign.Experience:n0} / {next:n0}"
 			: $"xp {_campaign.Experience:n0}";
 
+		// A level has rooms rather than chapters: where the party is, and whether it is a fight.
+		var where = _campaign.IsLevel
+			? (_campaign.CurrentArea is { } room ? $"{room.Name}   ·   round {_battle.Round}"
+				: _battle.Party.Select(one => _battle.Battlefield?.SquareOf(one)).FirstOrDefault(s => s is not null) is { } here
+					&& _campaign.AreaAt(here) is { } area ? $"{area.Name}   ·   exploring" : "exploring")
+			: $"chapter {_campaign.Chapter} of {_campaign.Definition.Encounters.Count}   ·   round {_battle.Round}";
 		var headline = $"{_campaign.Definition.Name}\n"
-			+ $"chapter {_campaign.Chapter} of {_campaign.Definition.Encounters.Count}   ·   round {_battle.Round}\n"
+			+ $"{where}\n"
 			+ $"rests {_campaign.RestsRemaining}   ·   {earned}";
 
 		// The faces, the acting character and the action pips, snapshotted with the text so

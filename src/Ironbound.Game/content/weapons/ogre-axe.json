@@ -1,0 +1,13 @@
+// The ogre chief's axe: the massive one the story gives him and his model carries, with a
+// man-sized greatclub's dice rather than an ogre-sized axe's. Weapons do not scale with the size
+// of whoever swings them yet, and a true ogre's axe — 3d6, tripled on a critical — would put a
+// first-level wizard on the floor from full health in one blow. Swung in two hands, so Strength
+// still counts half again.
+{
+  "kind": "weapon",
+  "id": "ogre-axe",
+  "name": "massive axe",
+  "damage": "1d10",
+  "damageType": "Slashing",
+  "scale": "OneAndAHalf"
+}

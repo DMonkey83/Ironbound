@@ -1,0 +1,28 @@
+// Small room, two foes, and one of them fast. The rat closes before anyone else has moved.
+{
+  "kind": "encounter",
+  "id": "guard-post",
+  "name": "The Guard Post",
+  "width": 12,
+  "height": 10,
+  "terrain": "rocky",
+
+  "intro": "Pip has the storeroom lock open in a minute. Behind it are coils of rope, bundles of torches, a light crossbow with a case of bolts, and a sack of coin far too heavy to carry into a fight; strapped to the underside of Tobin's own cart, wrapped in sacking, is the greatsword, its edge faintly bright. Of the healing draughts there is nothing left but broken glass and a sticky floor. Back over the crevice, the left-hand tunnel opens on a guard post, where an orc looks up from a table, and the rat the size of a dog at its feet looks up too.",
+
+  // The table in the middle of the room, and the locked door at the far end that the guard
+  // has the key to.
+  "blocked": [
+    { "x": 6, "y": 4 }, { "x": 7, "y": 4 },
+    { "x": 6, "y": 5 }, { "x": 7, "y": 5 },
+    { "x": 11, "y": 4 }, { "x": 11, "y": 5 }
+  ],
+
+  "placements": [
+    { "creature": "aldric", "x": 2, "y": 4, "party": true },
+    { "creature": "pip",    "x": 2, "y": 6, "party": true },
+    { "creature": "hale",   "x": 1, "y": 5, "party": true },
+    { "creature": "sylwen", "x": 1, "y": 3, "party": true },
+    { "creature": "orc", "x": 9, "y": 3, "name": "Orc Guard" },
+    { "creature": "dire-rat", "x": 9, "y": 6 }
+  ]
+}

@@ -11,7 +11,7 @@ public class CampaignTests
     [Fact]
     public void ItOpensOnTheFirstChapter()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
 
         Assert.Equal(1, run.Chapter);
         Assert.Equal(CampaignState.Fighting, run.State);
@@ -47,7 +47,7 @@ public class CampaignTests
     [Fact]
     public void TheSecondChapterRollsItsOwnDiceRatherThanReplayingTheFirst()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle));
         var opening = run.Battle.Log.ToList();
 
@@ -89,7 +89,7 @@ public class CampaignTests
     [Fact]
     public void YouCannotRestInTheMiddleOfAFight()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
 
         Assert.Equal(CampaignState.Fighting, run.State);
         Assert.False(run.CanRest);
@@ -112,7 +112,7 @@ public class CampaignTests
     /// <summary>The first chapter, fought to a finish.</summary>
     private static Campaign Won()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
 
         return run;
@@ -122,7 +122,7 @@ public class CampaignTests
     public void ACampaignThatIsNotInTheFilesSaysSo()
     {
         var error = Assert.Throws<ArgumentException>(
-            () => Campaign.Begin(ContentFiles.Default, "the-short-road"));
+            () => Campaign.Begin(ChainContent.Library, "the-short-road"));
 
         Assert.Contains("the-short-road", error.Message);
     }
@@ -166,7 +166,7 @@ public class LootTests
     [Fact]
     public void NothingIsTakenWhileTheFightingIsStillGoingOn()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
 
         Assert.Equal(0, run.Collect());
         Assert.Empty(run.Stash);
@@ -236,7 +236,7 @@ public class LootTests
         run.Collect();
         var carried = run.Stash.Select(item => item.Id).ToList();
 
-        var restored = Campaign.FromJson(run.ToJson(), ContentFiles.Default);
+        var restored = Campaign.FromJson(run.ToJson(), ChainContent.Library);
 
         Assert.Equal(carried, restored.Stash.Select(item => item.Id));
 
@@ -246,7 +246,7 @@ public class LootTests
 
     private static Campaign Fought()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
 
         return run;
@@ -258,7 +258,7 @@ public class ExperienceTests
     [Fact]
     public void ThePartyStartsWhereItsLevelsSayItAlreadyIs()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
 
         // Otherwise the opening fight reads as though six levels had never happened, and the
         // first goblin killed would hand the whole party a level.
@@ -270,7 +270,7 @@ public class ExperienceTests
     [Fact]
     public void WinningAChapterIsWorthSomething()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         var opening = run.Experience;
 
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
@@ -282,7 +282,7 @@ public class ExperienceTests
     [Fact]
     public void ExperienceIsAwardedOnceHoweverManyTimesAnybodyAsks()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
 
         run.Collect();
@@ -295,7 +295,7 @@ public class ExperienceTests
     [Fact]
     public void TwoFightsDoNotLevelASixthLevelParty()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
         run.Advance();
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
@@ -331,7 +331,7 @@ public class ExperienceTests
     [Fact]
     public void NobodyLevelsUpInTheMiddleOfAFight()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
 
         Assert.Empty(run.Ready);
         Assert.False(run.LevelUp(run.Party[0]));
@@ -339,7 +339,7 @@ public class ExperienceTests
 
     private static Campaign Fought()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
 
         return run;
@@ -354,7 +354,7 @@ public class LevellingChoiceTests
         var (run, merrin) = Ready();
 
         Assert.Equal(
-            ["Barbarian", "Fighter", "Rogue", "Warrior", "Wizard"],
+            ["Barbarian", "Cleric", "Fighter", "Rogue", "Warrior", "Wizard"],
             run.ClassesFor(merrin).Select(taken => taken.Name));
     }
 
@@ -363,7 +363,7 @@ public class LevellingChoiceTests
     {
         var (run, merrin) = Ready();
 
-        Assert.True(run.LevelUp(merrin, ContentFiles.Default.GetClass("fighter")!));
+        Assert.True(run.LevelUp(merrin, ChainContent.Library.GetClass("fighter")!));
 
         Assert.Equal("Wizard 5 / Fighter 1", merrin.Description);
         Assert.Equal(6, merrin.Level);
@@ -430,8 +430,8 @@ public class LevellingChoiceTests
         Assert.False(run.NextLevelGrantsFeat(merrin));
         Assert.False(run.LevelUp(
             merrin,
-            ContentFiles.Default.GetClass("wizard")!,
-            ContentFiles.Default.GetFeat("dodge")!));
+            ChainContent.Library.GetClass("wizard")!,
+            ChainContent.Library.GetFeat("dodge")!));
 
         Assert.Equal("Wizard 5", merrin.Description);
     }
@@ -441,7 +441,7 @@ public class LevellingChoiceTests
     {
         var (run, merrin) = Ready();
 
-        Assert.True(run.LevelUp(merrin, ContentFiles.Default.GetClass("wizard")!));
+        Assert.True(run.LevelUp(merrin, ChainContent.Library.GetClass("wizard")!));
         Assert.Equal("Wizard 6", merrin.Description);
     }
 
@@ -519,7 +519,7 @@ public class LevellingChoiceTests
     /// <summary>Chapter one won, leaving Merrin a level behind the fighters and able to take it.</summary>
     private static (Campaign Run, Creature Merrin) Ready()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle), maximumTurns: 400);
         run.Collect();
 
@@ -532,11 +532,11 @@ public class CampaignSaveTests
     [Fact]
     public void ARunComesBackWhereItWasLeft()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle));
         run.Advance();
 
-        var restored = Campaign.FromJson(run.ToJson(), ContentFiles.Default);
+        var restored = Campaign.FromJson(run.ToJson(), ChainContent.Library);
 
         Assert.Equal(2, restored.Chapter);
         Assert.Equal(run.RestsRemaining, restored.RestsRemaining);
@@ -551,10 +551,10 @@ public class CampaignSaveTests
     [Fact]
     public void ThePartyIsStillRecognisedAsTheSamePeopleAfterwards()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
         run.Battle.RunToCompletion(Scenarios.AutoPilot(run.Battle));
 
-        var restored = Campaign.FromJson(run.ToJson(), ContentFiles.Default);
+        var restored = Campaign.FromJson(run.ToJson(), ChainContent.Library);
         var wounded = restored.Party.Sum(c => c.HitPoints.Damage);
 
         Assert.True(restored.Advance());
@@ -568,8 +568,8 @@ public class CampaignSaveTests
     [Fact]
     public void LevelsSurviveASaveSoTheNextOneLandsInTheRightClass()
     {
-        var run = Campaign.Begin(ContentFiles.Default, "the-long-road");
-        var restored = Campaign.FromJson(run.ToJson(), ContentFiles.Default);
+        var run = Campaign.Begin(ChainContent.Library, "the-long-road");
+        var restored = Campaign.FromJson(run.ToJson(), ChainContent.Library);
         var valeria = restored.Party.Single(c => c.Name == "Valeria");
 
         // Without the levels coming back, another one would open a second Fighter entry and
@@ -578,7 +578,7 @@ public class CampaignSaveTests
         Assert.Equal(run.Experience, restored.Experience);
 
         Ironbound.Rules.Classes.Levelling.Gain(
-            valeria, ContentFiles.Default.GetClass("fighter")!);
+            valeria, ChainContent.Library.GetClass("fighter")!);
 
         Assert.Equal("Fighter 7", valeria.Description);
         Assert.Equal(7, valeria.BaseAttackBonus);
@@ -592,7 +592,7 @@ public class CampaignSaveTests
             Ironbound.Rules.Persistence.GameSave.Capture(battle.Encounter));
 
         var error = Assert.Throws<InvalidDataException>(
-            () => Campaign.FromJson(json, ContentFiles.Default));
+            () => Campaign.FromJson(json, ChainContent.Library));
 
         Assert.Contains("single fight", error.Message);
     }
@@ -603,11 +603,11 @@ public class ShippedCampaignTests
     [Fact]
     public void TheLongRoadIsShippedAndBothItsFightsExist()
     {
-        var road = ContentFiles.Default.GetCampaign("the-long-road")!;
+        var road = ChainContent.Library.GetCampaign("the-long-road")!;
 
         Assert.Equal(["goblin-ambush", "moonlit-clearing"], road.Encounters);
         Assert.Equal(1, road.Rests);
-        Assert.All(road.Encounters, id => Assert.NotNull(ContentFiles.Default.GetEncounter(id)));
+        Assert.All(road.Encounters, id => Assert.NotNull(ChainContent.Library.GetEncounter(id)));
     }
 
     [Fact]

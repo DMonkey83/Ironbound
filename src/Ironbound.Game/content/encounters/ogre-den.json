@@ -1,0 +1,33 @@
+// The end of the road. The ledge is a wall with one way down through it, and whoever goes
+// through first meets ten feet of ogre reach on the other side.
+{
+  "kind": "encounter",
+  "id": "ogre-den",
+  "name": "Gorrum's Den",
+  "width": 18,
+  "height": 14,
+  "terrain": "rocky",
+
+  "intro": "The key on the guard's belt fits the door, and the passage beyond ends on a narrow ledge high above a smoky cavern. Below, among gnawed bones and a heap of stolen goods, an ogre half again the height of a man sits picking his teeth with a dagger while an orc stands guard at his elbow. A rough path winds down from the ledge to the cavern floor, and as your boots scatter its loose stones Gorrum looks up, grins, and reaches for his club.",
+
+  // The foot of the ledge: a line of rock from wall to wall with a gap four squares wide where
+  // the path comes down. Then the fire pit, and the boulders the ogre likes to sit on.
+  "blocked": [
+    { "x": 4, "y": 0 }, { "x": 4, "y": 1 }, { "x": 4, "y": 2 }, { "x": 4, "y": 3 }, { "x": 4, "y": 4 },
+    { "x": 4, "y": 9 }, { "x": 4, "y": 10 }, { "x": 4, "y": 11 }, { "x": 4, "y": 12 }, { "x": 4, "y": 13 },
+    { "x": 10, "y": 6 }, { "x": 10, "y": 7 },
+    { "x": 8, "y": 2 },
+    { "x": 8, "y": 11 },
+    { "x": 15, "y": 1 },
+    { "x": 16, "y": 11 }
+  ],
+
+  "placements": [
+    { "creature": "aldric", "x": 3, "y": 6, "party": true },
+    { "creature": "pip",    "x": 3, "y": 8, "party": true },
+    { "creature": "hale",   "x": 2, "y": 7, "party": true },
+    { "creature": "sylwen", "x": 1, "y": 6, "party": true },
+    { "creature": "ogre", "x": 14, "y": 7, "name": "Gorrum" },
+    { "creature": "orc",  "x": 13, "y": 4, "name": "Gorrum's Bodyguard" }
+  ]
+}

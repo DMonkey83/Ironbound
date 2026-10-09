@@ -1,0 +1,102 @@
+{
+ "kind": "level",
+ "id": "the-long-road",
+ "name": "The Long Road",
+ "stone": "rocky",
+ "grass": "woodland",
+ "map": [
+  "R....RR.RR.....R.....R,,TT,T,,,,T,T,,TTT,T,TTTT,,,,,",
+  "...R.....R..RR..R..RR.,T,T,T,,T,TT,TTT,TT,T,,TTT,,,,",
+  ".........R..R.........TT,,,,,,,,,,,,,T,,,,,,,,,T,,,,",
+  "......................,,,,,,T,,,,,,,,,,,,,,T,,,T,,,,",
+  "..R...................,,,T,,T,,,,,,TT,,T,,T,,,,,,,,,",
+  "............R.........T,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ".........R..R....R....,,,,,,,,,,,,,,,,,,,,,T,,,,,,,,",
+  "......................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  "......................,,,,,,,T,,,T,,T,,,,,,,,,,,,,,,",
+  "......................,,T,,,,,,,,,,,,,T,,,,,,,,,,,,,",
+  "...........R.R........,,,,,,,,,,,,,,,,,,,,,,,,T,,,,T",
+  "......R...............,,,,,,,,,,,,,T,,,,,,,,,,,,,,,,",
+  "...............R......,,,,T,TT,,,,,,,,,,,,,,,,,,,,,,",
+  "..........R.......R...,,,,,,T,,T,,,,,,,,,,,,,,,,,,TT",
+  "RRR.........R......RRR,TTTTTTTTTTTTTTT,TTTT,TTTT,TTT",
+  ".R....RR...R...RRRRRR.,T,T,,,TT,,TT,TTT,,T,,,,,TTT,T"
+ ],
+ "start": [
+  {
+   "creature": "valeria",
+   "x": 2,
+   "y": 6
+  },
+  {
+   "creature": "karn",
+   "x": 2,
+   "y": 8
+  },
+  {
+   "creature": "merrin",
+   "x": 1,
+   "y": 7
+  }
+ ],
+ "areas": [
+  {
+   "id": "goblin-ambush",
+   "name": "The Standing Stones",
+   "x": 7,
+   "y": 0,
+   "width": 14,
+   "height": 16,
+   "intro": "The road climbs through a field of broken standing stones, the kind of ground where anything could be crouched behind the next one.",
+   "foes": [
+    {
+     "creature": "goblin",
+     "x": 14,
+     "y": 5,
+     "name": "Goblin 1",
+     "hidden": true
+    },
+    {
+     "creature": "goblin",
+     "x": 15,
+     "y": 9,
+     "name": "Goblin 2",
+     "hidden": true
+    },
+    {
+     "creature": "goblin-archer",
+     "x": 18,
+     "y": 10,
+     "name": "Goblin Archer",
+     "hidden": true
+    },
+    {
+     "creature": "hobgoblin-sergeant",
+     "x": 16,
+     "y": 7,
+     "name": "Sergeant Grask",
+     "hidden": true
+    }
+   ]
+  },
+  {
+   "id": "moonlit-clearing",
+   "name": "The Moonlit Clearing",
+   "x": 39,
+   "y": 2,
+   "width": 12,
+   "height": 12,
+   "final": true,
+   "intro": "The trees open on a clearing silvered by the moon. Something large is moving at the far side of it, on two legs and then on four, and it has smelled you already.",
+   "foes": [
+    {
+     "creature": "werewolf",
+     "x": 47,
+     "y": 8,
+     "name": "Grey Fang"
+    }
+   ]
+  }
+ ],
+ "features": []
+}

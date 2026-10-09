@@ -1,0 +1,7 @@
+{
+  "kind": "weapon",
+  "id": "light-mace",
+  "name": "light mace",
+  "damage": "1d6",
+  "damageType": "Bludgeoning"
+}

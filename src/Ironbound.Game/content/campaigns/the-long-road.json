@@ -1,9 +1,14 @@
 // Two fights and one rest between them. The question the whole ruleset is built around: is
 // Merrin's fireball worth spending on goblins, knowing what waits in the clearing?
+//
+// Played on the level of the same name. The encounters are the same fights strung together
+// without the walking, which is how the balance tests play it; the level wins when both are set.
 {
   "kind": "campaign",
   "id": "the-long-road",
   "name": "The Long Road",
+  "description": "Three seasoned heroes, a goblin ambush on the road, and something waiting in the clearing beyond that ordinary steel will not cut.",
   "encounters": ["goblin-ambush", "moonlit-clearing"],
-  "rests": 1
+  "rests": 1,
+  "level": "the-long-road"
 }

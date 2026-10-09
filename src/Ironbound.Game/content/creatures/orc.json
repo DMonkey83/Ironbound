@@ -1,0 +1,23 @@
+// The raiders. The book's orc is stronger than this one and carries a falchion; both are
+// filed down a little so that a party of four first-level heroes meeting seven of them across
+// one afternoon has a fight rather than a funeral.
+{
+  "kind": "creature",
+  "id": "orc",
+  "name": "Orc",
+  "model": "res://art/orc.glb",
+  "abilities": [15, 11, 12, 8, 7, 6],
+  "classes": [ { "class": "warrior", "level": 1 } ],
+
+  // Written down rather than derived. A class hands out its whole hit die at first level, as
+  // a hero's does, and eleven-hit-point orcs would turn every room here into a slog. Five is
+  // an average roll; Constitution makes it six.
+  "hitPoints": 5,
+
+  "skills": [
+    { "skill": "Perception", "ranks": 1 },
+    { "skill": "Intimidate", "ranks": 2 }
+  ],
+  "speed": 30,
+  "items": ["studded-leather", "shortspear"]
+}

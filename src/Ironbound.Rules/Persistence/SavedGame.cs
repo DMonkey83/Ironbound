@@ -31,10 +31,17 @@ public sealed record SavedGame(
     SavedCombatant[] Order,
     SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 11;
+    public const int CurrentVersion = 12;
+
+    /// <summary>
+    /// The oldest version still read. Twelve only added a field that eleven did without, so an
+    /// eleven reads as a twelve that never had a level in it — which is exactly what it was.
+    /// </summary>
+    public const int OldestReadable = 11;
 }
 
 /// <summary>Where a run of encounters had got to.</summary>
+/// <param name="Level">Null for a run of separate fights, which is every save before twelve.</param>
 public sealed record SavedCampaign(
     string Id,
     int Chapter,
@@ -42,7 +49,27 @@ public sealed record SavedCampaign(
     ulong Seed,
     string[] Stash,
     int LootedChapter,
-    int Experience);
+    int Experience,
+    SavedLevel? Level = null);
+
+/// <summary>
+/// How far through a level the party has got.
+/// </summary>
+/// <remarks>
+/// Only what the level file cannot say for itself. Who was waiting in an unvisited room is
+/// already written down there, so it is rebuilt rather than saved; what the party has done to
+/// the place — rooms emptied, doors broken, the bridge tied off — is not, so it is kept here.
+/// </remarks>
+/// <param name="Current">The room being fought in, or null while exploring.</param>
+/// <param name="RandomA">The exploring dice, as <see cref="SavedGame.RandomA"/> is the fight's.</param>
+public sealed record SavedLevel(
+    string Id,
+    string[] Cleared,
+    string[] Visited,
+    string[] Used,
+    string? Current,
+    ulong RandomA,
+    ulong RandomB);
 
 public sealed record SavedBattlefield(
     int Width,

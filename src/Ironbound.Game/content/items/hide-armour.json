@@ -1,0 +1,6 @@
+{
+  "kind": "item", "id": "hide-armour", "name": "hide armour",
+  "description": "Uncured skins, several layers deep. It smells exactly as you would expect.",
+  "slot": "Armour",
+  "grants": [ { "target": "armourClass", "value": 3, "type": "Armor" } ]
+}

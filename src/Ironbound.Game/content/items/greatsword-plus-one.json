@@ -1,0 +1,12 @@
+// The merchant's blade, and the first enchanted weapon a first-level party is likely to hold:
+// one better to hit, one better to hurt, and counted as magic against anything that cares.
+{
+  "model": "res://art/weapons/greatsword-plus-one.glb",
+  "kind": "item",
+  "id": "greatsword-plus-one",
+  "name": "greatsword +1",
+  "description": "A fine blade bound for a lord's armoury, until the orcs took the cart it rode in.",
+  "slot": "MainHand",
+  "weapon": "greatsword",
+  "enhancement": 1
+}

@@ -1,0 +1,8 @@
+// One-handed, so an orc can carry it and still have a fist free for the prisoner.
+{
+  "kind": "weapon",
+  "id": "shortspear",
+  "name": "shortspear",
+  "damage": "1d6",
+  "damageType": "Piercing"
+}

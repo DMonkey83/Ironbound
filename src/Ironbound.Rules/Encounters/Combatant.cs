@@ -38,8 +38,14 @@ public sealed class Combatant
     /// <summary>Opportunities spent since this creature's last turn.</summary>
     public int OpportunitiesUsed { get; internal set; }
 
+    /// <summary>Whether it could swing at somebody leaving its reach right now.</summary>
+    /// <remarks>
+    /// Being dazed, stunned or asleep takes the opportunities away with the turn. A swing at
+    /// somebody walking past is still an action, and a creature that can take none of those
+    /// cannot take that one either — least of all one that is snoring.
+    /// </remarks>
     public bool CanTakeOpportunity =>
-        IsActive && OpportunitiesUsed < Creature.AttacksOfOpportunityPerRound;
+        IsActive && Creature.CanAct && OpportunitiesUsed < Creature.AttacksOfOpportunityPerRound;
 
     /// <summary>Set by ordinary movement. Bars a five-foot step for the rest of the turn.</summary>
     /// <summary>

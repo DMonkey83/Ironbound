@@ -1,6 +1,7 @@
 using Ironbound.Rules;
 using Ironbound.Rules.Classes;
 using Ironbound.Rules.Content;
+using Ironbound.Rules.Dice;
 using Ironbound.Rules.Feats;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Items;
@@ -22,6 +23,12 @@ public enum CampaignState
 
     /// <summary>The party is down. There is no next fight.</summary>
     Lost,
+
+    /// <summary>
+    /// Walking a level with nobody to fight. Only a campaign played on a level is ever in it;
+    /// it is to a level what <see cref="Between"/> is to a run of fights.
+    /// </summary>
+    Exploring,
 }
 
 /// <summary>
@@ -37,7 +44,7 @@ public enum CampaignState
 /// rules deliberately do not answer — the same reason <see cref="Battle"/> is here.
 /// </para>
 /// </remarks>
-public sealed class Campaign
+public sealed partial class Campaign
 {
     private readonly ContentLibrary _library;
     private readonly RuleOptions? _rules;
@@ -55,6 +62,7 @@ public sealed class Campaign
 
         Definition = definition;
         RestsRemaining = definition.Rests;
+        _explore = new PcgRandom(seed, ExploreStream);
     }
 
     /// <summary>
@@ -81,7 +89,17 @@ public sealed class Campaign
             ?? throw new ArgumentException($"No campaign called '{campaignId}'.", nameof(campaignId));
 
         var campaign = new Campaign(library, definition, seed, rules);
-        campaign.Advance();
+
+        if (definition.Level is { Length: > 0 } levelId)
+        {
+            campaign.Open(library.GetLevel(levelId) ?? throw new ArgumentException(
+                $"The campaign '{campaignId}' is set in a level '{levelId}', which no content file defines.",
+                nameof(campaignId)));
+        }
+        else
+        {
+            campaign.Advance();
+        }
 
         // Start them where their levels say they already are, or the opening fight would read
         // as though six levels of experience had never happened.
@@ -101,6 +119,15 @@ public sealed class Campaign
     /// <summary>The fight currently open, or the last one fought.</summary>
     public Battle Battle { get; private set; } = null!;
 
+    /// <summary>The written-down form of that fight: its name, its intro, what it hides.</summary>
+    public EncounterDefinition? Scene =>
+        Chapter >= 1 && Chapter <= Definition.Encounters.Count
+            ? _library.GetEncounter(Definition.Encounters[Chapter - 1])
+            : null;
+
+    /// <summary>What to read aloud as this chapter opens. Empty when it has nothing to say.</summary>
+    public string Intro => Scene?.Intro ?? string.Empty;
+
     /// <summary>The party as they stand, wounds and spent slots and all.</summary>
     public IReadOnlyList<Creature> Party => Battle.Party;
 
@@ -108,6 +135,11 @@ public sealed class Campaign
     {
         get
         {
+            if (IsLevel)
+            {
+                return LevelState;
+            }
+
             if (Battle.Outcome == BattleOutcome.InProgress)
             {
                 return CampaignState.Fighting;
@@ -133,9 +165,11 @@ public sealed class Campaign
     /// </remarks>
     public IReadOnlyList<ItemDefinition> Stash => _stash;
 
-    public bool CanRest => RestsRemaining > 0 && State == CampaignState.Between;
+    public bool CanRest =>
+        RestsRemaining > 0 && State is CampaignState.Between or CampaignState.Exploring;
 
-    public bool CanAdvance => State == CampaignState.Between;
+    /// <summary>Never on a level: there is no next fight to cut to, only somewhere to walk.</summary>
+    public bool CanAdvance => !IsLevel && State == CampaignState.Between;
 
     /// <summary>
     /// Stops to recover: every wound closed, every slot back, every lingering effect gone.
@@ -165,11 +199,16 @@ public sealed class Campaign
     }
 
     /// <summary>
-    /// Strips the fallen of everything they were carrying. Idempotent: a chapter is looted once,
-    /// however many times anybody asks.
+    /// Strips the fallen of everything they were carrying, and searches the room if the fight
+    /// was won. Idempotent: a chapter is looted once, however many times anybody asks.
     /// </summary>
     public int Collect()
     {
+        if (IsLevel)
+        {
+            return CollectArea();
+        }
+
         if (_lootedChapter >= Chapter || State == CampaignState.Fighting)
         {
             return 0;
@@ -180,9 +219,9 @@ public sealed class Campaign
 
         // Experience comes off the same moment: the chapter is over, and this is taking stock
         // of it. Awarded for anyone put down, whether or not they were carrying anything.
-        Experience += Battle.Foes
+        Award($"Chapter {Chapter} won", Battle.Foes
             .Where(foe => !foe.IsConscious)
-            .Sum(Levelling.Award);
+            .Sum(Levelling.Award));
 
         // Anyone who cannot stop you, not only the outright dead. A hobgoblin bleeding out at
         // -12 is in no position to object, and leaving his sword on him because the rules call
@@ -194,6 +233,17 @@ public sealed class Campaign
             {
                 fallen.Equipment.Unequip(item.Id);
                 _stash.Add(item);
+                taken++;
+            }
+        }
+
+        // What was lying about rather than being carried. Under the same once-only guard as the
+        // bodies, and that guard is saved, so reloading is not a way to find the sword twice.
+        if (State != CampaignState.Lost && Scene is { } scene)
+        {
+            foreach (var found in scene.Loot.Select(_library.GetItem).OfType<ItemDefinition>())
+            {
+                _stash.Add(found);
                 taken++;
             }
         }
@@ -365,7 +415,7 @@ public sealed class Campaign
     /// <summary>Moves on to the next fight, carrying the party into it as they are.</summary>
     public bool Advance()
     {
-        if (Battle is not null && !CanAdvance)
+        if (IsLevel || (Battle is not null && !CanAdvance))
         {
             return false;
         }
@@ -393,7 +443,8 @@ public sealed class Campaign
                 _seed,
                 [.. _stash.Select(item => item.Id)],
                 _lootedChapter,
-                Experience)));
+                Experience,
+                CaptureLevel())));
 
     /// <summary>
     /// Reads one back. Refuses a save with no campaign in it rather than inventing one.
@@ -411,7 +462,7 @@ public sealed class Campaign
         var definition = library.GetCampaign(state.Id) ?? throw new InvalidDataException(
             $"The save is of a campaign '{state.Id}', which no content file defines.");
 
-        return Restore(
+        var campaign = Restore(
             library,
             definition,
             state.Chapter,
@@ -422,6 +473,13 @@ public sealed class Campaign
             state.Stash,
             state.LootedChapter,
             state.Experience);
+
+        if (state.Level is { } level)
+        {
+            campaign.Resume(level);
+        }
+
+        return campaign;
     }
 
     /// <summary>Puts a campaign back where a save left it, around an already-restored fight.</summary>
@@ -460,7 +518,9 @@ public sealed class Campaign
         return campaign;
     }
 
-    public override string ToString() =>
-        $"{Definition.Name}: chapter {Chapter} of {Definition.Encounters.Count}, "
+    public override string ToString() => IsLevel
+        ? $"{Definition.Name}: {_cleared.Count} room(s) cleared, "
+            + $"{RestsRemaining} rest(s) left — {State}"
+        : $"{Definition.Name}: chapter {Chapter} of {Definition.Encounters.Count}, "
         + $"{RestsRemaining} rest(s) left — {State}";
 }

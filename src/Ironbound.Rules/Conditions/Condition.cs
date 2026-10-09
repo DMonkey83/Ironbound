@@ -38,6 +38,15 @@ public enum Condition
 
     /// <summary>Cannot see it coming.</summary>
     Blinded,
+
+    /// <summary>
+    /// Sound asleep. Does nothing, sees nothing coming, and wakes the moment it is hurt.
+    /// </summary>
+    /// <remarks>
+    /// Last in the list on purpose: saves name conditions as words, but anything that ever
+    /// counted them by position would see every later one shift.
+    /// </remarks>
+    Asleep,
 }
 
 /// <summary>
@@ -152,6 +161,17 @@ public static class ConditionInfo
             Grants = [new ModifierGrant(ModifierTarget.ArmorClass, -2, BonusType.Untyped)],
             DeniesDexterity = true,
             SpeedPercent = 50,
+        };
+
+        table[Condition.Asleep] = new ConditionRules
+        {
+            // Strictly a sleeper is helpless, which is worse than this: Dexterity counted as
+            // nought rather than merely lost, and a throat to cut. The rules have no notion of
+            // helpless yet, and stunned-without-the-penalty is the nearest honest thing they can
+            // say — no turn, no Dexterity, no swings at anybody walking past.
+            Condition = Condition.Asleep,
+            DeniesActions = true,
+            DeniesDexterity = true,
         };
 
         return table;

@@ -33,7 +33,8 @@ folds a separate alpha mask into the colour texture, recentres on the origin and
 blender -b --factory-startup --python tools/generate_goblin.py -- <variant> <out.glb>
 ```
 
-`variant` is `goblin`, `goblin-archer` or `hobgoblin`. No source art and nothing to licence: the
+`variant` is `goblin`, `goblin-archer`, `hobgoblin`, `orc` or `ogre` (the last two for the Caves
+of Shadow; the dire rat is `generate_rat.py`, a quadruped on the same bone names). No source art and nothing to licence: the
 model is the script. The body is grown from metaballs, the kit is placed on it from the same
 landmarks, and every surface is baked to textures by `surface.py` before export. Each build
 takes about two minutes, nearly all of it the bake. It prints a self-check parsed back out of the exported GLB — mesh count,
@@ -137,11 +138,66 @@ blender -b --factory-startup --python tools/preview_model.py -- out.glb preview.
 Imports the `.glb` into an empty scene and renders it from two angles. **Use it.** Every one of
 the traps below produced a build log that claimed success.
 
+## `render_keyart.py` — the front door
+
+```sh
+KEYART_PICTURE=shot.png blender -b --factory-startup --python tools/render_keyart.py -- desk src/Ironbound.Game/art/menu/title.png 1920 1080
+blender -b --factory-startup --python tools/render_keyart.py -- parchment src/Ironbound.Game/art/menu/parchment.png 1024 1024
+```
+
+The title screen is laid out after Pathfinder: Wrath of the Righteous: a desk by candlelight seen
+from straight above, the menu written on the right-hand page of an open book, the title on a
+note, and a framed picture of the game (`KEYART_PICTURE`, an in-game shot). The camera is
+orthographic at 100 pixels to the unit, so `Menu.cs` can place words on the paper by the numbers
+in `DESK_PAGE` and `DESK_NOTE`; move them together. The adventure cards
+(`art/menu/<campaign id>.png`) are crops of in-game shots. `parchment` is the paper every page,
+the hotbar and the log are printed on.
+
+## Menus, pages and experience
+
+- **Title** (`Menu.cs`): Continue, New Game, Load Game, Quit, inked on the book's page.
+  **New Game** opens a card per campaign; `-- --menu adventures` opens that screen directly.
+  `-- --campaign <id>` skips the menu altogether, as do `--autoplay` and the other test switches.
+- **Pages** (`Pages.cs`): what the content files say in prose — a room's intro and outro, a
+  cache's contents, the bridge — is shown on parchment over the board, and nothing moves until it
+  is put away. Unattended runs skip them.
+- **Experience** is given for every fight won, every place found for the first time, and every
+  door opened, chasm crossed and cache searched. Each award goes in the log and up on a slip at
+  the top of the screen; a level earned says so. Areas and features take an `"xp"` in their level
+  file; without one, a place is worth 50, a door 50, a crossing 100, a cache 25.
+
+## Levels: walking between the fights
+
+A campaign with a `"level"` (`content/levels/*.json`) is played on one connected map instead of
+a chain of separate boards. The party walks it in real time — click to walk, the selected member
+leading and the rest falling in round them; click a door, the bridge or a cache to go and use it
+— and the game turns turn-based only when somebody steps into a room where something is
+waiting. The fight is fought on the same ground, everyone where they stood; when it is won the
+bodies stay where they fell and the walking resumes.
+
+The map is ASCII: `#` rock, `.` stone floor, `,` grass, `T` tree, `R` standing rock, `~` chasm,
+`+` door, `b` `t` `c` bed, table, crate. Areas are rectangles over the floor with their foes,
+story and loot; features name the squares they sit on. The rules own every fact (`CampaignLevel.cs`
+in Simulation); the Game draws them (`Exploration.cs`, `LevelLook.cs`):
+
+- The ground and the rock are one heightfield, two points to a square: walkable squares stay
+  flat, rock climbs out of the wall squares and darkens as it rises, a lone `R` is a boulder, a
+  chasm is a trench. `level_ground.gdshader` paints it — flagstones underground, earth and
+  gravel in the open, grass by the vertex colour — so nothing is tiled.
+- A level that is a third or more rock is a cave: night outside, a torch on the head wall of
+  every room under the rock, and a lantern carried by the party. Open levels keep the daylight.
+- The grid and the nameplates show only during a fight.
+
+`-- --explore 6,37 6,30 17,23 ...` walks the party to each square in turn, using any feature it
+names, once the last walk, page and fight are done. With `--autoplay` a whole level plays itself;
+that, under `xvfb-run`, is how both levels were checked end to end.
+
 ## The interface
 
-The board has the whole window and the interface sits in its corners (`src/Ironbound.Game/Hud.cs`):
-party portraits top-left, campaign and turn order top-right, the acting character and their
-actions bottom-centre, the log bottom-left, system buttons bottom-right.
+After Wrath's HUD (`src/Ironbound.Game/Hud.cs`): along the foot of the screen, a strip of
+parchment in an iron frame holding the acting character and their actions, and under it the
+party's portraits in a row; the log on parchment bottom-right; the system buttons in an iron
+block bottom-left; the campaign and the turn order top-right.
 
 | Key | Does |
 | --- | --- |

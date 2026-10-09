@@ -1,0 +1,39 @@
+// Armour, a mace and a god. Three-quarters base attack and good Fortitude and Will: built to
+// stand in the second rank and keep the first one standing.
+{
+  "kind": "class",
+  "id": "cleric",
+  "name": "Cleric",
+  "hitDie": 8,
+  "attack": "ThreeQuarters",
+  "goodSaves": ["Fortitude", "Will"],
+  "classSkills": ["Diplomacy", "Heal", "Knowledge", "Spellcraft"],
+  "casting": "Full",
+  "castingAbility": "Wisdom",
+
+  // The wizard's table with one more at every spell level the cleric can cast. That one is the
+  // domain slot: the rules keep it apart and fill it from a short list, and there are no domains
+  // here yet, so it is simply counted in. A first-level cleric therefore has two, before Wisdom.
+  "spellSlots": [
+    [2],
+    [3],
+    [3, 2],
+    [4, 3],
+    [4, 3, 2],
+    [4, 4, 3],
+    [5, 4, 3, 2],
+    [5, 4, 4, 3],
+    [5, 5, 4, 3, 2],
+    [5, 5, 4, 4, 3],
+    [5, 5, 5, 4, 3, 2],
+    [5, 5, 5, 4, 4, 3],
+    [5, 5, 5, 5, 4, 3, 2],
+    [5, 5, 5, 5, 4, 4, 3],
+    [5, 5, 5, 5, 5, 4, 3, 2],
+    [5, 5, 5, 5, 5, 4, 4, 3],
+    [5, 5, 5, 5, 5, 5, 4, 3, 2],
+    [5, 5, 5, 5, 5, 5, 4, 4, 3],
+    [5, 5, 5, 5, 5, 5, 5, 4, 4],
+    [5, 5, 5, 5, 5, 5, 5, 5, 5]
+  ]
+}

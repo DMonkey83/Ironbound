@@ -1,0 +1,26 @@
+// Seven hit points. Everything about playing her well follows from that number.
+{
+  "kind": "creature",
+  "id": "sylwen",
+  "name": "Sylwen",
+  "model": "res://art/merrin.glb",
+  // An elf: two more Dexterity and two less Constitution than the human she might have been.
+  "abilities": [8, 16, 12, 17, 12, 10],
+  "classes": [ { "class": "wizard", "level": 1 } ],
+
+  "skills": [
+    { "skill": "Knowledge", "ranks": 4 },
+    { "skill": "Spellcraft", "ranks": 4 },
+    { "skill": "Perception", "ranks": 2 }
+  ],
+  "speed": 30,
+  "feats": ["improved-initiative"],
+
+  // Bow first, so a click on anything at range offers an arrow; the dagger is for when that
+  // has gone wrong.
+  "items": ["shortbow", "dagger"],
+
+  // One first-level slot from the table and one from Intelligence 17: two missiles a day,
+  // and choosing when to spend them is most of what she does.
+  "spells": ["magic-missile"]
+}

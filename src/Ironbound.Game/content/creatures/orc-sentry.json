@@ -1,0 +1,18 @@
+// The one left awake while the others sleep, with nothing to hand but the knife it was
+// whittling with. A separate creature only because the weapon is; otherwise an ordinary orc.
+{
+  "kind": "creature",
+  "id": "orc-sentry",
+  "name": "Orc Sentry",
+  "model": "res://art/orc.glb",
+  "abilities": [15, 11, 12, 8, 7, 6],
+  "classes": [ { "class": "warrior", "level": 1 } ],
+  "hitPoints": 5,
+
+  "skills": [
+    { "skill": "Perception", "ranks": 1 },
+    { "skill": "Intimidate", "ranks": 2 }
+  ],
+  "speed": 30,
+  "items": ["studded-leather", "dagger"]
+}

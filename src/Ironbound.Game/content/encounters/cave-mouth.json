@@ -1,0 +1,34 @@
+// The way in. Two orcs, no tricks: a fight to learn four new people on before the caves start
+// asking harder questions.
+{
+  "kind": "encounter",
+  "id": "cave-mouth",
+  "name": "The Cave Mouth",
+  "width": 14,
+  "height": 10,
+  "terrain": "woodland",
+
+  "intro": "The raiders' trail climbs through scrub oak and ends at a dark opening in the hillside, its lintel carved with faces the weather has nearly worn away. Beside an overturned cart, two orcs have an old man backed against a wheel and are taking turns prodding him with their spears, laughing at every yelp. They are too pleased with themselves to have heard you coming.",
+
+  // A scatter of trees and nothing more. The orcs come straight on, and the party has room to
+  // make its first mistakes in.
+  "blocked": [
+    { "x": 5, "y": 1 },
+    { "x": 4, "y": 8 },
+    { "x": 7, "y": 2 },
+    { "x": 8, "y": 7 },
+    { "x": 11, "y": 0 },
+    { "x": 12, "y": 8 },
+    { "x": 13, "y": 3 },
+    { "x": 13, "y": 6 }
+  ],
+
+  "placements": [
+    { "creature": "aldric", "x": 2, "y": 4, "party": true },
+    { "creature": "pip",    "x": 2, "y": 6, "party": true },
+    { "creature": "hale",   "x": 1, "y": 5, "party": true },
+    { "creature": "sylwen", "x": 1, "y": 3, "party": true },
+    { "creature": "orc", "x": 10, "y": 4, "name": "Orc Lout" },
+    { "creature": "orc", "x": 10, "y": 6, "name": "Orc Brute" }
+  ]
+}

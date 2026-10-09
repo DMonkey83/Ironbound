@@ -1,0 +1,24 @@
+// The front rank of the second campaign, and the only one of the four who can take a hit.
+{
+  "kind": "creature",
+  "id": "aldric",
+  "name": "Aldric",
+  "model": "res://art/karn.glb",
+  "abilities": [16, 13, 14, 10, 12, 8],
+  "classes": [ { "class": "fighter", "level": 1 } ],
+
+  "skills": [
+    { "skill": "Climb", "ranks": 4 },
+    { "skill": "Intimidate", "ranks": 4 },
+    { "skill": "Perception", "ranks": 2 }
+  ],
+  "speed": 30,
+
+  // Three feats at first level: a human's two and a fighter's bonus one. Combat Reflexes is
+  // what Dexterity 13 is for — a second swing at anything that tries to slip past to the wizard.
+  "feats": ["power-attack", "combat-reflexes", "dodge"],
+
+  // No shield: the greatsword wants both hands. The merchant's own blade is the upgrade waiting
+  // in the storeroom.
+  "items": ["scale-mail", "greatsword"]
+}

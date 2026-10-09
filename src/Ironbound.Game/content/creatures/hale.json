@@ -1,0 +1,23 @@
+// The second rank: armoured like a fighter, and the only one who can close a wound.
+{
+  "kind": "creature",
+  "id": "hale",
+  "name": "Hale",
+  "model": "res://art/valeria.glb",
+  "abilities": [14, 10, 14, 10, 15, 12],
+  "classes": [ { "class": "cleric", "level": 1 } ],
+
+  "skills": [
+    { "skill": "Heal", "ranks": 4 },
+    { "skill": "Knowledge", "ranks": 2 },
+    { "skill": "Spellcraft", "ranks": 2 }
+  ],
+  "speed": 30,
+  "feats": ["dodge", "great-fortitude"],
+  "items": ["scale-mail", "heavy-shield", "light-mace"],
+
+  // Three slots: two from the table, counting the domain one, and one from Wisdom 15. Bless
+  // first, because it is the one the automatic hand knows how to use — it never heals on its
+  // own initiative, so Cure Light Wounds is the player's call.
+  "spells": ["bless", "cure-light-wounds"]
+}

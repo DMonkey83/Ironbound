@@ -99,8 +99,31 @@ public partial class Main
 	/// the size they are at the fitted view — down to a floor, because past a point a label
 	/// that refuses to grow at all starts to look lost beside the figure it names.
 	/// </remarks>
-	private float LabelScale() =>
-		_fitZoom <= 0 ? 1f : Mathf.Clamp(_camZoom / _fitZoom, 0.30f, 1f);
+	private float LabelScale()
+	{
+		var reference = _campaign?.IsLevel == true ? LevelZoom : _fitZoom;
+		return reference <= 0 ? 1f : Mathf.Clamp(_camZoom / reference, 0.30f, 1f);
+	}
+
+	/// <summary>How much of a level is in view at rest: about a room and its doorways.</summary>
+	private const float LevelZoom = 9f;
+
+	/// <summary>The middle of the party on the board, or null before there is a party.</summary>
+	private Vector3? PartyCentre()
+	{
+		if (_battle?.Battlefield is not { } field)
+		{
+			return null;
+		}
+
+		var squares = _battle.Party.Select(field.SquareOf).Where(s => s is not null).Select(s => s!.Value).ToList();
+		if (squares.Count == 0)
+		{
+			return null;
+		}
+
+		return new Vector3((float)squares.Average(s => s.X) + 0.5f, 0, (float)squares.Average(s => s.Y) + 0.5f);
+	}
 
 	// ---- fitting the board to whatever the window is ----
 
@@ -158,6 +181,16 @@ public partial class Main
 
 		_fitZoom = Mathf.Max(tall / free.Size.Y, wide / (aspect * free.Size.X)) * 1.06f;
 		_camZoom = _fitZoom;
+
+		// A level is too big to show whole and still see anybody in it. Home there means the
+		// party, at the zoom of a room; the whole level stays one wheel-turn away.
+		if (_campaign?.IsLevel == true && PartyCentre() is { } party)
+		{
+			_camZoom = Mathf.Min(_fitZoom, LevelZoom);
+			_camFocus = party;
+			ApplyCamera();
+			return;
+		}
 
 		// The middle of the free rectangle is not the middle of the screen. Shift the focus so
 		// the board sits in what can be seen rather than half behind the controls.

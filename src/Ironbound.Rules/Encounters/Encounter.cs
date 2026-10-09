@@ -153,6 +153,12 @@ public sealed class Encounter
             // and falling, and none of those should have to remember to check.
             Bleeding.Sync(combatant.Creature);
 
+            // And one place decides who has been woken by it, for the same reason.
+            if (Conditions.Sleep.Sync(combatant.Creature) is { } woken)
+            {
+                events.Add(woken);
+            }
+
             events.AddRange(combatant.Creature.Effects.Advance(elapsed, Random));
         }
 

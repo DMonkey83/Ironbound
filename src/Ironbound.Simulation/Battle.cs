@@ -1,4 +1,5 @@
 using Ironbound.Rules;
+using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Encounters;
@@ -256,6 +257,27 @@ public sealed class Battle
                 lines.Add($"  {creature.Name} is taken unawares");
             }
         }
+
+        _log.AddRange(lines);
+        return lines;
+    }
+
+    /// <summary>
+    /// Opens the fight with these creatures asleep: no turns and no Dexterity until they are
+    /// hurt or the third round begins.
+    /// </summary>
+    /// <remarks>
+    /// A condition rather than a second kind of surprise. Being unaware lasts one turn and is
+    /// gone; sleep has to outlast a turn, survive a save, and end early on a blow, and the
+    /// effect clock already does the first two of those for every other condition.
+    /// </remarks>
+    public IReadOnlyList<string> Lull(IReadOnlyList<Creature> sleepers)
+    {
+        ArgumentNullException.ThrowIfNull(sleepers);
+
+        var lines = sleepers
+            .Select(sleeper => $"{sleeper.Name} is asleep ({Sleep.Fall(sleeper).Effect.Duration})")
+            .ToList();
 
         _log.AddRange(lines);
         return lines;

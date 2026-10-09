@@ -10,11 +10,11 @@ using Ironbound.Rules.Creatures;
 /// is, what they can do, and what just happened.
 /// </summary>
 /// <remarks>
-/// It used to be three slabs — a bar across the top, a column down the right, a block along the
-/// bottom — that between them covered half the screen and said everything in text. This is the
-/// other arrangement: the board gets the whole window, and the interface sits in its corners.
-/// Party portraits top-left, the campaign and the turn order top-right, the acting character and
-/// their actions bottom-centre, the log bottom-left, the system buttons bottom-right.
+/// Laid out after Pathfinder: Wrath of the Righteous, as the project owner asked: the board gets
+/// the whole window and the interface gathers along its foot. In the middle, a strip of parchment
+/// in an iron frame holding the acting character and what they can do, and under it the party's
+/// portraits in a row; the log on parchment bottom-right; the system buttons in an iron block
+/// bottom-left; the campaign and the turn order top-right.
 /// <para>
 /// Every control the rest of <c>Main</c> drives is still the same field it always was. Only
 /// where they live and what they look like changed, which is why the turn logic, the animation
@@ -30,6 +30,9 @@ public partial class Main
 	private static readonly Color Parchment = new(0.90f, 0.85f, 0.74f);
 	private static readonly Color Blood = new(0.70f, 0.13f, 0.11f);
 	private static readonly Color FoeBlood = new(0.78f, 0.36f, 0.16f);
+	private static readonly Color Iron = new(0.075f, 0.065f, 0.080f, 0.95f);
+	private static readonly Color IronSoft = new(0.075f, 0.065f, 0.080f, 0.80f);
+	private static readonly Color IronEdge = new(0.38f, 0.31f, 0.26f);
 
 	private enum Glyph
 	{
@@ -81,7 +84,7 @@ public partial class Main
 	private readonly Dictionary<Creature, SubViewport> _faces = new();
 	private readonly Dictionary<Key, Action> _hotkeys = new();
 
-	private VBoxContainer _partyColumn;
+	private HBoxContainer _partyRow;
 	private Control _hotbar;
 	private TextureRect _actorFace;
 	private SubViewport _actorLens;
@@ -116,19 +119,23 @@ public partial class Main
 	{
 		var theme = new Theme();
 
-		theme.SetStylebox("panel", "PanelContainer", Plate(Ink, Bronze));
-		theme.SetStylebox("panel", "Panel", Plate(Ink, Bronze));
+		theme.SetStylebox("panel", "PanelContainer", Plate(Iron, IronEdge, 2, 3));
+		theme.SetStylebox("panel", "Panel", Plate(Iron, IronEdge, 2, 3));
 
-		theme.SetStylebox("normal", "Button", Plate(new Color(0.13f, 0.10f, 0.08f, 0.95f), Bronze, 2, 5, 6));
-		theme.SetStylebox("hover", "Button", Plate(new Color(0.22f, 0.16f, 0.10f, 0.97f), BronzeBright, 2, 5, 6));
-		theme.SetStylebox("pressed", "Button", Plate(new Color(0.36f, 0.22f, 0.08f, 0.98f), BronzeBright, 3, 5, 6));
-		theme.SetStylebox("disabled", "Button", Plate(new Color(0.08f, 0.07f, 0.06f, 0.80f), new Color(0.25f, 0.21f, 0.16f), 2, 5, 6));
+		// Buttons are slots ruled on paper, as Wrath's hotbar is: pale, square-cornered, inked.
+		// The few that sit on iron instead are restyled by Ironclad.
+		theme.SetStylebox("normal", "Button", Slot(new Color(0.84f, 0.78f, 0.66f), new Color(0.50f, 0.40f, 0.30f), 1));
+		theme.SetStylebox("hover", "Button", Slot(new Color(0.93f, 0.88f, 0.77f), InkRed, 1));
+		theme.SetStylebox("pressed", "Button", Slot(new Color(0.74f, 0.63f, 0.50f), InkRed, 2));
+		theme.SetStylebox("disabled", "Button", Slot(new Color(0.78f, 0.74f, 0.66f, 0.55f), new Color(0.60f, 0.55f, 0.48f, 0.6f), 1));
 		theme.SetStylebox("focus", "Button", new StyleBoxEmpty());
 
-		theme.SetColor("font_color", "Button", Parchment);
-		theme.SetColor("font_hover_color", "Button", Colors.White);
-		theme.SetColor("font_pressed_color", "Button", BronzeBright);
-		theme.SetColor("font_disabled_color", "Button", new Color(0.45f, 0.42f, 0.36f));
+		theme.SetColor("font_color", "Button", PageInk);
+		theme.SetColor("font_hover_color", "Button", InkRed);
+		theme.SetColor("font_pressed_color", "Button", InkRed);
+		theme.SetColor("font_hover_pressed_color", "Button", InkRed);
+		theme.SetColor("font_disabled_color", "Button", new Color(0.50f, 0.45f, 0.42f));
+		theme.SetStylebox("separator", "VSeparator", new StyleBoxLine { Color = new Color(0.45f, 0.35f, 0.28f, 0.7f), Thickness = 1, Vertical = true });
 		theme.SetColor("font_color", "Label", Parchment);
 		theme.SetColor("default_color", "RichTextLabel", Parchment);
 
@@ -137,8 +144,39 @@ public partial class Main
 			theme.SetStylebox(name, "OptionButton", theme.GetStylebox(name, "Button"));
 		}
 
-		theme.SetColor("font_color", "OptionButton", Parchment);
+		theme.SetColor("font_color", "OptionButton", PageInk);
+		theme.SetColor("font_hover_color", "OptionButton", InkRed);
 		return theme;
+	}
+
+	private static StyleBoxFlat Slot(Color fill, Color border, int width)
+	{
+		var box = Plate(fill, border, width, 2, 6);
+		box.ShadowSize = 0;
+		return box;
+	}
+
+	/// <summary>Restyles a button that sits on the iron rather than on the paper.</summary>
+	private static Button Ironclad(Button button)
+	{
+		button.SetMeta("iron", true);
+		button.AddThemeStyleboxOverride("normal", Plate(new Color(0.12f, 0.10f, 0.11f), IronEdge, 2, 3, 6));
+		button.AddThemeStyleboxOverride("hover", Plate(new Color(0.20f, 0.16f, 0.17f), BronzeBright, 2, 3, 6));
+		button.AddThemeStyleboxOverride("pressed", Plate(new Color(0.30f, 0.20f, 0.16f), BronzeBright, 2, 3, 6));
+		button.AddThemeStyleboxOverride("disabled", Plate(new Color(0.08f, 0.07f, 0.07f, 0.8f), new Color(0.25f, 0.21f, 0.18f), 2, 3, 6));
+		return button;
+	}
+
+	/// <summary>Parchment in an iron frame: the hotbar's strip and the log.</summary>
+	private static PanelContainer PaperInIron(Control inside, int padX, int padY)
+	{
+		var iron = new PanelContainer();
+		iron.AddThemeStyleboxOverride("panel", Plate(Iron, IronEdge, 2, 3, 3));
+		var paper = new PanelContainer();
+		paper.AddThemeStyleboxOverride("panel", ParchmentPlate(padX, padY));
+		iron.AddChild(paper);
+		paper.AddChild(inside);
+		return iron;
 	}
 
 	private static ProgressBar Bar(Color fill, float height)
@@ -167,8 +205,8 @@ public partial class Main
 		layer.AddChild(root);
 		root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 
-		BuildPartyColumn(root);
 		BuildCorner(root);
+		BuildToasts(root);
 		BuildLogPanel(root);
 		BuildActionBar(root);
 		BuildSystemButtons(root);
@@ -193,30 +231,22 @@ public partial class Main
 		control.GrowHorizontal = corner switch
 		{
 			Control.LayoutPreset.TopRight or Control.LayoutPreset.BottomRight => Control.GrowDirection.Begin,
-			Control.LayoutPreset.CenterBottom => Control.GrowDirection.Both,
+			Control.LayoutPreset.CenterBottom or Control.LayoutPreset.CenterTop => Control.GrowDirection.Both,
 			_ => Control.GrowDirection.End,
 		};
 
-		control.GrowVertical = corner is Control.LayoutPreset.TopLeft or Control.LayoutPreset.TopRight
+		control.GrowVertical = corner is Control.LayoutPreset.TopLeft or Control.LayoutPreset.TopRight or Control.LayoutPreset.CenterTop
 			? Control.GrowDirection.End
 			: Control.GrowDirection.Begin;
 
 		control.SetAnchorsAndOffsetsPreset(corner, Control.LayoutPresetMode.Minsize, margin);
 	}
 
-	private void BuildPartyColumn(Control root)
-	{
-		_partyColumn = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-		_partyColumn.AddThemeConstantOverride("separation", 8);
-		root.AddChild(_partyColumn);
-		Pin(_partyColumn, Control.LayoutPreset.TopLeft);
-	}
-
 	/// <summary>Where the reference has a minimap and a quest list: the campaign, and the turn order.</summary>
 	private void BuildCorner(Control root)
 	{
 		var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-		panel.AddThemeStyleboxOverride("panel", Plate(InkSoft, Bronze));
+		panel.AddThemeStyleboxOverride("panel", Plate(IronSoft, IronEdge, 2, 3));
 		root.AddChild(panel);
 		panel.CustomMinimumSize = new Vector2(330, 0);
 		Pin(panel, Control.LayoutPreset.TopRight);
@@ -244,25 +274,19 @@ public partial class Main
 
 	private void BuildLogPanel(Control root)
 	{
-		_logPanel = new PanelContainer();
-		_logPanel.AddThemeStyleboxOverride("panel", Plate(InkSoft, Bronze));
-		root.AddChild(_logPanel);
-		_logPanel.CustomMinimumSize = new Vector2(470, 270);
-		Pin(_logPanel, Control.LayoutPreset.BottomLeft);
-
-		// Lifted clear of the action bar, whose left end reaches under where this would sit.
-		_logPanel.OffsetTop -= 118;
-		_logPanel.OffsetBottom -= 118;
-
 		_log = new RichTextLabel
 		{
 			ScrollFollowing = true,
 			SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-			CustomMinimumSize = new Vector2(450, 250),
+			CustomMinimumSize = new Vector2(330, 220),
 		};
 
+		_log.AddThemeFontOverride("normal_font", Body);
 		_log.AddThemeFontSizeOverride("normal_font_size", 14);
-		_logPanel.AddChild(_log);
+		_log.AddThemeColorOverride("default_color", PageInk);
+		_logPanel = PaperInIron(_log, 16, 12);
+		root.AddChild(_logPanel);
+		Pin(_logPanel, Control.LayoutPreset.BottomRight);
 	}
 
 	private void BuildActionBar(Control root)
@@ -277,23 +301,27 @@ public partial class Main
 		_prompt.AddThemeConstantOverride("outline_size", 6);
 		column.AddChild(_prompt);
 
-		var panel = new PanelContainer();
-		column.AddChild(panel);
-
 		var across = new HBoxContainer();
-		across.AddThemeConstantOverride("separation", 12);
-		panel.AddChild(across);
+		across.AddThemeConstantOverride("separation", 10);
+		column.AddChild(PaperInIron(across, 12, 8));
+
+		// The party, in a row of iron frames under the strip, where Wrath keeps its portraits.
+		_partyRow = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
+		_partyRow.AddThemeConstantOverride("separation", 6);
+		column.AddChild(_partyRow);
 
 		// Who is acting: a face, a name, and the two things they are spending.
-		_actorFace = Face(96);
-		across.AddChild(Framed(_actorFace, 96));
+		_actorFace = Face(72);
+		across.AddChild(Framed(_actorFace, 72));
 
-		var vitals = new VBoxContainer { CustomMinimumSize = new Vector2(210, 0) };
+		var vitals = new VBoxContainer { CustomMinimumSize = new Vector2(180, 0), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
 		vitals.AddThemeConstantOverride("separation", 4);
 		across.AddChild(vitals);
 
 		_actorName = new Label();
-		_actorName.AddThemeColorOverride("font_color", BronzeBright);
+		_actorName.AddThemeFontOverride("font", Display);
+		_actorName.AddThemeFontSizeOverride("font_size", 19);
+		_actorName.AddThemeColorOverride("font_color", PageInk);
 		vitals.AddChild(_actorName);
 
 		_actorHealth = Bar(Blood, 22);
@@ -307,7 +335,7 @@ public partial class Main
 		vitals.AddChild(pips);
 		foreach (var name in new[] { "Standard", "Move", "Swift" })
 		{
-			var pip = new Panel { CustomMinimumSize = new Vector2(66, 18), TooltipText = $"{name} action" };
+			var pip = new Panel { CustomMinimumSize = new Vector2(56, 18), TooltipText = $"{name} action" };
 			var label = new Label { Text = name, HorizontalAlignment = HorizontalAlignment.Center };
 			label.AddThemeFontSizeOverride("font_size", 11);
 			pip.AddChild(label);
@@ -341,7 +369,7 @@ public partial class Main
 			_modes[mode] = button;
 		}
 
-		_spells = new OptionButton { CustomMinimumSize = new Vector2(190, 0), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+		_spells = new OptionButton { CustomMinimumSize = new Vector2(160, 0), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
 		_spells.ItemSelected += _ => RefreshReach();
 		bar.AddChild(_spells);
 
@@ -379,14 +407,14 @@ public partial class Main
 		{
 			Visible = false,
 			SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
-			CustomMinimumSize = new Vector2(860, 0),
+			CustomMinimumSize = new Vector2(760, 0),
 		};
 		across.AddChild(_between);
 
-		_between.AddChild(new Label { Text = "Spoils" });
+		_between.AddChild(Words("Spoils", Body, 16, PageInk));
 		_stash = new OptionButton { CustomMinimumSize = new Vector2(240, 0) };
 		_between.AddChild(_stash);
-		_between.AddChild(new Label { Text = "to" });
+		_between.AddChild(Words("to", Body, 16, PageInk));
 		_bearer = new OptionButton { CustomMinimumSize = new Vector2(110, 0) };
 		_bearer.ItemSelected += _ => RefreshSheet();
 		_between.AddChild(_bearer);
@@ -412,28 +440,32 @@ public partial class Main
 
 	private void BuildSystemButtons(Control root)
 	{
-		var row = new HBoxContainer();
-		row.AddThemeConstantOverride("separation", 6);
-		root.AddChild(row);
-		Pin(row, Control.LayoutPreset.BottomRight);
+		var block = new PanelContainer();
+		block.AddThemeStyleboxOverride("panel", Plate(Iron, IronEdge, 2, 3, 6));
+		root.AddChild(block);
+		Pin(block, Control.LayoutPreset.BottomLeft);
+		var row = new GridContainer { Columns = 2 };
+		row.AddThemeConstantOverride("h_separation", 6);
+		row.AddThemeConstantOverride("v_separation", 6);
+		block.AddChild(row);
 
 		_showLog = Hot(Glyph.Log, "Log", Key.L, toggle: true);
 		_showLog.ButtonPressed = true;
 		_showLog.Toggled += _ => RefreshLogPanel();
-		row.AddChild(_showLog);
+		row.AddChild(Ironclad(_showLog));
 
 		_showSheet = Hot(Glyph.Sheet, "Character sheet", Key.I, toggle: true);
 		_showSheet.Toggled += _ => RefreshSheet();
-		row.AddChild(_showSheet);
+		row.AddChild(Ironclad(_showSheet));
 
 		var save = Hot(Glyph.Save, "Save", Key.F5, toggle: false);
 		save.Pressed += OnSave;
-		row.AddChild(save);
+		row.AddChild(Ironclad(save));
 
 		_load = Hot(Glyph.Load, "Load", Key.F9, toggle: false);
 		_load.Disabled = !SaveExists();
 		_load.Pressed += OnLoad;
-		row.AddChild(_load);
+		row.AddChild(Ironclad(_load));
 	}
 
 	// ---- hot buttons: a drawn glyph, a name, a key ----
@@ -444,7 +476,7 @@ public partial class Main
 		var button = new Button
 		{
 			ToggleMode = toggle,
-			CustomMinimumSize = new Vector2(64, 64),
+			CustomMinimumSize = new Vector2(56, 56),
 			TooltipText = $"{name}  [{hint}]",
 			FocusMode = Control.FocusModeEnum.None,
 		};
@@ -495,11 +527,14 @@ public partial class Main
 	private static void DrawGlyph(Button button, Glyph glyph, string hint)
 	{
 		var size = button.Size;
-		var ink = button.Disabled ? new Color(0.42f, 0.39f, 0.33f) : button.ButtonPressed ? BronzeBright : Parchment;
+		var iron = button.HasMeta("iron");
+		var ink = button.Disabled ? (iron ? new Color(0.42f, 0.39f, 0.33f) : new Color(0.55f, 0.50f, 0.46f))
+			: button.ButtonPressed ? (iron ? BronzeBright : InkRed)
+			: iron ? Parchment : PageInk;
 		var c = new Vector2(size.X / 2f, size.Y / 2f - 5f);
 		const float w = 3f;
 
-		Vector2 P(float x, float y) => c + new Vector2(x, y);
+		Vector2 P(float x, float y) => c + (new Vector2(x, y) * 0.85f);
 		void Line(float x1, float y1, float x2, float y2, float width = w) => button.DrawLine(P(x1, y1), P(x2, y2), ink, width, true);
 		void Poly(params float[] xy)
 		{
@@ -601,7 +636,7 @@ public partial class Main
 		var font = button.GetThemeDefaultFont();
 		var width = font.GetStringSize(hint, HorizontalAlignment.Left, -1, 11).X;
 		button.DrawString(font, new Vector2((size.X - width) / 2f, size.Y - 6f), hint,
-			HorizontalAlignment.Left, -1, 11, button.Disabled ? ink : Bronze.Lightened(0.35f));
+			HorizontalAlignment.Left, -1, 11, button.Disabled ? ink : iron ? Bronze.Lightened(0.35f) : new Color(0.45f, 0.35f, 0.28f));
 	}
 
 	// ---- faces: portraits rendered from the models themselves ----
@@ -739,47 +774,59 @@ public partial class Main
 		_actorLens?.QueueFree();
 		_actorLens = null;
 
-		if (_partyColumn is null || _instant)
+		if (_partyRow is null || _instant)
 		{
 			return;
 		}
 
-		foreach (var child in _partyColumn.GetChildren())
+		foreach (var child in _partyRow.GetChildren())
 		{
 			child.QueueFree();
 		}
 
 		foreach (var creature in _battle.Party)
 		{
-			var frame = new Frame { Panel = new PanelContainer() };
-			_partyColumn.AddChild(frame.Panel);
+			// A tall portrait in an iron frame, the name across its foot and anything wrong with
+			// them across its head, and the bar under it.
+			var frame = new Frame { Panel = new PanelContainer { TooltipText = creature.Name } };
+			frame.Panel.AddThemeStyleboxOverride("panel", Plate(Iron, IronEdge, 2, 3, 3));
+			_partyRow.AddChild(frame.Panel);
 
-			var across = new HBoxContainer();
-			across.AddThemeConstantOverride("separation", 8);
-			frame.Panel.AddChild(across);
+			var stack = new VBoxContainer();
+			stack.AddThemeConstantOverride("separation", 3);
+			frame.Panel.AddChild(stack);
 
-			frame.Face = Face(72);
-			across.AddChild(Framed(frame.Face, 72));
+			var picture = new Control { CustomMinimumSize = new Vector2(100, 116), ClipContents = true, MouseFilter = Control.MouseFilterEnum.Ignore };
+			stack.AddChild(picture);
 
-			var lens = Lens(creature, 144);
+			frame.Face = Face(100);
+			picture.AddChild(frame.Face);
+			frame.Face.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+
+			var lens = Lens(creature, 160);
 			_faces[creature] = lens;
 			frame.Face.Texture = lens.GetTexture();
 
-			var lines = new VBoxContainer { CustomMinimumSize = new Vector2(150, 0) };
-			lines.AddThemeConstantOverride("separation", 3);
-			across.AddChild(lines);
+			frame.Name = new Label { Text = creature.Name, HorizontalAlignment = HorizontalAlignment.Center };
+			frame.Name.AddThemeFontOverride("font", Display);
+			frame.Name.AddThemeFontSizeOverride("font_size", 15);
+			frame.Name.AddThemeColorOverride("font_outline_color", Colors.Black);
+			frame.Name.AddThemeConstantOverride("outline_size", 5);
+			picture.AddChild(frame.Name);
+			frame.Name.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomWide);
 
-			frame.Name = new Label { Text = creature.Name };
-			lines.AddChild(frame.Name);
+			frame.Trouble = new Label { HorizontalAlignment = HorizontalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			frame.Trouble.AddThemeFontSizeOverride("font_size", 11);
+			frame.Trouble.AddThemeColorOverride("font_color", new Color(0.98f, 0.66f, 0.38f));
+			frame.Trouble.AddThemeColorOverride("font_outline_color", Colors.Black);
+			frame.Trouble.AddThemeConstantOverride("outline_size", 4);
+			picture.AddChild(frame.Trouble);
+			frame.Trouble.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopWide);
 
-			frame.Health = Bar(Blood, 18);
+			frame.Health = Bar(Blood, 14);
 			frame.Numbers = Overlay(frame.Health);
-			lines.AddChild(frame.Health);
-
-			frame.Trouble = new Label();
-			frame.Trouble.AddThemeFontSizeOverride("font_size", 12);
-			frame.Trouble.AddThemeColorOverride("font_color", new Color(0.95f, 0.62f, 0.35f));
-			lines.AddChild(frame.Trouble);
+			frame.Numbers.AddThemeFontSizeOverride("font_size", 11);
+			stack.AddChild(frame.Health);
 
 			// A click on a face is "tell me about them": it picks them and opens their sheet.
 			var who = creature;
@@ -800,6 +847,10 @@ public partial class Main
 
 			_frames[creature] = frame;
 		}
+
+		// New frames are blank until somebody fills them: a walk, a door or a fight's end that
+		// rebuilt them would otherwise leave white faces and empty bars until the next turn.
+		UpdateStatus();
 	}
 
 	// ---- keeping it true ----
@@ -836,7 +887,7 @@ public partial class Main
 			frame.Numbers.Text = $"{vitals.Current} / {vitals.Maximum}";
 			frame.Trouble.Text = vitals.Trouble;
 			frame.Face.Modulate = vitals.Conscious ? Colors.White : new Color(0.45f, 0.40f, 0.40f);
-			frame.Panel.AddThemeStyleboxOverride("panel", Plate(Ink, vitals.Acting ? BronzeBright : Bronze, vitals.Acting ? 3 : 2));
+			frame.Panel.AddThemeStyleboxOverride("panel", Plate(Iron, vitals.Acting ? BronzeBright : IronEdge, vitals.Acting ? 3 : 2, 3, 3));
 		}
 
 		if (acting is { } now && actor is not null)
@@ -850,7 +901,7 @@ public partial class Main
 			}
 
 			_actorName.Text = now.Name;
-			_actorName.AddThemeColorOverride("font_color", now.Party ? BronzeBright : new Color(1.0f, 0.62f, 0.38f));
+			_actorName.AddThemeColorOverride("font_color", now.Party ? PageInk : InkRed);
 			_actorHealth.Value = now.Maximum > 0 ? Mathf.Clamp((float)now.Current / now.Maximum, 0f, 1f) : 0f;
 			_actorHealth.AddThemeStyleboxOverride("fill", Plate(now.Party ? Blood : FoeBlood, (now.Party ? Blood : FoeBlood).Lightened(0.25f), 1, 3, 0));
 			_actorNumbers.Text = $"{now.Current} / {now.Maximum}";

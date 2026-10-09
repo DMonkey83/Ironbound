@@ -1,0 +1,292 @@
+{
+ "kind": "level",
+ "id": "caves-of-shadow",
+ "name": "Caves of Shadow",
+ "stone": "rocky",
+ "grass": "woodland",
+ "map": [
+  "####################################",
+  "#...........###########c.....#######",
+  "#...........###########.....c#######",
+  "#...........###########......#######",
+  "#...........#############++#########",
+  "#...........#######...........######",
+  "#...........#######..b..b..b..######",
+  "#...........#######...........######",
+  "#...........#######...........######",
+  "#...........#######...........######",
+  "#...........#######...........######",
+  "#####..############..b.....b..######",
+  "#####..############...........######",
+  "#####++#############...#############",
+  "##........##########...#############",
+  "##........##########...#############",
+  "##...tt...##########...#############",
+  "##........###....~~.....############",
+  "##........###....~~.....############",
+  "##........###....~~.....############",
+  "#####..######....~~.....############",
+  "#####..######....~~.....############",
+  "#####..######....~~.....############",
+  "#####..######....~~.....############",
+  "#####..######....~~.....############",
+  "####.............~~.....############",
+  "####.............~~.....############",
+  "####....#####....~~.....############",
+  "#####..######....~~.....############",
+  "#####..######....~~.....############",
+  "#####..#############################",
+  "#####..#############################",
+  "#####..#############################",
+  "#####..#############################",
+  ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",T,,,,,,,,,,,,,,,,,,,,,,,T,,,,,T,,,,",
+  ",,,,,,,,,,,,,,,,,,,,T,,,,,,,,,,,,,,,",
+  ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",,,,,,,,,,,,T,,,,,,,,,,,,,,,,,,,,,T,",
+  ",,,,,,,,,,,,,,,,,,,,,,,,,,,T,,,,,,,,",
+  ",,T,,,,,,,,,,,,,,T,,,,,,,,,,,,,,,,,,",
+  ",,,,,,,,,,,,,,,,,,,,,,T,,,,,,,,,,,,,",
+  ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",,,,,,,,,T,,,,,,,,,,,,,,,,,,,,,,,T,,",
+  "T,,,T,,,,,,,,,T,,,,,,,,,,,,,,T,,,,,,",
+  ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+ ],
+ "start": [
+  {
+   "creature": "aldric",
+   "x": 17,
+   "y": 43
+  },
+  {
+   "creature": "pip",
+   "x": 18,
+   "y": 43
+  },
+  {
+   "creature": "hale",
+   "x": 17,
+   "y": 44
+  },
+  {
+   "creature": "sylwen",
+   "x": 18,
+   "y": 44
+  }
+ ],
+ "areas": [
+  {
+   "id": "cave-mouth",
+   "name": "The Cave Mouth",
+   "x": 0,
+   "y": 34,
+   "width": 15,
+   "height": 7,
+   "intro": "The raiders' trail ends at a dark opening in the hillside, its lintel carved with faces the weather has nearly worn away. Beside an overturned cart two orcs have an old man backed against a wheel and are taking turns prodding him with their spears, laughing at every yelp. They are too pleased with themselves to have heard you coming.",
+   "outro": "The old man is Tobin, a carter from the village across the woods. The orcs took everything he carried \u2014 a crate of healing draughts, and a greatsword promised to a lord \u2014 and dragged it into the caves to their master, an ogre called Gorrum who keeps the best of everything for himself. Tobin will not set foot inside. Take whatever of his you can find, he says, and rid the woods of them.",
+   "foes": [
+    {
+     "creature": "orc",
+     "x": 5,
+     "y": 36,
+     "name": "Orc Lout"
+    },
+    {
+     "creature": "orc",
+     "x": 7,
+     "y": 37,
+     "name": "Orc Brute"
+    }
+   ]
+  },
+  {
+   "id": "junction",
+   "name": "The Junction",
+   "x": 4,
+   "y": 24,
+   "width": 4,
+   "height": 5,
+   "intro": "The tunnel was cut, not found: the walls are dressed flat, the floor worn smooth by feet older than the orcs'. It ends at a junction lit by a guttering torch. From the left comes the scrape of a chair and a low grunting; from the right, the slow drip of water somewhere far below."
+  },
+  {
+   "id": "crevice",
+   "name": "The Crevice",
+   "x": 13,
+   "y": 17,
+   "width": 5,
+   "height": 13,
+   "intro": "The right-hand way opens on a long cavern split down its length by a crevice ten feet wide and twenty deep. Where it narrows, the cut ends of a rope bridge hang down this side; somebody on the far side took a knife to it when they heard you come in. Someone will have to jump it, or climb down and up the other side and tie the bridge off again."
+  },
+  {
+   "id": "orc-lair",
+   "name": "The Orcs' Lair",
+   "x": 19,
+   "y": 5,
+   "width": 11,
+   "height": 8,
+   "intro": "The orcs' sleeping cave stinks of smoke and old meat. Five bedrolls lie about the floor. In two of them orcs snore with their spears beside them; a third sits awake among the blankets, whittling with a knife, and looks up at the sound of your boots.",
+   "foes": [
+    {
+     "creature": "orc-sentry",
+     "x": 24,
+     "y": 9
+    },
+    {
+     "creature": "orc",
+     "x": 22,
+     "y": 6,
+     "name": "Sleeping Orc",
+     "asleep": true
+    },
+    {
+     "creature": "orc",
+     "x": 26,
+     "y": 10,
+     "name": "Snoring Orc",
+     "asleep": true
+    }
+   ]
+  },
+  {
+   "id": "storeroom",
+   "name": "The Storeroom",
+   "x": 23,
+   "y": 1,
+   "width": 6,
+   "height": 3,
+   "intro": "A storeroom, black until your torch finds it: crates of rope and torches and stale bread, a barrel of water, a heavy sack, and in the far corner Tobin's own cart, its wheels caked with the mud of the trail."
+  },
+  {
+   "id": "guard-post",
+   "name": "The Guard Post",
+   "x": 2,
+   "y": 14,
+   "width": 8,
+   "height": 6,
+   "intro": "The left-hand tunnel opens on a guard post: a table, a few chairs, the remains of a meal on an iron plate. An orc stands by the table with its spear at the ready, and beside it sits a bristle-backed rat the size of a large dog, yellow teeth wet, watching you.",
+   "foes": [
+    {
+     "creature": "orc",
+     "x": 4,
+     "y": 16,
+     "name": "Orc Guard"
+    },
+    {
+     "creature": "dire-rat",
+     "x": 7,
+     "y": 17
+    }
+   ]
+  },
+  {
+   "id": "ogre-den",
+   "name": "Gorrum's Den",
+   "x": 1,
+   "y": 1,
+   "width": 11,
+   "height": 10,
+   "final": true,
+   "intro": "Beyond the door a passage climbs to a ledge above a smoky cavern. Below, among gnawed bones and a heap of stolen goods, an ogre half again the height of a man sits picking his teeth with a dagger while an orc stands at his elbow. As your boots scatter the loose stones of the path down, Gorrum looks up, grins, and reaches for his axe.",
+   "outro": "Gorrum's den holds the rest of the raiders' plunder and, on a chain about his neck, a gem as big as a hen's egg. The Caves of Shadow are empty of everything but their old carved faces, and the villages across the woods can sleep again.",
+   "foes": [
+    {
+     "creature": "ogre",
+     "x": 6,
+     "y": 4,
+     "name": "Gorrum"
+    },
+    {
+     "creature": "orc",
+     "x": 5,
+     "y": 7,
+     "name": "Gorrum's Bodyguard"
+    }
+   ]
+  }
+ ],
+ "features": [
+  {
+   "id": "rope-bridge",
+   "kind": "bridge",
+   "name": "the cut rope bridge",
+   "squares": [
+    {
+     "x": 17,
+     "y": 23
+    },
+    {
+     "x": 18,
+     "y": 23
+    }
+   ],
+   "jumpDc": 10,
+   "climbDc": 15,
+   "fall": "2d6",
+   "text": "With the far end tied off, the rope bridge holds, and the rest of you cross without looking down."
+  },
+  {
+   "id": "storeroom-door",
+   "kind": "door",
+   "name": "the storeroom door",
+   "squares": [
+    {
+     "x": 25,
+     "y": 4
+    },
+    {
+     "x": 26,
+     "y": 4
+    }
+   ],
+   "lockDc": 15,
+   "breakDc": 16
+  },
+  {
+   "id": "den-door",
+   "kind": "door",
+   "name": "the iron-bound door",
+   "squares": [
+    {
+     "x": 5,
+     "y": 13
+    },
+    {
+     "x": 6,
+     "y": 13
+    }
+   ],
+   "lockDc": 15,
+   "breakDc": 17
+  },
+  {
+   "id": "tobins-cart",
+   "kind": "cache",
+   "name": "Tobin's cart",
+   "squares": [
+    {
+     "x": 28,
+     "y": 2
+    }
+   ],
+   "loot": [
+    "greatsword-plus-one"
+   ],
+   "text": "Strapped to the underside of the cart and wrapped in sacking is the greatsword Tobin spoke of, its edge faintly bright. Of the healing draughts there is nothing left but broken glass and a sticky floor."
+  },
+  {
+   "id": "storeroom-crates",
+   "kind": "cache",
+   "name": "the crates",
+   "squares": [
+    {
+     "x": 23,
+     "y": 1
+    }
+   ],
+   "loot": [
+    "light-crossbow"
+   ],
+   "text": "Among the rope and the torches is a light crossbow with a case of bolts. The sack of coin by the door is far too heavy to carry into a fight; it will keep."
+  }
+ ]
+}

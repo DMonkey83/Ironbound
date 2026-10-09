@@ -1,0 +1,37 @@
+// Three orcs, but only one of them awake. The fight is a race: put the sentry down in the two
+// rounds before the others stir, and do not wake them sooner by hitting them first.
+{
+  "kind": "encounter",
+  "id": "orc-lair",
+  "name": "The Orcs' Lair",
+  "width": 16,
+  "height": 12,
+  "terrain": "rocky",
+
+  "intro": "The old man, Tobin, swears by every god he knows that the orcs stripped his cart of a crate of healing draughts and a greatsword promised to a lord, and that their master is an ogre called Gorrum who keeps the best of everything. Inside the hill, a torch-lit junction stands empty, with tunnels leading off to the left and the right. The right-hand way ends at a crevice ten feet across and twenty deep, where the cut ends of a rope bridge hang from the far side; Pip climbs down and up again with a line, and the rest of you follow hand over hand. Beyond it is the orcs' sleeping cave, where one sits awake among the bedrolls whittling with a knife while two more snore in the corners.",
+
+  // The storeroom at the back of the cave, searched once the sleepers are dealt with. The coin
+  // and the rope stay where they are: the rules have nothing to spend the one on or tie the
+  // other to.
+  "loot": ["greatsword-plus-one", "light-crossbow"],
+
+  // Bedrolls heaped on stone platforms along the back wall, and two pillars holding up a roof
+  // nobody would trust.
+  "blocked": [
+    { "x": 14, "y": 1 }, { "x": 14, "y": 2 },
+    { "x": 14, "y": 5 }, { "x": 14, "y": 6 },
+    { "x": 14, "y": 9 }, { "x": 14, "y": 10 },
+    { "x": 7, "y": 3 },
+    { "x": 7, "y": 8 }
+  ],
+
+  "placements": [
+    { "creature": "aldric", "x": 2, "y": 5, "party": true },
+    { "creature": "pip",    "x": 2, "y": 7, "party": true },
+    { "creature": "hale",   "x": 1, "y": 6, "party": true },
+    { "creature": "sylwen", "x": 1, "y": 4, "party": true },
+    { "creature": "orc-sentry", "x": 10, "y": 5 },
+    { "creature": "orc", "x": 13, "y": 2, "name": "Sleeping Orc", "asleep": true },
+    { "creature": "orc", "x": 13, "y": 9, "name": "Snoring Orc", "asleep": true }
+  ]
+}

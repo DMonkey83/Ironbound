@@ -4,10 +4,12 @@ using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
+using Ironbound.Rules.Dice;
 using Ironbound.Rules.Effects;
 using Ironbound.Rules.Feats;
 using Ironbound.Rules.Items;
 using Ironbound.Rules.Magic;
+using Ironbound.Rules.Maps;
 using Ironbound.Rules.Modifiers;
 using Ironbound.Rules.Saves;
 using Ironbound.Rules.Skills;
@@ -38,6 +40,7 @@ public sealed class ContentLibrary
     private readonly Dictionary<string, EncounterDefinition> _encounters = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CampaignDefinition> _campaigns = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TerrainDefinition> _terrains = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, LevelDefinition> _levels = new(StringComparer.Ordinal);
     private readonly List<ContentProblem> _problems = [];
 
     /// <summary>
@@ -89,6 +92,26 @@ public sealed class ContentLibrary
 
     public IReadOnlyCollection<string> TerrainIds => _terrains.Keys;
 
+    public IReadOnlyCollection<string> LevelIds => _levels.Keys;
+
+    /// <summary>Every level, ordered by id so the list is the same every launch.</summary>
+    public IReadOnlyList<LevelDefinition> Levels =>
+        [.. _levels.Values.OrderBy(level => level.Id, StringComparer.Ordinal)];
+
+    /// <summary>
+    /// Every campaign, ordered by name and then id, for a menu to offer.
+    /// </summary>
+    /// <remarks>
+    /// Sorted rather than handed over in whatever order the dictionary keeps, because a picker
+    /// whose entries swapped places between launches would be a bug nobody could reproduce.
+    /// The id breaks ties so that two campaigns somebody happened to give the same name still
+    /// come out the same way round every time.
+    /// </remarks>
+    public IReadOnlyList<CampaignDefinition> Campaigns =>
+        [.. _campaigns.Values
+            .OrderBy(run => run.Name, StringComparer.Ordinal)
+            .ThenBy(run => run.Id, StringComparer.Ordinal)];
+
     public Spell? GetSpell(string id) => _spells.GetValueOrDefault(id);
 
     public EncounterDefinition? GetEncounter(string id) => _encounters.GetValueOrDefault(id);
@@ -96,6 +119,8 @@ public sealed class ContentLibrary
     public TerrainDefinition? GetTerrain(string id) => _terrains.GetValueOrDefault(id);
 
     public CampaignDefinition? GetCampaign(string id) => _campaigns.GetValueOrDefault(id);
+
+    public LevelDefinition? GetLevel(string id) => _levels.GetValueOrDefault(id);
 
     public CreatureDefinition? GetCreature(string id) => _creatures.GetValueOrDefault(id);
 
@@ -184,6 +209,10 @@ public sealed class ContentLibrary
                     Keep(_terrains, reader, ReadTerrain(reader), terrain => terrain.Id, "terrain");
                     break;
 
+                case "level":
+                    Keep(_levels, reader, ReadLevel(reader), level => level.Id, "level");
+                    break;
+
                 case "":
                     break;
 
@@ -258,6 +287,17 @@ public sealed class ContentLibrary
                 _problems.Add(new ContentProblem(
                     $"campaign '{run.Id}'", "encounters", $"no encounter called '{id}'."));
             }
+
+            if (run.Level is { } level && !_levels.ContainsKey(level))
+            {
+                _problems.Add(new ContentProblem(
+                    $"campaign '{run.Id}'", "level", $"no level called '{level}'."));
+            }
+        }
+
+        foreach (var level in _levels.Values)
+        {
+            ValidateLevel(level);
         }
 
         foreach (var encounter in _encounters.Values)
@@ -277,6 +317,12 @@ public sealed class ContentLibrary
                     $"encounter '{encounter.Id}'",
                     "placements",
                     $"no creature called '{placement.CreatureId}'."));
+            }
+
+            foreach (var item in encounter.Loot.Where(id => !_items.ContainsKey(id)))
+            {
+                _problems.Add(new ContentProblem(
+                    $"encounter '{encounter.Id}'", "loot", $"no item called '{item}'."));
             }
         }
     }
@@ -711,8 +757,10 @@ public sealed class ContentLibrary
         {
             Id = id,
             Name = reader.StringOr("name", id),
+            Description = reader.StringOr("description", string.Empty),
             Encounters = [.. reader.Array("encounters").Select(e => e.GetString() ?? string.Empty)],
             Rests = reader.Int("rests", 1),
+            Level = reader.Has("level") ? reader.StringOr("level", string.Empty) : null,
         };
     }
 
@@ -734,7 +782,8 @@ public sealed class ContentLibrary
                 placement.Int("y"),
                 placement.Bool("party"),
                 placement.Has("name") ? placement.StringOr("name", string.Empty) : null,
-                placement.Bool("hidden")));
+                placement.Bool("hidden"),
+                placement.Bool("asleep")));
         }
 
         return new EncounterDefinition
@@ -747,6 +796,8 @@ public sealed class ContentLibrary
             Blocked = [.. Squares(reader, "blocked")],
             Difficult = [.. Squares(reader, "difficult")],
             Placements = placements,
+            Intro = reader.StringOr("intro", string.Empty),
+            Loot = [.. reader.Array("loot").Select(e => e.GetString() ?? string.Empty)],
         };
     }
 
@@ -761,6 +812,285 @@ public sealed class ContentLibrary
             Ground = reader.StringOr("ground", string.Empty),
             Blocked = reader.StringOr("blocked", string.Empty),
         };
+    }
+
+    private LevelDefinition? ReadLevel(Reader reader)
+    {
+        var id = reader.String("id");
+        if (id.Length == 0)
+        {
+            return null;
+        }
+
+        var areas = new List<AreaDefinition>();
+        foreach (var entry in reader.Array("areas"))
+        {
+            var area = new Reader(entry, reader.Source, _problems);
+            var areaId = area.String("id");
+
+            areas.Add(new AreaDefinition
+            {
+                Id = areaId,
+                Name = area.StringOr("name", areaId),
+                Intro = area.StringOr("intro", string.Empty),
+                Outro = area.StringOr("outro", string.Empty),
+                X = area.Int("x"),
+                Y = area.Int("y"),
+                Width = area.Int("width", 1),
+                Height = area.Int("height", 1),
+                Final = area.Bool("final"),
+                Foes = [.. Placements(area, "foes", party: false)],
+                Loot = [.. area.Array("loot").Select(e => e.GetString() ?? string.Empty)],
+                Experience = area.Int("xp", AreaDefinition.DefaultExperience),
+            });
+        }
+
+        var features = new List<FeatureDefinition>();
+        foreach (var entry in reader.Array("features"))
+        {
+            var feature = new Reader(entry, reader.Source, _problems);
+            var featureId = feature.String("id");
+            var kind = feature.Enum("kind", FeatureKind.Cache);
+
+            features.Add(new FeatureDefinition
+            {
+                Id = featureId,
+                Kind = kind,
+                Name = feature.StringOr("name", featureId),
+                Text = feature.StringOr("text", string.Empty),
+                Squares = [.. Squares(feature, "squares").Select(at => new GridSquare(at.X, at.Y))],
+                LockDc = feature.Int("lockDc", 15),
+                BreakDc = feature.Int("breakDc", 16),
+                JumpDc = feature.Int("jumpDc", 10),
+                ClimbDc = feature.Int("climbDc", 15),
+                Fall = feature.StringOr("fall", "2d6"),
+                Loot = [.. feature.Array("loot").Select(e => e.GetString() ?? string.Empty)],
+                Experience = feature.Int("xp", FeatureDefinition.DefaultExperience(kind)),
+            });
+        }
+
+        return new LevelDefinition
+        {
+            Id = id,
+            Name = reader.StringOr("name", id),
+            Map = [.. reader.Array("map").Select(e => e.ValueKind == JsonValueKind.String
+                ? e.GetString() ?? string.Empty
+                : string.Empty)],
+            StoneTerrain = reader.StringOr("stone", string.Empty),
+            GrassTerrain = reader.StringOr("grass", string.Empty),
+            Start = [.. Placements(reader, "start", party: true)],
+            Areas = areas,
+            Features = features,
+        };
+    }
+
+    private List<PlacementDefinition> Placements(Reader reader, string field, bool party)
+    {
+        var placements = new List<PlacementDefinition>();
+        foreach (var entry in reader.Array(field))
+        {
+            var placement = new Reader(entry, reader.Source, _problems);
+            placements.Add(new PlacementDefinition(
+                placement.String("creature"),
+                placement.Int("x"),
+                placement.Int("y"),
+                party,
+                placement.Has("name") ? placement.StringOr("name", string.Empty) : null,
+                placement.Bool("hidden"),
+                placement.Bool("asleep")));
+        }
+
+        return placements;
+    }
+
+    /// <summary>
+    /// Everything about a level that can be wrong without being a JSON mistake.
+    /// </summary>
+    /// <remarks>
+    /// Most of it is the map and the lists disagreeing: a door written where the map has a
+    /// wall, an orc standing in a tree. Each of those loads quietly and then misbehaves twenty
+    /// minutes into a playthrough, which is exactly what checking at load time is for.
+    /// </remarks>
+    private void ValidateLevel(LevelDefinition level)
+    {
+        var source = $"level '{level.Id}'";
+        void Problem(string field, string message) =>
+            _problems.Add(new ContentProblem(source, field, message));
+
+        if (level.Map.Count == 0 || level.Width == 0)
+        {
+            Problem("map", "is empty.");
+            return;
+        }
+
+        for (var y = 0; y < level.Map.Count; y++)
+        {
+            var row = level.Map[y];
+            if (row.Length != level.Width)
+            {
+                Problem("map", $"row {y} is {row.Length} long; the first row is {level.Width}.");
+            }
+
+            for (var x = 0; x < row.Length; x++)
+            {
+                if (LevelDefinition.Parse(row[x]) is null)
+                {
+                    Problem("map", $"'{row[x]}' at ({x}, {y}) is not in the legend.");
+                }
+            }
+        }
+
+        foreach (var (field, terrain) in new[] { ("stone", level.StoneTerrain), ("grass", level.GrassTerrain) })
+        {
+            if (terrain.Length > 0 && !_terrains.ContainsKey(terrain))
+            {
+                Problem(field, $"no terrain called '{terrain}'.");
+            }
+        }
+
+        if (level.Start.Count == 0)
+        {
+            Problem("start", "nobody starts the level.");
+        }
+
+        // Somewhere to stand, checked the same way for the party and for everybody waiting.
+        void Stand(string field, PlacementDefinition placement)
+        {
+            if (!_creatures.ContainsKey(placement.CreatureId))
+            {
+                Problem(field, $"no creature called '{placement.CreatureId}'.");
+            }
+
+            if (level.IsBlockedCell(placement.X, placement.Y))
+            {
+                Problem(field, $"'{placement.CreatureId}' at ({placement.X}, {placement.Y}) is "
+                    + $"standing in {level.CellAt(placement.X, placement.Y)}.");
+            }
+        }
+
+        foreach (var placement in level.Start)
+        {
+            Stand("start", placement);
+        }
+
+        // Names are what a save file tells creatures apart by, so two foes called "Orc" would
+        // reload as one. The whole level rather than each room, because the party is in every
+        // fight and a room's occupants are listed for drawing alongside everybody else's.
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var placement in level.Start.Concat(level.Areas.SelectMany(area => area.Foes)))
+        {
+            var name = placement.Name ?? _creatures.GetValueOrDefault(placement.CreatureId)?.Name;
+            if (name is not null && !names.Add(name))
+            {
+                Problem("areas", $"more than one creature is called '{name}'.");
+            }
+        }
+
+        var areaIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var area in level.Areas)
+        {
+            if (!areaIds.Add(area.Id))
+            {
+                Problem("areas", $"there is already an area called '{area.Id}'.");
+            }
+
+            if (area.Width < 1 || area.Height < 1 || area.X < 0 || area.Y < 0
+                || area.X + area.Width > level.Width || area.Y + area.Height > level.Height)
+            {
+                Problem($"areas.{area.Id}", "is not inside the map.");
+            }
+
+            foreach (var foe in area.Foes)
+            {
+                Stand($"areas.{area.Id}.foes", foe);
+            }
+
+            foreach (var item in area.Loot.Where(id => !_items.ContainsKey(id)))
+            {
+                Problem($"areas.{area.Id}.loot", $"no item called '{item}'.");
+            }
+
+            if (area.Final && area.Foes.Count == 0)
+            {
+                Problem($"areas.{area.Id}", "is final but has nobody in it to beat.");
+            }
+        }
+
+        if (!level.Areas.Any(area => area.Final))
+        {
+            Problem("areas", "none is final, so the level can never be won.");
+        }
+
+        var featureIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var feature in level.Features)
+        {
+            var field = $"features.{feature.Id}";
+
+            if (!featureIds.Add(feature.Id))
+            {
+                Problem("features", $"there is already a feature called '{feature.Id}'.");
+            }
+
+            if (feature.Squares.Count == 0)
+            {
+                Problem(field, "has no squares.");
+            }
+
+            foreach (var square in feature.Squares)
+            {
+                var cell = level.CellAt(square);
+                var inside = square.X >= 0 && square.Y >= 0
+                    && square.X < level.Width && square.Y < level.Height;
+
+                var fits = feature.Kind switch
+                {
+                    FeatureKind.Door => cell == LevelCell.Door,
+                    FeatureKind.Bridge => cell == LevelCell.Chasm,
+
+                    // Furniture is the obvious place, but a cache in a niche in the wall is
+                    // fine too, as long as somebody can stand beside it.
+                    _ => cell is LevelCell.Bed or LevelCell.Table or LevelCell.Crate
+                        || (LevelDefinition.IsBlocked(cell) && Beside(level, square)),
+                };
+
+                if (!inside)
+                {
+                    Problem(field, $"{square} is off the map.");
+                }
+                else if (!fits)
+                {
+                    Problem(field, $"a {feature.Kind.ToString().ToLowerInvariant()} cannot be at "
+                        + $"{square}, which the map has as {cell}.");
+                }
+            }
+
+            if (!DiceExpression.TryParse(feature.Fall, out _))
+            {
+                Problem($"{field}.fall", $"'{feature.Fall}' is not dice.");
+            }
+
+            foreach (var item in feature.Loot.Where(id => !_items.ContainsKey(id)))
+            {
+                Problem($"{field}.loot", $"no item called '{item}'.");
+            }
+        }
+    }
+
+    /// <summary>Whether any of the eight squares around one is open floor.</summary>
+    private static bool Beside(LevelDefinition level, GridSquare square)
+    {
+        for (var dx = -1; dx <= 1; dx++)
+        {
+            for (var dy = -1; dy <= 1; dy++)
+            {
+                if ((dx != 0 || dy != 0) && !level.IsBlockedCell(square.X + dx, square.Y + dy))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private IEnumerable<PlacementDefinition> Squares(Reader reader, string field) =>

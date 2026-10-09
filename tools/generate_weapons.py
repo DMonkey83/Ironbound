@@ -87,18 +87,24 @@ def wrapped_grip(name, z0, z1, radius, turns, material=WRAP):
     return gg.loft(name, sections, material)
 
 
-def sword(steel, length=2.0, width=0.13, curved=False):
+def sword(steel, length=2.0, width=0.13, curved=False, grip=0.21, guard=None, fitting=None):
+    """A sword: wound grip, pommel, a guard, and a blade with a fuller.
+
+    `grip` is how far the grip runs up from the hand — a two-handed sword's is long enough for
+    both, and its pommel hangs below the lower one. Everything above the grip moves up with it.
+    """
     grip_r = 0.047
-    fitting = gg.GOLD if not curved else gg.IRON
+    fitting = fitting or (gg.GOLD if not curved else gg.IRON)
+    below = grip - 0.21                                  # how much longer than a longsword's
     parts = [
-        wrapped_grip("Grip", -0.02, 0.21, grip_r, 7),
-        gg.loft("Pommel", [point(-0.27), round_section(-0.24, 0.05, 0.05, 12), round_section(-0.19, 0.082, 0.082, 12),
-                           round_section(-0.13, 0.082, 0.082, 12), round_section(-0.10, 0.052, 0.052, 12), round_section(-0.02, 0.05, 0.05, 12)],
+        wrapped_grip("Grip", -0.02 - below, 0.21, grip_r, max(7, int(7 * grip / 0.21))),
+        gg.loft("Pommel", [point(-0.27 - below), round_section(-0.24 - below, 0.05, 0.05, 12), round_section(-0.19 - below, 0.082, 0.082, 12),
+                           round_section(-0.13 - below, 0.082, 0.082, 12), round_section(-0.10 - below, 0.052, 0.052, 12), round_section(-0.02 - below, 0.05, 0.05, 12)],
                 fitting),
     ]
 
     # The guard: a bar that thickens at the middle and droops at the ends toward the blade.
-    guard_w = 0.30 if not curved else 0.19
+    guard_w = guard if guard is not None else (0.30 if not curved else 0.19)
     sections = []
     for i in range(9):
         t = i / 8 * 2 - 1
@@ -274,7 +280,60 @@ def shield(radius, heavy):
     return parts
 
 
+def mace(steel):
+    """A light mace: a short haft and a head of six flanges round an iron core."""
+    parts = [
+        gg.loft("Haft", [round_section(-0.30, 0.040, 0.040, 10), round_section(0.0, 0.044, 0.044, 10), round_section(0.95, 0.040, 0.040, 10)], ASH),
+        wrapped_grip("Haft_Wrap", -0.22, 0.20, 0.050, 8),
+        gg.loft("Pommel", [point(-0.36, n=10), round_section(-0.34, 0.05, 0.05, 10), round_section(-0.29, 0.058, 0.058, 10), round_section(-0.25, 0.045, 0.045, 10)], gg.IRON),
+        gg.loft("Collar", [round_section(0.86, 0.055, 0.055, 10), round_section(0.95, 0.066, 0.066, 10)], steel, smooth_shading=False),
+        gg.uv("Core", (0, 0, 1.08), (0.10, 0.10, 0.13), steel, 14, 10),
+        gg.loft("Cap", [round_section(1.20, 0.06, 0.06, 10), point(1.29, n=10)], steel),
+    ]
+    for i in range(6):
+        a = i * math.pi / 3
+        c, s_ = math.cos(a), math.sin(a)
+        # A flange: a blade of iron standing out from the core, deepest in the middle.
+        outline = [(0.05, 0.92), (0.16, 0.98), (0.19, 1.08), (0.16, 1.18), (0.05, 1.24)]
+        rings = []
+        for t in (-0.018, 0.018):
+            rings.append(ring([(x * c - t * s_, x * s_ + t * c, z) for x, z in outline]))
+        parts.append(gg.loft(f"Flange_{i}", rings, steel, smooth_shading=False))
+    return parts
+
+
+def spear(steel):
+    """A short spear: an ash shaft, a leaf blade with a midrib, an iron butt cap."""
+    parts = [
+        gg.loft("Shaft", [round_section(-1.05, 0.036, 0.036, 10), round_section(0.0, 0.042, 0.042, 10), round_section(1.85, 0.036, 0.036, 10)], ASH),
+        wrapped_grip("Shaft_Wrap", -0.20, 0.25, 0.046, 8),
+        gg.loft("Butt", [point(-1.14, n=8), round_section(-1.10, 0.03, 0.03, 8), round_section(-0.98, 0.042, 0.042, 8)], gg.IRON),
+        gg.loft("Socket", [round_section(1.78, 0.042, 0.042, 8), round_section(1.98, 0.034, 0.034, 8)], steel),
+    ]
+    sections = []
+    for i in range(9):
+        t = i / 8
+        z = 1.98 + 0.55 * t
+        w = 0.11 * math.sin(math.pi * min(1.0, t * 1.15) ** 0.8) * (1 - 0.15 * t) + 0.005
+        sections.append(blade_section(z, w, 0.022 * (1 - 0.6 * t) + 0.004, 0.9))
+    sections.append(point(2.6, n=10))
+    parts.append(gg.loft("Head", sections, steel))
+    return parts
+
+
+RUNE_STEEL = gg.mat("Rune_Steel", (0.60, 0.66, 0.78), 0.45, 0.30)
+surface.RECIPES["Rune_Steel"] = lambda c, m, r: surface.steel(c, 0.75)
+
+
 WEAPONS = {
+    "greatsword": lambda: sword(STEEL, length=2.75, width=0.16, grip=0.62, guard=0.40),
+    # The merchant's sword: the same blade forged better, bright steel with a cold blue to it,
+    # and gold where the plain one has iron. Which of the two Aldric holds should be visible.
+    "greatsword-plus-one": lambda: sword(RUNE_STEEL, length=2.75, width=0.16, grip=0.62, guard=0.44),
+    "short-sword": lambda: sword(STEEL, length=1.25, width=0.12, guard=0.24, fitting=gg.IRON),
+    "dagger": lambda: sword(STEEL, length=0.70, width=0.10, guard=0.18, fitting=gg.IRON),
+    "light-mace": lambda: mace(STEEL),
+    "shortspear": lambda: spear(STEEL),
     "longsword": lambda: sword(STEEL),
     "silvered-longsword": lambda: sword(SILVER),
     "scimitar": lambda: sword(STEEL, length=1.75, width=0.15, curved=True),

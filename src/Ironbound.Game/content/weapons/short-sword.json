@@ -1,0 +1,10 @@
+// A light blade for somebody who would rather be quick than strong.
+{
+  "kind": "weapon",
+  "id": "short-sword",
+  "name": "short sword",
+  "damage": "1d6",
+  "damageType": "Piercing",
+  "threatsOn": 19,
+  "multiplier": 2
+}

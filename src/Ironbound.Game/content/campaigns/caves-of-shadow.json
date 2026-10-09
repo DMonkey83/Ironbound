@@ -1,0 +1,15 @@
+// Four first-level heroes and one rest across four fights. Every hit point is precious, the
+// cleric's three spells are the whole of the healing, and the question is whether to spend the
+// rest before the guard post or save it for the ogre.
+//
+// Played on the level of the same name. The encounters are the same fights strung together
+// without the walking, which is how the balance tests play it; the level wins when both are set.
+{
+  "kind": "campaign",
+  "id": "caves-of-shadow",
+  "name": "Caves of Shadow",
+  "description": "Four untried adventurers follow a band of orc raiders back to the old carved caves they strike from, and to the ogre who leads them.",
+  "encounters": ["cave-mouth", "orc-lair", "guard-post", "ogre-den"],
+  "rests": 1,
+  "level": "caves-of-shadow"
+}

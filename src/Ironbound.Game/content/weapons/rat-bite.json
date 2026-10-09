@@ -1,0 +1,10 @@
+// Small teeth, quickly. Dexterity aims it, as Weapon Finesse would: a rat is not strong, and
+// the book's rat bites at +4 for exactly that reason.
+{
+  "kind": "weapon",
+  "id": "rat-bite",
+  "name": "bite",
+  "damage": "1d4",
+  "damageType": "Piercing",
+  "attackAbility": "Dexterity"
+}

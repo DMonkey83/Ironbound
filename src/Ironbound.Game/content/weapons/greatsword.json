@@ -1,0 +1,12 @@
+// Two hands, two dice. Less of a gamble than the greataxe: a steadier average and a wider
+// threat range, where the axe saves everything for the triple on a twenty.
+{
+  "kind": "weapon",
+  "id": "greatsword",
+  "name": "greatsword",
+  "damage": "2d6",
+  "damageType": "Slashing",
+  "threatsOn": 19,
+  "multiplier": 2,
+  "scale": "OneAndAHalf"
+}

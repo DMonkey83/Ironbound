@@ -49,6 +49,7 @@ HAIR = mat("Hair", (0.07, 0.045, 0.03), 0.0, 0.9)
 IRON = mat("Rusty_Iron", (0.31, 0.265, 0.235), 0.25, 0.65)
 IRON_EDGE = mat("Ground_Edge", (0.56, 0.55, 0.53), 0.30, 0.45)
 SEAM = mat("Plank_Seam", (0.10, 0.05, 0.02), 0.0, 1.0)
+GEM = mat("Gem", (0.55, 0.04, 0.06), 0.0, 0.15)
 
 def smooth(obj):
     if obj.type == "MESH":
@@ -135,7 +136,14 @@ def frame(variant):
     broader, less of a stoop, and built heavier.
     """
     hob = variant == "hobgoblin"
-    sx, sy, sz, sr = (1.15, 0.70, 1.18, 1.15) if hob else (1.0, 1.0, 1.0, 1.0)
+    # (width, stoop, height, limb thickness) against a goblin's. The orc is a goblin stood up
+    # and filled out: taller, nearly upright, heavy through the shoulders. The ogre is that again
+    # half as big once more, with a gut and a head too small for him.
+    sx, sy, sz, sr = {
+        "hobgoblin": (1.15, 0.70, 1.18, 1.15),
+        "orc": (1.28, 0.50, 1.38, 1.22),
+        "ogre": (1.72, 0.55, 1.62, 1.58),
+    }.get(variant, (1.0, 1.0, 1.0, 1.0))
 
     def P(x, y, z):
         return Vector((x * sx, y * sy, z * sz))
@@ -153,12 +161,15 @@ def frame(variant):
 
     # The head is big for the body — a goblin's is nearly a quarter of his height — and that,
     # with the ears, is most of what the silhouette says before anything else does.
-    L["hs"] = sr * (1.08 if hob else 1.17)
+    L["hs"] = sr * {"hobgoblin": 1.08, "orc": 0.98, "ogre": 0.80}.get(variant, 1.17)
 
     # How thick the flesh is laid on. The hobgoblin is not a goblin scaled up: he is a soldier,
     # deep in the chest and heavy in the limb, and that is a different number from his height.
-    L["bulk"] = 1.14 if hob else 1.0
-    L["hob"] = hob
+    L["bulk"] = {"hobgoblin": 1.14, "orc": 1.20, "ogre": 1.42}.get(variant, 1.0)
+    # "hob" now means "not a goblin": the heavier jaw, the shorter ears, the grey palette's
+    # family. Which of them it is, where it matters, is `variant`.
+    L["hob"] = hob or variant in ("orc", "ogre")
+    L["variant"] = variant
     L["lean"] = math.atan2(-(L["ribs"].y - L["pelvis"].y) * 1.3, L["ribs"].z - L["pelvis"].z)
     return L
 
@@ -218,11 +229,18 @@ def create_body(variant):
         for row in range(3):                                                        # abdominals
             ball(off(L["belly"], side * 0.05, -0.135 + row * 0.006, 0.10 - row * 0.085), 0.046)
     chain(L["neck_a"], L["neck_b"], 0.10, 0.085, 2)
+    if L["variant"] == "ogre":
+        # A gut: a barrel of it hung in front of the hips, the thing that says ogre before the
+        # size does.
+        ball(L["belly"] + Vector((0, -0.11, -0.01)) * r, (0.24, 0.21, 0.22))
+        ball(L["belly"] + Vector((0, -0.07, -0.13)) * r, (0.20, 0.17, 0.15))
+    if L["variant"] in ("orc", "ogre"):
+        chain(L["neck_a"], L["neck_b"], 0.13, 0.11, 2)                              # a bull's neck
 
     # Head: long low skull, a shelf of brow, a hooked nose, cheekbones, and a jaw that juts.
     H = L["head"]
     hs = L["hs"] / (r * L["bulk"])         # the head keeps its own scale; bulk is for the body
-    jaw = 1.22 if hob else 1.0
+    jaw = {"hobgoblin": 1.22, "orc": 1.35, "ogre": 1.45}.get(L["variant"], 1.0)
 
     def face(x, y, z):
         return H + Vector((x, y, z)) * L["hs"]
@@ -375,7 +393,10 @@ def create_head_parts(L, body):
 
         # Out, back and up. The sweep is what separates a goblin's ears from a pair of horns.
         sweep = (side * 0.66, 0.42, 0.62) if not hob else (side * 0.68, 0.50, 0.50)
-        parts.append(create_ear(f"Ear_{suffix}", off(side * 0.165, 0.01, -0.01), sweep, (0.36 if hob else 0.54) * hs, side))
+        # A goblin's ears are half his silhouette; an orc's are small and pointed, an ogre's
+        # barely there.
+        length = {"hobgoblin": 0.36, "orc": 0.24, "ogre": 0.15}.get(L["variant"], 0.54)
+        parts.append(create_ear(f"Ear_{suffix}", off(side * 0.165, 0.01, -0.01), sweep, length * hs, side))
 
         parts.append(ring(f"Earring_{suffix}", off(side * 0.27, 0.08, 0.02), 0.034 * hs, 0.010 * hs, GOLD, rotation=(math.pi / 2, 0, 0)))
         # Small, and set back under the brow. Big round eyes are what made him look friendly.
@@ -447,7 +468,8 @@ def create_teeth(L, body):
                                point=0.15 if canine else rnd.uniform(0.35, 0.6)))
 
     # The underbite: a fang at each corner, rooted in the lower gum, up past the upper lip.
-    fang = 1.35 if L["hob"] else 1.0
+    # An orc is known by its tusks: the lower fangs up past the lip, longer than anyone's.
+    fang = {"hobgoblin": 1.35, "orc": 1.75, "ogre": 1.5}.get(L["variant"], 1.0)
     # Where the outermost lower teeth found gum is the corner of the mouth, near enough.
     for side in (-1, 1):
         if not lower:
@@ -459,9 +481,28 @@ def create_teeth(L, body):
 
 
 def create_crest(L, body, arm):
-    """A goblin's crest of coarse hair down the middle of the skull, as cards."""
+    """Hair, as cards: a goblin's crest down the skull, an orc's black mane swept back over the
+    crown to the nape, an ogre's long greasy hair down to his shoulders."""
     H, hs = L["head"], L["hs"]
     info = cards.atlas("Goblin_Hair", {"hair": ((0.025, 0.018, 0.012), (0.16, 0.11, 0.07))}, size=512)
+    variant = L["variant"]
+
+    def mane(p, n):
+        q = p - H
+        if q.z < 0.0 or n.y < -0.35 or q.y < -0.18 * hs or abs(q.x) > 0.17 * hs:
+            return None
+        return {"density": 1.0, "length": 0.14 * hs, "flow": (q.x * 1.5, 1.0, -0.15), "palette": "hair", "lift": 30, "width": 0.40}
+
+    def long_hair(p, n):
+        q = p - H
+        if q.z < -0.08 * hs or n.y < -0.30 or q.y < -0.16 * hs:
+            return None
+        return {"density": 1.0, "length": 0.45 * hs, "flow": (q.x * 0.6, 0.35, -1.0), "palette": "hair", "lift": 20, "width": 0.35}
+
+    if variant in ("orc", "ogre"):
+        crest = cards.grow(body, "Hair_Crest", info, mane if variant == "orc" else long_hair, 320 if variant == "orc" else 420, seed=3, segments=3)
+        cards.skin_like(crest, body, arm)
+        return crest
 
     def plan(p, n):
         q = p - H
@@ -515,12 +556,22 @@ def paint_skin(parts, L):
     pale = Vector((0.520, 0.500, 0.235))
     ruddy = Vector((0.430, 0.235, 0.120))
 
-    if L["hob"]:
+    if L["variant"] == "hobgoblin":
         # Grey going to slate, the colour of something that lives in a barracks rather than a
         # burrow. One look should say this is not another goblin.
         olive = Vector((0.300, 0.315, 0.250))
         pale = Vector((0.455, 0.450, 0.360))
         ruddy = Vector((0.330, 0.200, 0.160))
+    elif L["variant"] == "orc":
+        # Grey-green and coarse: closer to the goblins than the hobgoblin is, darker, and duller.
+        olive = Vector((0.250, 0.300, 0.185))
+        pale = Vector((0.390, 0.420, 0.285))
+        ruddy = Vector((0.340, 0.220, 0.150))
+    elif L["variant"] == "ogre":
+        # Sallow, mottled tan going to grey: a big, unwashed thing that lives in a cave.
+        olive = Vector((0.420, 0.335, 0.250))
+        pale = Vector((0.560, 0.470, 0.350))
+        ruddy = Vector((0.470, 0.270, 0.190))
     flush = Vector((0.560, 0.235, 0.150))
     grime = Vector((0.150, 0.150, 0.070))
 
@@ -965,6 +1016,8 @@ def grips(variant, L):
         k_idle = Matrix.Rotation(-swing, 3, "X") @ k
         if variant == "goblin-archer" and side < 0:
             want, rg = Vector((0.0, 0.0, 1.0)), 0.046 * r            # the bow, upright
+        elif variant == "ogre" and side > 0:
+            want, rg = Vector((0.62, -0.25, 0.75)), 0.034 * r         # the axe out wide, clear of his face
         elif variant != "goblin-archer" and side > 0:
             want, rg = Vector((0.30, -0.20, 0.93)), 0.034 * r         # a blade, up and out
         else:
@@ -1210,6 +1263,67 @@ def create_blade(prefix, L, k, length, width, cleaver=False):
             parts.append(cone(f"{prefix}_Notch_{j}", (width * 0.80 * r, 0, (0.26 + 0.12 * j) * r), 0.035 * r, 0.002, 0.07 * r, METAL, (0, math.radians(90), 0), 4))
     g = L["grip"][1]
     return place(parts, aim(g["c"], g["a"], wide=g["k"]))
+
+
+def _round(z, radius, n=10, x=0.0, y=0.0):
+    return [Vector((x + radius * math.cos(a), y + radius * math.sin(a), z)) for a in (i * 2 * math.pi / n for i in range(n))]
+
+
+def create_spear(L, k):
+    """An orc's spear: a rough shaft through the fist, a leaf of iron at the top, bound on with
+    hide, and an iron cap at the butt. Built standing up its own Z, then put through the fist."""
+    r = k["r"]
+    parts = [
+        loft("Spear_Shaft", [_round(-0.62 * r, 0.022 * r, 8), _round(0.0, 0.026 * r, 8), _round(1.05 * r, 0.022 * r, 8)], BOW_WOOD),
+        loft("Spear_Butt", [[Vector((0, 0, -0.68 * r))] * 8, _round(-0.66 * r, 0.018 * r, 8), _round(-0.58 * r, 0.026 * r, 8)], IRON),
+        loft("Spear_Binding", [_round(0.98 * r, 0.030 * r, 8), _round(1.08 * r, 0.030 * r, 8)], LEATHER),
+    ]
+    sections = []
+    for i in range(8):
+        t = i / 7
+        z = (1.06 + 0.34 * t) * r
+        w = (0.055 * math.sin(math.pi * min(1.0, t * 1.2) ** 0.8) + 0.004) * r
+        th = (0.012 * (1 - 0.6 * t) + 0.002) * r
+        sections.append([Vector((w, 0, z)), Vector((w * 0.4, th, z)), Vector((-w * 0.4, th, z)), Vector((-w, 0, z)), Vector((-w * 0.4, -th, z)), Vector((w * 0.4, -th, z))])
+    sections.append([Vector((0, 0, 1.44 * r))] * 6)
+    parts.append(loft("Spear_Head", sections, IRON_EDGE))
+    g = L["grip"][1]
+    return place(parts, aim(g["c"], g["a"], wide=g["k"]))
+
+
+def create_great_axe(L, k):
+    """The ogre's axe: a heavy haft through his fist and one broad bearded blade, edge toward
+    the knuckles, with a spike behind it."""
+    r = k["r"]
+    parts = [
+        loft("Axe_Haft", [_round(-0.40 * r, 0.032 * r, 10), _round(0.0, 0.036 * r, 10), _round(1.10 * r, 0.032 * r, 10)], WOOD),
+        loft("Axe_Wrap", [_round(-0.12 * r, 0.040 * r, 10), _round(0.12 * r, 0.040 * r, 10)], LEATHER),
+        loft("Axe_Socket", [_round(0.86 * r, 0.050 * r, 8), _round(1.12 * r, 0.046 * r, 8)], IRON),
+        loft("Axe_Spike", [_round(0.0, 0.026 * r, 6, -0.04 * r) , [Vector((-0.20 * r, 0, 0.0))] * 6], IRON),
+    ]
+    # The spike points back from the socket: lofted along X rather than Z, so turn its rings.
+    spike = parts[-1]
+    for v in spike.data.vertices:
+        v.co = Vector((v.co.x, v.co.y, v.co.z + 1.0 * r))
+    outline = [(0.04, 0.84), (0.16, 0.74), (0.34, 0.80), (0.42, 0.98), (0.40, 1.16), (0.30, 1.26), (0.04, 1.14)]
+    cx, cz = 0.04, 0.99
+    sections = []
+    for frac, thick in ((0.0, 0.040), (0.5, 0.024), (0.85, 0.008), (1.0, 0.002)):
+        front = [((cx + (x - cx) * frac) * r, thick * r, (cz + (z - cz) * frac) * r) for x, z in outline]
+        back = [(x, -y, z) for x, y, z in front]
+        sections.append([Vector(p) for p in front + list(reversed(back))])
+    parts.append(loft("Axe_Blade", sections, IRON_EDGE))
+    g = L["grip"][1]
+    return place(parts, aim(g["c"], g["a"], wide=g["k"]))
+
+
+def create_gem(L, k):
+    """The chief's gem, hung at the bottom of his necklace."""
+    r = k["r"]
+    at = L["neck_a"].lerp(L["ribs"], 0.45) + Vector((0, -0.21 * r * k["bulk"], 0))
+    gem = uv("Strap_Gem", tuple(at), (0.035 * r, 0.02 * r, 0.045 * r), GEM, 8, 6)
+    setting = ring("Strap_Gem_Setting", tuple(at), 0.04 * r, 0.008 * r, GOLD, rotation=(math.pi / 2, 0, 0))
+    return [gem, setting]
 
 
 def create_cleaver(L, k):
@@ -1508,6 +1622,25 @@ def create_equipment(variant, L):
         parts += create_quiver(k)
         parts += create_scabbard(L, k)
         parts += create_bow(L, k)
+    elif variant == "orc":
+        # A raider: a vest of boiled leather, one iron shoulder, hide wraps, and a spear.
+        parts += create_cuirass(k, LEATHER)
+        parts += create_straps(k, LEATHER_LIGHT, crossed=False, grow=1.10)
+        parts += create_pauldrons(L, k, IRON, sides=(-1,), spikes=True, size=1.0, layered=False)
+        parts += create_wraps(L, k, LEATHER, LEATHER_LIGHT, banded=True)
+        parts += create_belt(L, k, heavy=True)
+        parts += create_loincloth(L, k)
+        parts += create_spear(L, k)
+    elif variant == "ogre":
+        # Hides and a gut, the chief's gem on a thong round his neck, and an axe a man could
+        # not lift.
+        parts += create_cuirass(k, LEATHER_LIGHT, waist=-0.15)
+        parts += create_necklace(L, k)
+        parts += create_gem(L, k)
+        parts += create_wraps(L, k, LEATHER, LEATHER, banded=True)
+        parts += create_belt(L, k, heavy=True)
+        parts += create_loincloth(L, k)
+        parts += create_great_axe(L, k)
     else:
         # A soldier, and a sergeant of them: mail under plate at the joints, his rank in red.
         parts += create_cuirass(k, CHAIN, grow=1.12, waist=0.75)
@@ -1644,7 +1777,7 @@ def bind_all(body, equipment, arm):
     # exact-name table this replaces needed a new row for every stud and arrow, and threw on
     # the .001 suffix Blender gives a repeated name.
     rigid_map = [
-        ("Sword_", "hand_R"), ("Longsword_", "hand_R"),
+        ("Sword_", "hand_R"), ("Longsword_", "hand_R"), ("Spear_", "hand_R"), ("Axe_", "hand_R"),
         ("Shortbow", "hand_L"),
         ("Scimitar", "pelvis"), ("Scabbard", "pelvis"),
         ("HeavyShield", "hand_L"), ("Shield", "hand_L"),
@@ -2014,7 +2147,7 @@ def parse_args():
         output = user[1]
     else:
         raise RuntimeError("Usage: ... -- goblin|goblin-archer|hobgoblin OUTPUT_GLB")
-    if variant not in {"goblin", "goblin-archer", "hobgoblin"}:
+    if variant not in {"goblin", "goblin-archer", "hobgoblin", "orc", "ogre"}:
         raise RuntimeError(f"Unknown variant: {variant}")
     return variant, output
 

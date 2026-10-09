@@ -399,3 +399,29 @@ public class BattlefieldTests
         Assert.Throws<ArgumentNullException>(() => new Battlefield(5, 5).Place(null!, 0, 0));
     }
 }
+
+public class UnblockTests
+{
+    [Fact]
+    public void AnOpenedSquareCanBeWalkedThrough()
+    {
+        var field = new Battlefield(3, 1).Block(new GridSquare(1, 0));
+
+        Assert.Empty(field.FindPath(new GridSquare(0, 0), new GridSquare(2, 0)));
+
+        field.Unblock(new GridSquare(1, 0));
+
+        Assert.True(field.IsPassable(new GridSquare(1, 0)));
+        Assert.Equal(3, field.FindPath(new GridSquare(0, 0), new GridSquare(2, 0)).Count);
+    }
+
+    [Fact]
+    public void OpeningWhatWasNeverShutDoesNothing()
+    {
+        var field = new Battlefield(2, 2);
+
+        field.Unblock(new GridSquare(0, 0));
+
+        Assert.True(field.IsPassable(new GridSquare(0, 0)));
+    }
+}
