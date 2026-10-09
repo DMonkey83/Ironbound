@@ -4,6 +4,7 @@ using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Dice;
+using Ironbound.Rules.Effects;
 using Ironbound.Rules.Maps;
 using Ironbound.Rules.Saves;
 
@@ -322,6 +323,11 @@ public static class Casting
                 case Restore mend:
                     var restored = target.HitPoints.Heal(shared?[i] ?? Roll(caster, spell, mend, i, level, how, random));
                     healed += restored;
+
+                    if (restored > 0)
+                    {
+                        Bleeding.Healed(target);
+                    }
 
                     // Magical healing closes a bleeding wound as well as the hit points.
                     if (restored > 0 && target.Effects.Remove(SneakAttack.BleedLabel) is not null)

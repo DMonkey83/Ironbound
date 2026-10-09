@@ -158,25 +158,31 @@ public sealed class UsePowerAction : GameAction
     }
 
     /// <summary>
-    /// Selective Channeling: up to the cleric's Charisma bonus of creatures left out of a
-    /// channel — her enemies when it heals, her friends and herself when it harms.
+    /// Who a channel leaves out. The cleric may always choose whether to include herself, and
+    /// does so exactly when it heals. Selective Channeling leaves out up to her Charisma bonus
+    /// more — her enemies when it heals, her friends when it harms.
     /// </summary>
     private static IReadOnlyCollection<Creature> Excluded(Creature actor, Power power, Battlefield? field)
     {
-        if (power.Id != ClassPowers.ChannelPool
-            || !actor.HasFeat(FeatEffect.SelectiveChanneling)
-            || power.Effect.Target is not SelfTarget { RadiusFeet: > 0 } around
-            || field?.SquareOf(actor) is not { } middle)
+        if (power.Id != ClassPowers.ChannelPool || power.Effect.Target is not SelfTarget { RadiusFeet: > 0 } around)
         {
             return [];
         }
 
         var heals = power.Effect.Does.OfType<Restore>().Any();
-        var allowed = Math.Max(0, actor.Abilities[Abilities.Ability.Charisma].Modifier);
+        var excluded = heals ? new List<Creature>() : [actor];
 
-        return [.. field.CreaturesWithin(middle, around.RadiusFeet)
-            .Where(other => heals ? actor.IsEnemyOf(other) : !actor.IsEnemyOf(other))
-            .Take(allowed)];
+        if (actor.HasFeat(FeatEffect.SelectiveChanneling) && field?.SquareOf(actor) is { } middle)
+        {
+            var allowed = Math.Max(0, actor.Abilities[Abilities.Ability.Charisma].Modifier);
+
+            excluded.AddRange(field.CreaturesWithin(middle, around.RadiusFeet)
+                .Where(other => !ReferenceEquals(other, actor))
+                .Where(other => heals ? actor.IsEnemyOf(other) : !actor.IsEnemyOf(other))
+                .Take(allowed));
+        }
+
+        return excluded;
     }
 
     private SpellCast Teleport(Creature actor, Power power, Battlefield field)

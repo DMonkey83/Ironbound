@@ -14,7 +14,10 @@
   "hitPoints": 16,
   "baseAttack": 3,
   "size": "Large",
-  "speed": 30,
+
+  // Forty, as the book's ogre: its hide armour is medium and brings that down to the thirty it
+  // has always walked at here.
+  "speed": 40,
   "naturalArmour": 4,
   "goodSave": "Fortitude",
 

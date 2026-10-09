@@ -2268,9 +2268,9 @@ public partial class Main : Node3D
 
 		_spells.Clear();
 		_castables.Clear();
-		foreach (var spell in actor.Spells.Prepared)
+		foreach (var spell in Castable(actor))
 		{
-			_spells.AddItem($"{spell.Name} ({actor.Spells.SlotsRemaining(spell.Level)})");
+			_spells.AddItem(SpellEntry(actor, spell));
 			_spells.SetItemDisabled(_spells.ItemCount - 1, !actor.Spells.CanCast(spell));
 			_castables.Add((spell, null));
 		}
@@ -2289,6 +2289,63 @@ public partial class Main : Node3D
 		{
 			_spells.Selected = 0;
 		}
+	}
+
+	/// <summary>
+	/// Every spell the caster could put in the Cast list: what she prepared, the same again
+	/// empowered if she has the feat, and the cures a cleric can trade a slot for.
+	/// </summary>
+	private static IEnumerable<Spell> Castable(Creature actor)
+	{
+		var book = actor.Spells;
+		foreach (var spell in book.Prepared)
+		{
+			yield return spell;
+		}
+
+		// Only where there is a slot two levels up to put it in at all, so a 1st-level wizard
+		// with the feat is not shown a list of things she can never cast.
+		if (actor.HasFeat(FeatEffect.EmpowerSpell))
+		{
+			foreach (var spell in book.Prepared.Where(spell => spell.Level > 0 && book.SlotsMaximum(spell.Level + 2) > 0))
+			{
+				yield return spell.Empower();
+			}
+		}
+
+		foreach (var spell in book.Spontaneous.Where(spell => !book.Knows(spell)))
+		{
+			yield return spell;
+		}
+	}
+
+	/// <summary>
+	/// A spell's line in the Cast list, with what it would cost: the general slots left at its
+	/// level, plus a domain or school slot it may take instead.
+	/// </summary>
+	private static string SpellEntry(Creature actor, Spell spell)
+	{
+		var book = actor.Spells;
+		var level = spell.SlotLevel;
+
+		if (!book.Knows(spell) && book.KnowsSpontaneously(spell))
+		{
+			return $"{spell.Name} (in place of a level {level}+ spell)";
+		}
+
+		var name = spell.Empowered ? $"{spell.Name}, empowered" : spell.Name;
+		var slots = $"{book.SlotsRemaining(level)}";
+		if (book.IsSpecialty(spell) && book.SpecialtyMaximum(level) > 0)
+		{
+			slots += $" + {book.SpecialtyRemaining(level)} {(actor.Choices.School is null ? "domain" : "school")}";
+		}
+
+		if (book.Cost(spell) > 1)
+		{
+			slots += ", costs 2";
+		}
+
+		return spell.Empowered ? $"{name} (level {level}: {slots})" : $"{name} ({slots})";
 	}
 
 	/// <summary>What the Cast list holds, in its order: a spell, or a power and the spell-shaped
@@ -2330,6 +2387,21 @@ public partial class Main : Node3D
 		foreach (var line in lines)
 		{
 			_log.AddText($"      {line}\n");
+		}
+
+		// An autoplayed run is usually being recorded to check something, and a frame every few
+		// seconds shows the board but not the dice; the console gets the whole log.
+		if (_autoplay)
+		{
+			if (header is not null)
+			{
+				GD.Print(header);
+			}
+
+			foreach (var line in lines)
+			{
+				GD.Print($"      {line}");
+			}
 		}
 	}
 
@@ -2381,7 +2453,7 @@ public partial class Main : Node3D
 		_modes[Mode.Shove].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Help].Disabled = turn is null || !turn.Budget.HasStandard;
 		_modes[Mode.Cast].Disabled = turn is null
-			|| !((turn.Budget.HasStandard && turn.Actor.Spells.Prepared.Any(turn.Actor.Spells.CanCast))
+			|| !((turn.Budget.HasStandard && Castable(turn.Actor).Any(turn.Actor.Spells.CanCast))
 				|| turn.Actor.Powers.Any(power => turn.Actor.UsesLeft(power) > 0 && turn.Budget.CanAfford(power.Cost)));
 		_modes[Mode.Move].Disabled = turn is null || !CanStillMove(turn);
 
@@ -2652,7 +2724,7 @@ public partial class Main : Node3D
 		var fighting = _campaign.State == CampaignState.Fighting;
 		var offered = new Offer(
 			Hotbar: fighting && actor is not null && _battle.SideOf(actor) == Ironbound.Simulation.Side.Party,
-			Cast: actor is not null && (actor.Spells.Prepared.Count > 0 || actor.Powers.Count > 0),
+			Cast: actor is not null && (actor.Spells.Prepared.Count > 0 || actor.Spells.Spontaneous.Count > 0 || actor.Powers.Count > 0),
 
 			// An armed one-shot (a powerful blow waiting for its hit) stays on show, lit.
 			Stances: actor is null ? [] : [.. _stances.Keys.Where(stance => actor.Stances.CanAdopt(stance) || actor.Stances.IsActive(stance))],

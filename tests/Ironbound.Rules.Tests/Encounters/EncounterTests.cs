@@ -374,6 +374,7 @@ public class TurnActionTests
         var result = turn.Take(new AttackAction(Sword(), bob));
 
         var attack = Assert.IsType<AttackActionResult>(result);
+        Assert.NotNull(attack.Strike);
         Assert.True(attack.Strike.IsHit);      // 15 + 5 against armour class 10
         Assert.Equal(52 - attack.Strike.DamageDealt, bob.HitPoints.Current);
         Assert.Equal(ActionCost.Standard, attack.Cost);

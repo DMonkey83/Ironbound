@@ -496,9 +496,46 @@ public sealed class ContentLibrary
             Problem("weaponTraining", $"'{group}' is not a weapon group.");
         }
 
-        foreach (var talent in creature.Talents.Where(id => !_talents.ContainsKey(id)))
+        // What the creature's classes hand out at any level: a choice no class of hers could
+        // ever make use of is a mistake in the file, not a choice.
+        var rows = creature.Classes
+            .Select(level => _classes.GetValueOrDefault(level.ClassId))
+            .OfType<ClassDefinition>()
+            .SelectMany(taken => taken.Features)
+            .ToList();
+
+        bool Grants(string feature) => rows.Any(row => row.Id == feature);
+
+        var lists = rows
+            .Where(row => row.Id == FeatureIds.Talent)
+            .Select(row => row.Parameter("list"))
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var talent in creature.Talents)
         {
-            Problem("talents", $"no talent called '{talent}'.");
+            if (!_talents.TryGetValue(talent, out var found))
+            {
+                Problem("talents", $"no talent called '{talent}'.");
+            }
+            else if (!lists.Contains(found.List))
+            {
+                Problem("talents", $"'{talent}' is a {found.List}, and none of this creature's classes grants one.");
+            }
+        }
+
+        if (creature.WeaponTraining.Count > 0 && !Grants(FeatureIds.WeaponTraining))
+        {
+            Problem("weaponTraining", "none of this creature's classes trains in weapon groups.");
+        }
+
+        if (creature.Domains.Count > 0 && !Grants(FeatureIds.Domains))
+        {
+            Problem("domains", "none of this creature's classes grants domains.");
+        }
+
+        if (creature.School is not null && !Grants(FeatureIds.ArcaneSchool))
+        {
+            Problem("school", "none of this creature's classes has an arcane school.");
         }
 
         DeityDefinition? deity = null;

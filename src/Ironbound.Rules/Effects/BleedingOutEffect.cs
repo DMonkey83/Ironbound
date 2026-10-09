@@ -126,4 +126,17 @@ public static class Bleeding
 
     /// <summary>Whether somebody on the floor has stopped losing blood.</summary>
     public static bool IsStable(Creature creature) => Find(creature)?.IsStable ?? false;
+
+    /// <summary>
+    /// Healed while dying: any healing at all stops the bleeding, even when it leaves them below
+    /// nought. That is the rule, and it is the whole point of a power like Rebuke Death, which
+    /// at first level rarely heals enough to lift anybody back to their feet.
+    /// </summary>
+    public static void Healed(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        Sync(creature);
+        Find(creature)?.Stabilise();
+    }
 }

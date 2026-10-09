@@ -359,10 +359,17 @@ public sealed class Battle
             lines.AddRange(swung.Opportunities.Select(strike => $"  {strike}"));
         }
 
+        // A rogue's opportunist swing, taken at whoever the blow just landed on.
+        if (result is AttackActionResult { FollowUps.Count: > 0 } followed)
+        {
+            lines.AddRange(followed.FollowUps.Select(strike => $"  {strike}"));
+        }
+
         if (result is FullAttackResult full)
         {
             lines.AddRange(full.Opportunities.Select(strike => $"  {strike}"));
             lines.AddRange(full.Strikes.Select(strike => $"  {strike}"));
+            lines.AddRange(full.FollowUps.Select(strike => $"  {strike}"));
         }
 
         if (result is CastSpellResult cast)

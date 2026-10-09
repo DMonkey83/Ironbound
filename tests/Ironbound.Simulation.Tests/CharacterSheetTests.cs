@@ -144,3 +144,107 @@ public class CharacterSheetTests
     private static IReadOnlyList<string> Section(Rules.Creatures.Creature creature, string heading) =>
         CharacterSheet.Of(creature).Single(section => section.Heading == heading).Lines;
 }
+
+public class ClassFeatureSheetTests
+{
+    private static IReadOnlyList<string> Features(string id) =>
+        CharacterSheet.Of(ContentFiles.Default.BuildCreature(id)!).Single(section => section.Heading == "Class features").Lines;
+
+    [Fact]
+    public void HaleNamesHerGodAndCountsHerChannels()
+    {
+        var lines = Features("hale");
+
+        Assert.Equal("Deity: Cihua Couatl (NG), favoured weapon shortspear", lines[0]);
+        Assert.Contains("Domains: Healing, War", lines);
+        Assert.Contains("Channel Positive Energy: 4 of 4 left today", lines);
+        Assert.Contains("Rebuke Death: 5 of 5 left today", lines);
+    }
+
+    [Fact]
+    public void KarnsRageIsCountedInRounds()
+    {
+        var lines = Features("karn");
+
+        Assert.Contains("Rage: 17 of 17 rounds left", lines);
+        Assert.Contains("Rage powers: powerful blow, surprise accuracy, strength surge", lines);
+    }
+
+    [Fact]
+    public void TheBondedSpellsAreOneAllowance()
+    {
+        var lines = Features("merrin");
+
+        Assert.Contains(lines, line => line.StartsWith("Bonded object: 1 of 1 left today — Fireball, Scorching Ray"));
+        Assert.Contains("Force Missile: 7 of 7 left today", lines);
+        Assert.Contains("Intense spells: +2 damage from evocation spells", lines);
+    }
+
+    [Fact]
+    public void AFighterHasFeaturesAndNoPools()
+    {
+        var lines = Features("valeria");
+
+        Assert.Contains("Bravery: +2 Will against fear", lines);
+        Assert.DoesNotContain(lines, line => line.Contains("left today"));
+    }
+
+    [Fact]
+    public void AMonsterWithNoClassHasNothingHere()
+    {
+        Assert.Empty(Features("ogre"));
+        Assert.DoesNotContain("Class features", CharacterSheet.Describe(ContentFiles.Default.BuildCreature("ogre")!));
+    }
+
+    [Fact]
+    public void ADomainSlotIsShownBesideTheGeneralOnes()
+    {
+        var magic = CharacterSheet.Of(ContentFiles.Default.BuildCreature("hale")!).Single(section => section.Heading == "Magic").Lines;
+
+        Assert.Contains("Level 1 slots: 2 of 2, domain 1 of 1", magic);
+    }
+
+    [Fact]
+    public void AFeatTakenForAWeaponSaysWhichWeapon()
+    {
+        var gear = CharacterSheet.Of(ContentFiles.Default.BuildCreature("valeria")!).Single(section => section.Heading == "Gear and training").Lines;
+
+        Assert.Contains(gear, line => line.StartsWith("Weapon Focus (longsword)"));
+    }
+}
+
+public class ClassFeaturesInPlayTests
+{
+    [Fact]
+    public void KarnRagesInTheAmbush()
+    {
+        var battle = Scenarios.GoblinAmbush();
+        battle.RunToCompletion(Scenarios.AutoPilot(battle));
+
+        Assert.Contains(battle.Log, line => line.Contains("Karn flies into a rage"));
+    }
+
+    [Fact]
+    public void AcrossManySeedsEveryCasterAndTheRogueUseWhatTheyHave()
+    {
+        var used = new HashSet<string>();
+
+        for (var seed = 1UL; seed <= 30; seed++)
+        {
+            foreach (var id in new[] { "cave-mouth", "orc-lair", "guard-post", "ogre-den" })
+            {
+                var battle = Scenarios.Build(ContentFiles.Default, id, seed);
+                battle.RunToCompletion(Scenarios.AutoPilot(battle, seed), 400);
+
+                foreach (var line in battle.Log)
+                {
+                    if (line.Contains("sneak attack")) used.Add("sneak attack");
+                    if (line.Contains("uses Acid Dart")) used.Add("acid dart");
+                    if (line.Contains("uses Channel Positive Energy")) used.Add("channel");
+                }
+            }
+        }
+
+        Assert.Equal(["acid dart", "channel", "sneak attack"], used.Order());
+    }
+}
