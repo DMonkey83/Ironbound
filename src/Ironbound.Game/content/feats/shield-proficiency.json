@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "shield-proficiency",
+  "name": "Shield Proficiency",
+  "combat": true,
+  "description": "Trained to fight behind any shield but a tower shield: its check penalty no longer falls on attack rolls.",
+  "effect": "ShieldProficiency"
+}

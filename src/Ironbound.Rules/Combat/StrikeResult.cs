@@ -53,6 +53,9 @@ public sealed record StrikeResult
     /// <summary>Whether this was a Vital Strike, with the weapon's dice rolled twice.</summary>
     public bool Vital { get; init; }
 
+    /// <summary>A gun that misfired: a miss whatever the roll, and the gun broken or burst.</summary>
+    public bool Misfired { get; init; }
+
     /// <summary>
     /// What else happened on the way: a declared rage power used, a defensive roll, the bleed a
     /// sneak attack left. Each a short phrase the log can append.

@@ -7,6 +7,8 @@
   "attack": "Full",
   "goodSaves": ["Fortitude"],
   "classSkills": ["Climb", "Intimidate", "Survival", "Swim"],
+  "weaponProficiencies": ["simple", "martial"],
+  "armourProficiencies": ["light", "medium", "heavy", "shields", "tower-shield"],
 
   // What a fighter gets on top of the chassis, a row per step of the table. A feature that grows
   // — bravery, the bonus feats — grows by appearing again: bravery at 2, 6 and 10 is +1, +2, +3.

@@ -19,91 +19,6 @@ public sealed record ContentProblem(string Source, string Field, string Message)
 }
 
 /// <summary>
-/// A weapon as written down. Held as a definition rather than an instance because a
-/// <see cref="WeaponAttack"/> owns modifier stacks — two goblins must not share one scimitar.
-/// </summary>
-public sealed record WeaponDefinition
-{
-    public required string Id { get; init; }
-
-    public required string Name { get; init; }
-
-    public string Damage { get; init; } = "1d6";
-
-    public DamageType DamageType { get; init; } = DamageType.Bludgeoning;
-
-    public int ThreatsOn { get; init; } = 20;
-
-    public int Multiplier { get; init; } = 2;
-
-    public AbilityDamageScale Scale { get; init; } = AbilityDamageScale.Full;
-
-    public Ability AttackAbility { get; init; } = Ability.Strength;
-
-    public Ability DamageAbility { get; init; } = Ability.Strength;
-
-    public int Enhancement { get; init; }
-
-    /// <summary>Zero for a melee weapon; anything else makes it a ranged one.</summary>
-    public int RangeIncrement { get; init; }
-
-    public int MaximumIncrements { get; init; } = WeaponAttack.ProjectileIncrements;
-
-    /// <summary>The fighter weapon groups it belongs to, by id.</summary>
-    public IReadOnlyList<string> Groups { get; init; } = [];
-
-    /// <summary>Light, natural, or otherwise a weapon Weapon Finesse can aim with Dexterity.</summary>
-    public bool Finesse { get; init; }
-
-    public WeaponAttack Build(string? name = null)
-    {
-        name ??= Name;
-        var built = RangeIncrement > 0
-            ? WeaponAttack.Ranged(
-                name,
-                Damage,
-                DamageType,
-                RangeIncrement,
-                new CriticalProfile(ThreatsOn, Multiplier),
-                MaximumIncrements,
-                Scale,
-                AttackAbility,
-                DamageAbility)
-            : WeaponAttack.Melee(
-                name,
-                Damage,
-                DamageType,
-                new CriticalProfile(ThreatsOn, Multiplier),
-                Scale,
-                AttackAbility,
-                DamageAbility);
-
-        // Init-only, and the factory methods know nothing of content ids, so the identity is
-        // stamped on a copy of the shell that shares the very same attack and damage objects.
-        var weapon = new WeaponAttack(built.Name, built.Attack, built.Damage)
-        {
-            Kind = Id,
-            Groups = Groups,
-            Finesse = Finesse,
-            Qualities = built.Qualities,
-            AttackAbility = built.AttackAbility,
-            DamageAbility = built.DamageAbility,
-            DamageScale = built.DamageScale,
-            RangeIncrement = built.RangeIncrement,
-            MaximumIncrements = built.MaximumIncrements,
-        };
-
-        if (Enhancement != 0)
-        {
-            weapon.Attack.Modifiers.Add(Enhancement, BonusType.Enhancement, name);
-            weapon.DamageModifiers.Add(Enhancement, BonusType.Enhancement, name);
-        }
-
-        return weapon;
-    }
-}
-
-/// <summary>
 /// Damage reduction as written down: "DR 10/silver" is ten, bypassed by silver.
 /// </summary>
 /// <remarks>
@@ -143,6 +58,9 @@ public sealed record CreatureDefinition
     public IReadOnlyList<ClassLevelDefinition> Classes { get; init; } = [];
 
     public CreatureSize Size { get; init; } = CreatureSize.Medium;
+
+    /// <summary>Its people, by id, or null for a creature with no racial traits.</summary>
+    public string? Race { get; init; }
 
     /// <summary>
     /// The model to draw it with, or empty for the placeholder shape.
@@ -253,6 +171,15 @@ public sealed record CreatureDefinition
 
         creature.BaseAttackBonus = classed ? Progression.BaseAttack(levels) : BaseAttack;
 
+        // A race the library never heard of is already in Problems, like a class.
+        if (Race is { } race && library.GetRace(race) is { } people)
+        {
+            creature.Race = people;
+            people.ApplyTo(creature);
+        }
+
+        Familiarise(creature, library);
+
         if (Armour != 0)
         {
             creature.ArmorClass.Modifiers.Add(Armour, BonusType.Armor, "Armour");
@@ -296,13 +223,15 @@ public sealed record CreatureDefinition
         {
             if (library.GetItem(id) is { } item)
             {
-                creature.Equipment.Equip(item, library.BuildItemWeapon(item));
+                library.Equip(creature, item);
             }
         }
 
+        // A weapon written straight into the file rather than carried as an item — teeth, mostly.
+        // It gets no thrown use: there is no item for it to leave the hand as.
         foreach (var weapon in Weapons)
         {
-            if (library.BuildWeapon(weapon) is { } built)
+            if (library.BuildWeapon(weapon, size: Size) is { } built)
             {
                 creature.Attacks.Add(built);
             }
@@ -347,6 +276,33 @@ public sealed record CreatureDefinition
         ClassFeatures.Establish(creature, library);
 
         return creature;
+    }
+
+    /// <summary>
+    /// Writes down what a creature with no class was described carrying — its weapons and its
+    /// gear — which is what the Bestiary makes it proficient with.
+    /// </summary>
+    /// <remarks>
+    /// Also how a save is brought back: the list is a fact about the file, not about the fight,
+    /// so it is worked out again rather than stored.
+    /// </remarks>
+    internal void Familiarise(Creature creature, ContentLibrary library)
+    {
+        if (Classes.Count > 0)
+        {
+            return;
+        }
+
+        foreach (var id in Weapons.Concat(Items))
+        {
+            creature.NativeGear.Add(id);
+
+            // An item is carried by its own id, and swung by its weapon's.
+            if (library.GetItem(id)?.Weapon is { } kind)
+            {
+                creature.NativeGear.Add(kind);
+            }
+        }
     }
 
     /// <summary>

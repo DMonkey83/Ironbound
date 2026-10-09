@@ -149,8 +149,23 @@ public sealed class Stances(Creature owner)
     }
 
     /// <summary>What a melee swing gains for it. Nothing at all with a bow in your hands.</summary>
-    public int DamageBonus(bool melee) =>
-        melee && IsActive(Stance.PowerAttack) ? Severity(Stance.PowerAttack) * 2 : 0;
+    public int DamageBonus(bool melee) => DamageBonus(melee, twoHanded: false);
+
+    /// <summary>
+    /// What a melee swing gains for it, and half as much again with both hands on the weapon —
+    /// or with anything else that puts half again Strength into the blow, which is how the book
+    /// words it and why a two-handed fighter is the one who takes this feat.
+    /// </summary>
+    public int DamageBonus(bool melee, bool twoHanded)
+    {
+        if (!melee || !IsActive(Stance.PowerAttack))
+        {
+            return 0;
+        }
+
+        var bonus = Severity(Stance.PowerAttack) * 2;
+        return twoHanded ? bonus * 3 / 2 : bonus;
+    }
 
     /// <summary>
     /// Uses up a declared rage power: it goes, and cannot come back until the next rage. Returns

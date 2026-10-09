@@ -27,9 +27,10 @@ public class ClassSaveTests
             .Order.Single(combatant => combatant.Creature.Name == name).Creature;
 
     [Fact]
-    public void ThisIsVersionThirteenAndElevenIsStillRead()
+    public void ThisIsVersionFourteenAndElevenIsStillRead()
     {
-        Assert.Equal(13, SavedGame.CurrentVersion);
+        // Fourteen since the weapon catalogue: broken and thrown items, and races.
+        Assert.Equal(14, SavedGame.CurrentVersion);
         Assert.Equal(11, SavedGame.OldestReadable);
     }
 

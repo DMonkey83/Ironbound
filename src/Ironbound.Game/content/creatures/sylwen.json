@@ -6,6 +6,9 @@
   "model": "res://art/merrin.glb",
   // An elf: two more Dexterity and two less Constitution than the human she might have been.
   "abilities": [8, 16, 12, 17, 12, 10],
+
+  // Which is also why the shortbow is hers: an elf is trained with it whatever a wizard is not.
+  "race": "elf",
   "classes": [ { "class": "wizard", "level": 1 } ],
 
   "skills": [

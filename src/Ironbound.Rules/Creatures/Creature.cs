@@ -59,6 +59,7 @@ public sealed class Creature
         // Both read live, so a level gained or a shield taken up changes them on the spot.
         ArmorClass.CapRelief = () => Martial.ArmorTraining(this);
         ArmorClass.Situational = options => Martial.Situational(this, options);
+        ArmorClass.Suppressed = Equipment.IsSetAside;
     }
 
     /// <summary>Builds a creature whose hit points come from its hit die, per the rule options.</summary>
@@ -143,10 +144,41 @@ public sealed class Creature
     /// <summary>What it is wearing and holding.</summary>
     public Equipment Equipment { get; }
 
+    /// <summary>
+    /// The people it belongs to, or null for a creature with no racial traits — which is every
+    /// monster, and every hero whose file does not say.
+    /// </summary>
+    /// <remarks>
+    /// Its standing bonuses arrive once, when the creature is built, as a feat's do; what is
+    /// read live from here is the rest: weapon familiarity, immunities, save bonuses.
+    /// </remarks>
+    public RaceDefinition? Race { get; set; }
+
+    /// <summary>
+    /// For a creature with no class levels, every weapon and item id its file gives it: what a
+    /// monster is proficient with besides simple weapons.
+    /// </summary>
+    /// <remarks>
+    /// The Bestiary's rule, written down where the proficiency rules can read it without a
+    /// library to hand. Empty for anybody with a class, whose class says instead.
+    /// </remarks>
+    public ISet<string> NativeGear { get; } = new HashSet<string>(StringComparer.Ordinal);
+
     /// <summary>What it can hit things with. The first is used when something must be chosen for it.</summary>
     public IList<WeaponAttack> Attacks { get; } = [];
 
-    public WeaponAttack? PrimaryAttack => Attacks.Count > 0 ? Attacks[0] : null;
+    /// <summary>The first attack it can actually make: nothing thrown away or dropped.</summary>
+    public WeaponAttack? PrimaryAttack => Attacks.FirstOrDefault(Equipment.CanUse);
+
+    /// <summary>
+    /// Whether it can make this attack right now: the item it came from, if it came from one, is
+    /// still in hand rather than thrown, dropped or destroyed.
+    /// </summary>
+    public bool CanAttackWith(WeaponAttack weapon)
+    {
+        ArgumentNullException.ThrowIfNull(weapon);
+        return Equipment.CanUse(weapon);
+    }
 
     /// <summary>
     /// The first thing it can swing rather than shoot.
@@ -154,10 +186,15 @@ public sealed class Creature
     /// <remarks>
     /// Some things only a melee weapon may do, and an attack of opportunity is the one that
     /// matters most: a creature holding nothing but a bow does not get to shoot people for
-    /// walking past it. Null means it has no answer to anything that closes.
+    /// walking past it. Null means it has no answer to anything that closes — which includes a
+    /// creature that has thrown its only blade, until the fight is over and it is picked up.
+    /// <para>
+    /// This is also the weapon the creature threatens with, so its reach decides which squares
+    /// those are.
+    /// </para>
     /// </remarks>
     public WeaponAttack? MeleeAttack =>
-        Attacks.FirstOrDefault(weapon => !weapon.IsRanged);
+        Attacks.FirstOrDefault(weapon => !weapon.IsRanged && Equipment.CanUse(weapon));
 
     /// <summary>
     /// How practised it is at fighting, before strength, size or anything situational.

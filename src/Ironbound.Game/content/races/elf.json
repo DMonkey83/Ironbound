@@ -1,0 +1,31 @@
+// The Core Rulebook's elf, condensed. The ability adjustments are written down and not applied:
+// a creature file holds final scores, so an elf's Dexterity already has its two in it. Size,
+// speed, senses and elven magic are data for now; there is no lighting and no spell resistance.
+{
+  "kind": "race",
+  "id": "elf",
+  "name": "Elf",
+  "description": "Long-lived, sharp-eyed and quick, and not easily put to sleep by anybody's magic.",
+  "size": "Medium",
+  "speed": 30,
+  "abilityAdjustments": { "dex": 2, "int": 2, "con": -2 },
+
+  "weaponFamiliarity": ["longbow", "composite-longbow", "longsword", "rapier", "shortbow", "composite-shortbow"],
+  "familiarKeyword": "elven",
+
+  "skills": [ { "skill": "Perception", "bonus": 2, "trait": "Keen senses" } ],
+  "immuneTo": ["sleep"],
+  "saves": [ { "school": "Enchantment", "bonus": 2, "trait": "Elven immunities" } ],
+  "spellResistanceChecks": 2,
+  "identifyItems": 2,
+  "senses": ["low-light vision"],
+
+  "traits": [
+    { "name": "Elven immunities", "description": "Immune to magical sleep, and +2 on saves against enchantments." },
+    { "name": "Keen senses", "description": "+2 on Perception." },
+    { "name": "Elven magic", "description": "+2 to get past spell resistance and on Spellcraft to identify magic items; neither comes up in the game yet." },
+    { "name": "Weapon familiarity", "description": "Trained with longbows, longswords, rapiers and shortbows, composite ones too; any weapon with \"elven\" in its name counts as martial." },
+    { "name": "Low-light vision", "description": "Sees twice as far as a human by dim light; there is no lighting in the game yet." },
+    { "name": "Ability adjustments", "description": "+2 Dexterity, +2 Intelligence, -2 Constitution, already counted in a character's own scores." }
+  ]
+}

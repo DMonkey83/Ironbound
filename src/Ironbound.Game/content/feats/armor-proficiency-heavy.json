@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "armor-proficiency-heavy",
+  "name": "Armor Proficiency (Heavy)",
+  "combat": true,
+  "description": "Trained in heavy armour: its check penalty no longer falls on attack rolls.",
+  "effect": "ArmorProficiencyHeavy",
+  "requires": { "armour": ["medium"] }
+}

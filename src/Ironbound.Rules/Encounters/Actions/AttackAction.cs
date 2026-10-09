@@ -30,6 +30,7 @@ public sealed class AttackAction : GameAction
     public override bool CanPerform(ActionContext context) =>
         Target.IsAlive
         && !ReferenceEquals(Target, context.Actor)
+        && context.Actor.CanAttackWith(Weapon)
         && CanReach(context);
 
     public override ActionResult Perform(ActionContext context)
@@ -77,7 +78,7 @@ public sealed class AttackAction : GameAction
 
         if (!Weapon.IsRanged)
         {
-            return field.IsWithinReach(context.Actor, Target);
+            return field.IsWithinReach(context.Actor, Target, Weapon);
         }
 
         return field.HasLineOfSight(context.Actor, Target)

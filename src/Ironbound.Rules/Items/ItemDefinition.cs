@@ -112,6 +112,12 @@ public sealed record ItemDefinition
     /// </summary>
     public int CheckPenalty { get; init; }
 
+    /// <summary>
+    /// A tower shield rather than an ordinary one: proficiency with shields does not cover it,
+    /// and it needs its own feat.
+    /// </summary>
+    public bool TowerShield { get; init; }
+
     /// <summary>Body armour, as opposed to a shield or anything else.</summary>
     public bool IsBodyArmour => Armour is ArmourCategory.Light or ArmourCategory.Medium or ArmourCategory.Heavy;
 

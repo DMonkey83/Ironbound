@@ -72,6 +72,27 @@ public enum FeatEffect
 
     /// <summary>Half as much again of every variable number, for a slot two levels up.</summary>
     EmpowerSpell,
+
+    /// <summary>Every simple weapon, for the few who start without them.</summary>
+    SimpleWeaponProficiency,
+
+    /// <summary>One martial weapon, named by <see cref="FeatDefinition.Choice"/>.</summary>
+    MartialWeaponProficiency,
+
+    /// <summary>One exotic weapon, named by <see cref="FeatDefinition.Choice"/>.</summary>
+    ExoticWeaponProficiency,
+
+    /// <summary>Light armour without its check penalty on attack rolls.</summary>
+    ArmorProficiencyLight,
+
+    ArmorProficiencyMedium,
+
+    ArmorProficiencyHeavy,
+
+    /// <summary>Every shield but the tower shield.</summary>
+    ShieldProficiency,
+
+    TowerShieldProficiency,
 }
 
 /// <summary>What a feat asks to be told when it is taken, if anything.</summary>
@@ -110,6 +131,16 @@ public sealed record FeatRequirements
     /// </summary>
     public IReadOnlyList<string> Features { get; init; } = [];
 
+    /// <summary>
+    /// Armour the creature must already be trained in, by the words a class's list uses:
+    /// Medium Armor Proficiency asks for "light".
+    /// </summary>
+    /// <remarks>
+    /// Training rather than a feat, because the book counts a class's armour training as the
+    /// feat: a barbarian has never taken Light Armor Proficiency and still qualifies for Medium.
+    /// </remarks>
+    public IReadOnlyList<string> Armour { get; init; } = [];
+
     /// <summary>Whether a creature qualifies, and if not, what it is short of.</summary>
     public IReadOnlyList<string> Unmet(Creatures.Creature creature)
     {
@@ -145,6 +176,11 @@ public sealed record FeatRequirements
             missing.Add(feature);
         }
 
+        foreach (var armour in Armour.Where(word => !Classes.Proficiency.IsTrainedIn(creature, word)))
+        {
+            missing.Add($"{armour} armour proficiency");
+        }
+
         return missing;
     }
 
@@ -165,7 +201,7 @@ public sealed record FeatRequirements
             parts = parts.Append($"level {Level}");
         }
 
-        parts = parts.Concat(Features);
+        parts = parts.Concat(Features).Concat(Armour.Select(word => $"{word} armour proficiency"));
 
         var written = string.Join(", ", parts);
         return written.Length == 0 ? "none" : written;

@@ -1,5 +1,8 @@
+// Hand-made: a natural attack, sized by the stat block that carries it, so its dice do not change
+// with the size of the mouth. tools/import_weapons.py leaves it alone.
 {
   "kind": "weapon", "id": "bite", "name": "bite",
+  "category": "natural", "hands": "light",
   "damage": "1d8", "damageType": "Piercing", "threatsOn": 20, "multiplier": 2,
 
   // Fighter weapon groups, for weapon training.

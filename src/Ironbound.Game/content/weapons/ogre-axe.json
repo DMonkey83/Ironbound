@@ -1,16 +1,22 @@
-// The ogre chief's axe: the massive one the story gives him and his model carries, with a
-// man-sized greatclub's dice rather than an ogre-sized axe's. Weapons do not scale with the size
-// of whoever swings them yet, and a true ogre's axe — 3d6, tripled on a critical — would put a
-// first-level wizard on the floor from full health in one blow. Swung in two hands, so Strength
-// still counts half again.
+// The ogre chief's axe: the massive one the story gives him and his model carries, with the
+// numbers of the book's ogre and its greatclub — 2d8, doubled on a critical, two hands on the
+// haft. Written as the man-sized weapon it is a larger copy of: a Medium greatclub's 1d10, which
+// a Large wielder steps up to 2d8 by the size table. A true ogre's greataxe would be 3d6 tripled
+// on a critical, and would put a first-level wizard on the floor from full health in one blow.
+// Hand-made, and left alone by the importer.
 {
   "kind": "weapon",
   "id": "ogre-axe",
   "name": "massive axe",
-  "damage": "1d10",
-  "damageType": "Slashing",
-  "scale": "OneAndAHalf",
+  "category": "martial",
+  "hands": "two-handed",
+  "damageSmall": "1d8",
+  "damageMedium": "1d10",
+  "damageTypes": ["Slashing"],
+  "threatsOn": 20,
+  "multiplier": 2,
 
   // Fighter weapon groups, for weapon training.
-  "groups": ["axes"]
+  "groups": ["axes"],
+  "description": "A crude axe as big as a man, cut for a giant's hands; it hits as hard as the book ogre's greatclub."
 }

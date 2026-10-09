@@ -1,3 +1,4 @@
+using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 
 namespace Ironbound.Rules.Maps;
@@ -131,15 +132,56 @@ public sealed class Battlefield
     }
 
     /// <summary>
-    /// Whether <paramref name="attacker"/> can touch <paramref name="target"/>. A creature that
-    /// is not on the map is not constrained by it, so this is true when either is unplaced.
+    /// The ground a creature threatens with whatever it would swing right now: its natural reach,
+    /// or the band a reach weapon gives it. What every question about reach comes back to.
+    /// </summary>
+    public static ReachBand ReachOf(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        return ReachBand.Of(creature, creature.MeleeAttack);
+    }
+
+    /// <summary>The ground a creature reaches with one weapon in particular.</summary>
+    public static ReachBand ReachOf(Creature creature, WeaponAttack? weapon)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        return ReachBand.Of(creature, weapon);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="attacker"/> can strike <paramref name="target"/> with what it would
+    /// swing. A creature that is not on the map is not constrained by it, so this is true when
+    /// either is unplaced.
     /// </summary>
     public bool IsWithinReach(Creature attacker, Creature target)
     {
         ArgumentNullException.ThrowIfNull(attacker);
+        return IsWithinReach(attacker, target, attacker.MeleeAttack);
+    }
+
+    /// <summary>Whether <paramref name="attacker"/> can strike <paramref name="target"/> with this weapon.</summary>
+    public bool IsWithinReach(Creature attacker, Creature target, WeaponAttack? weapon)
+    {
+        ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(target);
 
-        return DistanceInFeet(attacker, target) is not { } feet || feet <= attacker.Reach;
+        return SquareOf(attacker) is not { } from
+            || SquareOf(target) is not { } to
+            || ReachOf(attacker, weapon).Covers(from, to);
+    }
+
+    /// <summary>
+    /// Whether one creature can lay a hand on another: its natural reach, whatever polearm it is
+    /// holding. Kneeling by the dying, a touch spell.
+    /// </summary>
+    public bool IsWithinTouch(Creature toucher, Creature touched)
+    {
+        ArgumentNullException.ThrowIfNull(toucher);
+        ArgumentNullException.ThrowIfNull(touched);
+
+        return SquareOf(toucher) is not { } from
+            || SquareOf(touched) is not { } to
+            || ReachBand.Natural(toucher).Covers(from, to);
     }
 
     /// <summary>
@@ -252,12 +294,12 @@ public sealed class Battlefield
     {
         ArgumentNullException.ThrowIfNull(creature);
 
-        if (!creature.IsConscious || creature.Reach <= 0 || SquareOf(creature) is not { } standing)
+        if (!creature.IsConscious || SquareOf(creature) is not { } standing)
         {
             return false;
         }
 
-        return standing != square && Distance.Between(standing, square) <= creature.Reach;
+        return ReachOf(creature).Covers(standing, square);
     }
 
     /// <summary>Every square a creature could strike into.</summary>
@@ -265,12 +307,13 @@ public sealed class Battlefield
     {
         ArgumentNullException.ThrowIfNull(creature);
 
-        if (SquareOf(creature) is not { } standing || creature.Reach <= 0 || !creature.IsConscious)
+        var band = ReachOf(creature);
+        if (SquareOf(creature) is not { } standing || band.IsNone || !creature.IsConscious)
         {
             yield break;
         }
 
-        var ring = creature.Reach / Distance.FeetPerSquare;
+        var ring = band.Squares;
         for (var dx = -ring; dx <= ring; dx++)
         {
             for (var dy = -ring; dy <= ring; dy++)
@@ -327,7 +370,7 @@ public sealed class Battlefield
         ArgumentNullException.ThrowIfNull(mover);
         ArgumentNullException.ThrowIfNull(target);
 
-        if (SquareOf(target) is not { } middle || Distance.Between(square, middle) > mover.Reach)
+        if (SquareOf(target) is not { } middle || !ReachOf(mover).Covers(square, middle))
         {
             return false;
         }
@@ -415,14 +458,16 @@ public sealed class Battlefield
             return [];
         }
 
-        if (Distance.Between(from, to) <= mover.Reach)
+        var band = ReachOf(mover);
+        if (band.Covers(from, to))
         {
             return [];
         }
 
         // Aim beside the target rather than at it: its own square is occupied, so no route can
-        // legally end there.
-        var ring = Math.Max(1, mover.Reach / Distance.FeetPerSquare);
+        // legally end there. With a reach weapon, "beside" is the ring the weapon reaches — which
+        // for somebody already too close means a step back.
+        var ring = Math.Max(1, band.Squares);
 
         IReadOnlyList<GridSquare> nearest = [];
         var nearestCost = int.MaxValue;
@@ -434,8 +479,7 @@ public sealed class Battlefield
             for (var dy = -ring; dy <= ring; dy++)
             {
                 var candidate = new GridSquare(to.X + dx, to.Y + dy);
-                if (candidate == to || !IsFree(candidate)
-                    || Distance.Between(candidate, to) > mover.Reach)
+                if (candidate == to || !IsFree(candidate) || !band.Covers(candidate, to))
                 {
                     continue;
                 }

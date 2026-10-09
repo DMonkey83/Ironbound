@@ -72,8 +72,9 @@ public sealed record DeityDefinition
     public IReadOnlyList<string> Domains { get; init; } = [];
 
     /// <summary>
-    /// A weapon id when the game has the weapon, free text when it does not — the longbow, the
-    /// starknife and the spiked chain are written in words.
+    /// A weapon id, which every shipped god's now is: it is what makes a cleric of this god
+    /// proficient with it. Free text still loads, for a god whose weapon the game lacks, and is
+    /// then a name and nothing more.
     /// </summary>
     public string FavoredWeapon { get; init; } = string.Empty;
 

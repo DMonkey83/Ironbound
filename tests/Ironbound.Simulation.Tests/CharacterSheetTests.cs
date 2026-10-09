@@ -14,8 +14,8 @@ public class CharacterSheetTests
 
         Assert.Equal(
             [
-                "Who", "Abilities", "Defence", "Saving throws", "Attacks", "Class features", "Skills",
-                "Gear and training", "Magic", "Conditions",
+                "Who", "Abilities", "Defence", "Saving throws", "Attacks", "Class features", "Racial traits",
+                "Skills", "Gear and training", "Magic", "Conditions",
             ],
             sheet.Select(section => section.Heading));
     }
@@ -136,6 +136,69 @@ public class CharacterSheetTests
 
         Assert.Contains(defence, line => line.Contains("Damage reduction") && line.Contains("silver"));
     }
+
+    [Fact]
+    public void AnElfSaysSoAndListsWhatComesWithIt()
+    {
+        var sylwen = ContentFiles.Default.BuildCreature("sylwen")!;
+
+        Assert.Equal("Elf Wizard 1", Section(sylwen, "Who")[0]);
+        Assert.Contains(Section(sylwen, "Racial traits"), line => line.StartsWith("Keen senses —"));
+        Assert.Contains(Section(sylwen, "Racial traits"), line => line.StartsWith("Weapon familiarity —"));
+    }
+
+    [Fact]
+    public void SomebodyWithNoRaceHasNoRacialTraitsHeading()
+    {
+        var written = CharacterSheet.Describe(ContentFiles.Default.BuildCreature("valeria")!);
+
+        Assert.DoesNotContain("Racial traits", written);
+    }
+
+    [Fact]
+    public void AShieldTheArmourClassLeavesOutSaysWhy()
+    {
+        var defence = Section(ContentFiles.Default.BuildCreature("karn")!, "Defence");
+
+        Assert.Contains(defence, line => line.StartsWith("Armour class 17"));
+        Assert.Contains("light shield not counted: both hands are on the greataxe", defence);
+        Assert.DoesNotContain(Section(ContentFiles.Default.BuildCreature("valeria")!, "Defence"), line => line.Contains("not counted"));
+    }
+
+    [Fact]
+    public void AReachWeaponSaysWhereItReaches()
+    {
+        var fighter = ContentFiles.Default.BuildCreature("aldric")!;
+        fighter.Attacks.Add(ContentFiles.Default.BuildWeapon("longspear")!);
+
+        Assert.Contains(Section(fighter, "Attacks"), line => line.StartsWith("longspear") && line.Contains("(reach 10 ft, not adjacent)"));
+    }
+
+    [Fact]
+    public void ANonProficientSwingSaysSoInItsBreakdown()
+    {
+        var merrin = ContentFiles.Default.BuildCreature("merrin")!;
+        merrin.Attacks.Add(ContentFiles.Default.BuildWeapon("longsword")!);
+
+        Assert.Contains(Section(merrin, "Attacks"), line => line.StartsWith("longsword") && line.Contains("not proficient"));
+    }
+
+    [Fact]
+    public void ThrownBrokenAndDroppedThingsAreMarked()
+    {
+        var sentry = ContentFiles.Default.BuildCreature("orc-sentry")!;
+        sentry.Equipment.Break(sentry.MeleeAttack!);
+        sentry.Equipment.LetGo(sentry.MeleeAttack!);
+
+        Assert.Contains(Section(sentry, "Attacks"), line => line.StartsWith("dagger (thrown)") && line.Contains("out of hand"));
+        Assert.Contains(Section(sentry, "Gear and training"), line => line == "dagger (MainHand, broken, out of hand)");
+    }
+
+    [Fact]
+    public void TheSheetSaysWhatSomebodyIsTrainedWith() =>
+        Assert.Contains(
+            "Trained with simple and martial weapons; light armour, medium armour, heavy armour, shields and tower shields",
+            Section(ContentFiles.Default.BuildCreature("valeria")!, "Gear and training"));
 
     [Fact]
     public void ItRefusesNothingRatherThanReturningNonsense() =>

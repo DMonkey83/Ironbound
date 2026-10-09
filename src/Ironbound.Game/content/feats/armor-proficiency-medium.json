@@ -1,0 +1,10 @@
+// Training in light armour first — from a class or the feat, either will do.
+{
+  "kind": "feat",
+  "id": "armor-proficiency-medium",
+  "name": "Armor Proficiency (Medium)",
+  "combat": true,
+  "description": "Trained in medium armour: its check penalty no longer falls on attack rolls.",
+  "effect": "ArmorProficiencyMedium",
+  "requires": { "armour": ["light"] }
+}

@@ -7,5 +7,7 @@
   "hitDie": 10,
   "attack": "Full",
   "goodSaves": ["Fortitude"],
-  "classSkills": ["Climb", "Intimidate", "Survival", "Swim"]
+  "classSkills": ["Climb", "Intimidate", "Survival", "Swim"],
+  "weaponProficiencies": ["simple", "martial"],
+  "armourProficiencies": ["light", "medium", "heavy", "shields"]
 }

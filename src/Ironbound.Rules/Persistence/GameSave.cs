@@ -119,7 +119,8 @@ public static class GameSave
         creature.BaseAttackBonus,
         creature.BaseAttacksOfOpportunity,
         [.. creature.Feats.Select(feat => feat.Key)],
-        [.. creature.Equipment.Worn.Select(entry => new SavedItem(entry.Item.Id, entry.Slot))],
+        [.. creature.Equipment.Worn.Select(entry =>
+            new SavedItem(entry.Item.Id, entry.Slot, entry.IsBroken, entry.IsOutOfHand))],
         [.. creature.Levels.Select(level => new SavedClassLevel(level.Class.Id, level.Level))],
         [.. Skills.SkillInfo.All
             .Where(skill => creature.Skills.Ranks(skill) > 0
@@ -145,7 +146,8 @@ public static class GameSave
         [.. creature.Attacks.Select(Capture)],
         [.. creature.Effects.Active.Select(Capture)],
         field?.SquareOf(creature) is { } square ? new SavedSquare(square.X, square.Y) : null,
-        CaptureFeatures(creature));
+        CaptureFeatures(creature),
+        creature.Race?.Id);
 
     private static SavedFeatures CaptureFeatures(Creature creature)
     {
@@ -194,7 +196,7 @@ public static class GameSave
         Capture(weapon.Attack.Modifiers),
         Capture(weapon.DamageModifiers),
         [.. weapon.Damage.Components.Select(c =>
-            new SavedDamageComponent(c.Amount.ToString(), c.Type, c.MultipliedOnCritical))],
+            new SavedDamageComponent(c.Amount.ToString(), c.Type, c.MultipliedOnCritical, c.Nonlethal))],
         weapon.RangeIncrement,
         weapon.MaximumIncrements,
         weapon.Kind,
@@ -247,7 +249,7 @@ public static class GameSave
         var field = Restore(save.Ground);
         var creatures = save.Creatures.ToDictionary(
             saved => saved.Name,
-            saved => Restore(saved, save.Rules, field, library),
+            saved => Restore(saved, save.Rules, field, library, save.Version),
             StringComparer.Ordinal);
 
         var order = new List<Combatant>();
@@ -296,7 +298,7 @@ public static class GameSave
     }
 
     private static Creature Restore(
-        SavedCreature saved, RuleOptions rules, Battlefield? field, ContentLibrary library)
+        SavedCreature saved, RuleOptions rules, Battlefield? field, ContentLibrary library, int version)
     {
         var abilities = new AbilityScores(AbilityInfo.All.Select((ability, index) =>
         {
@@ -382,16 +384,42 @@ public static class GameSave
             creature.Levels.Add(new Classes.ClassLevel(definition, taken.Level));
         }
 
+        // Paired by name, and never twice: two daggers are two items with an attack each, and
+        // the second must not claim the first one's.
+        var claimed = new HashSet<WeaponAttack>(ReferenceEqualityComparer.Instance);
+        WeaponAttack? Claim(string name, bool thrown)
+        {
+            var found = creature.Attacks.FirstOrDefault(attack =>
+                !claimed.Contains(attack)
+                && attack.IsThrownUse == thrown
+                && string.Equals(attack.Name, name, StringComparison.Ordinal));
+
+            if (found is not null)
+            {
+                claimed.Add(found);
+            }
+
+            return found;
+        }
+
         foreach (var carried in saved.Items)
         {
             var item = library.GetItem(carried.Id) ?? throw new InvalidDataException(
                 $"The save has an item '{carried.Id}', which no content file defines.");
 
-            creature.Equipment.Reattach(
-                item,
-                creature.Attacks.FirstOrDefault(
-                    attack => string.Equals(attack.Name, item.Name, StringComparison.Ordinal)),
-                carried.Slot);
+            var weapon = Claim(item.Name, thrown: false);
+            var thrown = Claim($"{item.Name} (thrown)", thrown: true);
+
+            // A save from before fourteen had no thrown half to keep; a dagger in it is given one,
+            // as a dagger handed over today would be.
+            if (version < 14 && weapon is not null && thrown is null
+                && library.BuildThrownItemWeapon(item, creature.Size) is { } added)
+            {
+                thrown = added;
+                creature.Attacks.Add(added);
+            }
+
+            creature.Equipment.Reattach(item, weapon, carried.Slot, thrown, carried.Broken, carried.OutOfHand);
         }
 
         foreach (var effect in saved.Effects)
@@ -405,8 +433,32 @@ public static class GameSave
         }
 
         RestoreFeatures(creature, saved, library);
+        RestoreRace(creature, saved, library, version);
 
         return creature;
+    }
+
+    /// <summary>
+    /// Puts back the creature's people and what its file says it carries. A save from before
+    /// races gets the race its creature's file gives it, with the skill bonuses that come with
+    /// it — the save never had them to carry.
+    /// </summary>
+    private static void RestoreRace(Creature creature, SavedCreature saved, ContentLibrary library, int version)
+    {
+        var definition = creature.DefinitionId is { } id ? library.GetCreature(id) : null;
+
+        if (saved.Race is { } race)
+        {
+            creature.Race = library.GetRace(race) ?? throw new InvalidDataException(
+                $"The save has a creature of race '{race}', which no content file defines.");
+        }
+        else if (version < 14 && definition?.Race is { } written && library.GetRace(written) is { } people)
+        {
+            creature.Race = people;
+            people.ApplyTo(creature);
+        }
+
+        definition?.Familiarise(creature, library);
     }
 
     /// <summary>
@@ -589,9 +641,16 @@ public static class GameSave
         foreach (var component in saved.Damage)
         {
             packet.Add(new DamageComponent(
-                DiceExpression.Parse(component.Amount), component.Type, component.MultipliedOnCritical));
+                DiceExpression.Parse(component.Amount), component.Type, component.MultipliedOnCritical)
+            {
+                Nonlethal = component.Nonlethal,
+            });
         }
 
+        // What the catalogue says about the kind — category, hands, specials, damage types — comes
+        // back from the definition, as the groups did before them: facts about longswords rather
+        // than about this one. A thrown use is the one with a range on a weapon that is not a
+        // ranged one, which is all a save needs to tell the dagger in hand from the dagger thrown.
         var weapon = new WeaponAttack(saved.Name, attack, packet)
         {
             Kind = kind,
@@ -603,6 +662,14 @@ public static class GameSave
             DamageScale = saved.DamageScale,
             RangeIncrement = saved.RangeIncrement,
             MaximumIncrements = Math.Max(1, saved.MaximumIncrements),
+            Category = definition?.Category ?? WeaponCategory.Simple,
+            Hands = definition?.Hands ?? (saved.RangeIncrement > 0 ? WeaponHands.Ranged : WeaponHands.OneHanded),
+            Specials = definition?.Specials ?? WeaponSpecial.None,
+            DamageTypes = definition?.DamageTypes ?? [],
+            DamageRule = definition?.DamageRule ?? DamageRule.Single,
+            Firearm = definition?.Firearm ?? FirearmEra.None,
+            Misfire = definition?.Misfire ?? 0,
+            IsThrownUse = definition is { Hands: not WeaponHands.Ranged } && saved.RangeIncrement > 0,
         };
 
         Fill(weapon.DamageModifiers, saved.DamageModifiers);

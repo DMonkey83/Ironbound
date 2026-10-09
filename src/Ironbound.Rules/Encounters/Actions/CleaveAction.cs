@@ -45,8 +45,9 @@ public sealed class CleaveAction : GameAction
         context.Actor.HasFeat(FeatEffect.Cleave)
         && Target.IsAlive
         && !ReferenceEquals(Target, context.Actor)
-        && WeaponFor(context.Actor) is { IsRanged: false }
-        && (context.Encounter.Battlefield is not { } field || field.IsWithinReach(context.Actor, Target));
+        && WeaponFor(context.Actor) is { IsRanged: false } weapon
+        && context.Actor.CanAttackWith(weapon)
+        && (context.Encounter.Battlefield is not { } field || field.IsWithinReach(context.Actor, Target, weapon));
 
     public override ActionResult Perform(ActionContext context)
     {
@@ -59,7 +60,7 @@ public sealed class CleaveAction : GameAction
 
         var strikes = new List<StrikeResult> { Swing(context, actor, weapon, Target) };
 
-        if (strikes[0].IsHit && field is not null && NextFoe(field, actor) is { } second)
+        if (strikes[0].IsHit && field is not null && NextFoe(field, actor, weapon) is { } second)
         {
             strikes.Add(Swing(context, actor, weapon, second));
         }
@@ -78,7 +79,7 @@ public sealed class CleaveAction : GameAction
             flatFooted: context.Encounter.IsFlatFootedTo(target, actor));
 
     /// <summary>A foe standing next to the first and within the cleaver's reach, in placement order.</summary>
-    private Creature? NextFoe(Battlefield field, Creature actor)
+    private Creature? NextFoe(Battlefield field, Creature actor, WeaponAttack weapon)
     {
         if (field.SquareOf(Target) is not { } first)
         {
@@ -91,7 +92,7 @@ public sealed class CleaveAction : GameAction
             && actor.IsEnemyOf(other)
             && field.SquareOf(other) is { } square
             && Distance.AreAdjacent(square, first)
-            && field.IsWithinReach(actor, other));
+            && field.IsWithinReach(actor, other, weapon));
     }
 
     private WeaponAttack? WeaponFor(Creature actor) => Weapon ?? actor.MeleeAttack;

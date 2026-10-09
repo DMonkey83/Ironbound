@@ -67,5 +67,11 @@ public static class ClassSaves
         {
             yield return new Modifier(wary, BonusType.Morale, "Superstition");
         }
+
+        // Not a class feature, but the same shape of bonus: an elf's against enchantments.
+        foreach (var racial in target.Race?.SaveBonusesAgainst(spell) ?? [])
+        {
+            yield return racial;
+        }
     }
 }

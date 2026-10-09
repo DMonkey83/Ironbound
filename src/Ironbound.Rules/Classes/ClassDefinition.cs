@@ -58,6 +58,18 @@ public sealed record ClassDefinition
     /// <summary>Which ability powers the spells, when the class has any.</summary>
     public Ability CastingAbility { get; init; } = Ability.Intelligence;
 
+    /// <summary>
+    /// What it trains its members to fight with: "simple", "martial", or a weapon by id — a
+    /// wizard's five are written out one by one. A cleric adds her god's weapon on top.
+    /// </summary>
+    public IReadOnlyList<string> WeaponProficiencies { get; init; } = [];
+
+    /// <summary>
+    /// What armour it trains its members to wear: "light", "medium", "heavy", "shields" and
+    /// "tower-shield". Each armour category is its own entry, as in the book's class tables.
+    /// </summary>
+    public IReadOnlyList<string> ArmourProficiencies { get; init; } = [];
+
     /// <summary>Base attack bonus this class alone contributes at a given level.</summary>
     public int BaseAttackAt(int level)
     {

@@ -208,13 +208,15 @@ public sealed partial class Campaign
     /// </summary>
     public int Collect()
     {
-        // Whatever else is or is not collected, a fight that is over is over for the rage too.
+        // Whatever else is or is not collected, a fight that is over is over for the rage too,
+        // and every dagger thrown and every weapon dropped is walked over to and picked up.
         // (Before the first chapter there is no fight at all, and nothing to end.)
         if ((IsLevel || Chapter > 0) && State != CampaignState.Fighting)
         {
             foreach (var member in Party)
             {
                 ClassFeatures.EndFight(member);
+                member.Equipment.Recover();
             }
         }
 
@@ -297,7 +299,7 @@ public sealed partial class Campaign
             _stash.Add(displaced);
         }
 
-        creature.Equipment.Equip(found, _library.BuildItemWeapon(found));
+        _library.Equip(creature, found);
 
         return true;
     }

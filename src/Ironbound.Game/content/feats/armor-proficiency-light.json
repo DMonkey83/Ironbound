@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "armor-proficiency-light",
+  "name": "Armor Proficiency (Light)",
+  "combat": true,
+  "description": "Trained in light armour: its check penalty no longer falls on attack rolls.",
+  "effect": "ArmorProficiencyLight"
+}

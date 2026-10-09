@@ -28,6 +28,17 @@ public readonly record struct DamageComponent
     /// </summary>
     public bool MultipliedOnCritical { get; }
 
+    /// <summary>
+    /// Whether it hurts without killing, as a sap or a whip does: taken as nonlethal damage
+    /// rather than off the hit points.
+    /// </summary>
+    /// <remarks>
+    /// On the component because that is where the weapon's damage is written down, and so a save
+    /// keeps it; <see cref="Strike"/> treats a blow carrying any of it as a nonlethal blow, sneak
+    /// attack and all, which is how the book treats sneak attack with a sap.
+    /// </remarks>
+    public bool Nonlethal { get; init; }
+
     /// <summary>The weapon's own damage. Multiplied on a critical.</summary>
     public static DamageComponent Weapon(DiceExpression amount, DamageType type) =>
         new(amount, type, multipliedOnCritical: true);
@@ -44,5 +55,6 @@ public readonly record struct DamageComponent
     public static DamageComponent Extra(string amount, DamageType type) =>
         Extra(DiceExpression.Parse(amount), type);
 
-    public override string ToString() => $"{Amount} {DamageTypes.Name(Type)}";
+    public override string ToString() =>
+        Nonlethal ? $"{Amount} {DamageTypes.Name(Type)} (nonlethal)" : $"{Amount} {DamageTypes.Name(Type)}";
 }

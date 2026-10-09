@@ -158,6 +158,20 @@ public sealed class HeuristicActionSource : IActionSource
             return null;
         }
 
+        // A polearm is no use against somebody standing on your toes. A free step back puts them
+        // at the end of it again, which beats both swinging at nothing and walking off.
+        if (playsWell
+            && turn.Encounter.Battlefield is { } close
+            && actor.MeleeAttack is { IsReach: true }
+            && !close.IsWithinReach(actor, target)
+            && close.IsWithinTouch(actor, target)
+            && !turn.Combatant.HasMoved
+            && !turn.Combatant.HasTakenFiveFootStep
+            && Step(close, actor, target, mustFlank: false) is { } back)
+        {
+            return back;
+        }
+
         // An archer with a clear shot has no business charging. Closing would cost the shot and
         // hand out a free swing on the way in, and the line only gets worse once the melee it is
         // firing into closes around the target.
@@ -165,7 +179,7 @@ public sealed class HeuristicActionSource : IActionSource
             && turn.Budget.HasStandard
             && turn.Encounter.Battlefield is { } range
             && !range.IsWithinReach(actor, target)
-            && BestShot(range, actor, target) is { } bow)
+            && BestShot(range, actor, target, _battle.EnemiesOf(actor)) is { } bow)
         {
             return Swing(turn, bow, target);
         }
@@ -280,8 +294,15 @@ public sealed class HeuristicActionSource : IActionSource
     /// Least range penalty wins. Ties go to whichever the creature carries first, which keeps the
     /// choice reproducible — picking arbitrarily between two equal bows would be one more thing
     /// that could diverge after a save is reloaded.
+    /// <para>
+    /// A dagger or a spear thrown is the last choice, not the first: it is gone until the fight is
+    /// over. So it is only thrown when nobody can be reached this turn and there is something else
+    /// to fight with once it has left the hand. A javelin, made for nothing but throwing, is shot
+    /// like an arrow.
+    /// </para>
     /// </remarks>
-    private static WeaponAttack? BestShot(Battlefield field, Creature actor, Creature target)
+    private static WeaponAttack? BestShot(
+        Battlefield field, Creature actor, Creature target, IReadOnlyList<Creature> enemies)
     {
         if (!field.HasLineOfSight(actor, target))
         {
@@ -291,16 +312,54 @@ public sealed class HeuristicActionSource : IActionSource
         var feet = field.DistanceInFeet(actor, target) ?? 0;
 
         return actor.Attacks
-            .Where(weapon => weapon.IsRanged && weapon.IsWithinRange(feet))
-            .MinBy(weapon => -weapon.RangePenalty(feet));
+            .Where(weapon => weapon.IsRanged && weapon.IsWithinRange(feet) && actor.CanAttackWith(weapon))
+            .Where(weapon => !weapon.IsThrownUse || WorthThrowing(field, actor, weapon, enemies))
+            .OrderBy(weapon => weapon.IsThrownUse)
+            .ThenBy(weapon => -weapon.RangePenalty(feet))
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Whether to throw away a melee weapon: nobody is in reach or a move away from it, and the
+    /// creature has another melee weapon to fall back on.
+    /// </summary>
+    private static bool WorthThrowing(
+        Battlefield field, Creature actor, WeaponAttack thrown, IReadOnlyList<Creature> enemies)
+    {
+        var item = actor.Equipment.ItemFor(thrown);
+
+        var spare = actor.Attacks.Any(other =>
+            !other.IsRanged
+            && actor.CanAttackWith(other)
+            && (item is null || !ReferenceEquals(actor.Equipment.ItemFor(other), item)));
+
+        return spare && !enemies.Any(enemy => CanReachThisTurn(field, actor, enemy));
+    }
+
+    /// <summary>In reach now, or after one move.</summary>
+    private static bool CanReachThisTurn(Battlefield field, Creature actor, Creature enemy)
+    {
+        if (field.IsWithinReach(actor, enemy))
+        {
+            return true;
+        }
+
+        var path = field.FindApproach(actor, enemy, actor.CurrentSpeed);
+        return path.Count > 1
+            && field.SquareOf(enemy) is { } at
+            && Battlefield.ReachOf(actor).Covers(path[^1], at);
     }
 
     /// <summary>
     /// What to swing once something has closed. An archer with a blade draws it: firing in
     /// somebody's face provokes, and costs four besides.
     /// </summary>
+    /// <remarks>
+    /// Never a weapon's thrown half: throwing the dagger at somebody already in reach of it
+    /// would be giving it away for nothing.
+    /// </remarks>
     private static WeaponAttack? InClose(Creature actor) =>
-        actor.MeleeAttack ?? actor.PrimaryAttack;
+        actor.MeleeAttack ?? actor.Attacks.FirstOrDefault(weapon => !weapon.IsThrownUse && actor.CanAttackWith(weapon));
 
     /// <summary>
     /// Decides whether to trade accuracy for damage against this particular target.
@@ -721,8 +780,9 @@ public sealed class HeuristicActionSource : IActionSource
         || Distance.Between(from, square) <= spell.Range.InFeet(caster);
 
     /// <summary>
-    /// A single free square next door that keeps the target in reach. Prefers one that puts an
-    /// ally directly opposite; with <paramref name="mustFlank"/> it will accept nothing else.
+    /// A single free square next door that keeps the target in reach — for a polearm, the one that
+    /// puts it at the end of the haft again. Prefers one that puts an ally directly opposite; with
+    /// <paramref name="mustFlank"/> it will accept nothing else.
     /// </summary>
     private static FiveFootStepAction? Step(
         Battlefield field,
@@ -749,7 +809,7 @@ public sealed class HeuristicActionSource : IActionSource
                 var candidate = new GridSquare(from.X + dx, from.Y + dy);
                 if (!field.IsFree(candidate)
                     || field.IsDifficult(candidate)
-                    || Distance.Between(candidate, to) > actor.Reach)
+                    || !Battlefield.ReachOf(actor).Covers(candidate, to))
                 {
                     continue;
                 }

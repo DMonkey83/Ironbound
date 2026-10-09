@@ -31,8 +31,14 @@ public abstract class ManeuverAction : GameAction
     public override bool CanPerform(ActionContext context) =>
         Target.IsAlive
         && !ReferenceEquals(Target, context.Actor)
-        && (context.Encounter.Battlefield is not { } field
-            || field.IsWithinReach(context.Actor, Target));
+        && (context.Encounter.Battlefield is not { } field || Reaches(field, context.Actor));
+
+    /// <summary>
+    /// Whether the target is close enough. A trip is made with the weapon in hand and goes as far
+    /// as it does, a polearm's ten feet included; anything made with the body needs the body there.
+    /// </summary>
+    protected virtual bool Reaches(Battlefield field, Creature actor) =>
+        Kind == ManeuverKind.Trip ? field.IsWithinReach(actor, Target) : field.IsWithinTouch(actor, Target);
 
     public override ActionResult Perform(ActionContext context)
     {
@@ -99,9 +105,18 @@ public sealed class TripAction(Creature target) : ManeuverAction(target)
             return $"{Target.Name} is knocked prone";
         }
 
-        // Miss by ten and you have overreached: the leg you grabbed takes you down with it.
+        // Miss by ten and you have overreached: the leg you grabbed takes you down with it —
+        // unless the trip was made with a weapon built for it, which the wielder lets go of
+        // instead, and keeps her feet.
         if (check.Backfired)
         {
+            if (context.Actor.MeleeAttack is { } weapon
+                && weapon.Has(WeaponSpecial.Trip)
+                && context.Actor.Equipment.LetGo(weapon))
+            {
+                return $"{context.Actor.Name} lets go of the {context.Actor.Equipment.ItemFor(weapon)!.Name} rather than fall";
+            }
+
             context.Actor.Effects.Apply(ConditionInfo.Effect(Condition.Prone, Duration.Permanent));
             return $"{context.Actor.Name} overbalances and falls prone";
         }

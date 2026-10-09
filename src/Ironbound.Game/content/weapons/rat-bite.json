@@ -1,9 +1,11 @@
 // Small teeth, quickly. Dexterity aims it, as Weapon Finesse would: a rat is not strong, and
-// the book's rat bites at +4 for exactly that reason.
+// the book's rat bites at +4 for exactly that reason. Hand-made, and left alone by the importer.
 {
   "kind": "weapon",
   "id": "rat-bite",
   "name": "bite",
+  "category": "natural",
+  "hands": "light",
   "damage": "1d4",
   "damageType": "Piercing",
   "attackAbility": "Dexterity",

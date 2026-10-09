@@ -35,7 +35,7 @@ public sealed class StabiliseAction : GameAction
         && Patient.HitPoints.State == HitPointState.Dying
         && !Bleeding.IsStable(Patient)
         && (context.Encounter.Battlefield is not { } field
-            || field.IsWithinReach(context.Actor, Patient));
+            || field.IsWithinTouch(context.Actor, Patient));
 
     public override ActionResult Perform(ActionContext context)
     {

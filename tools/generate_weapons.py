@@ -20,9 +20,20 @@ units tall and Godot scales them down to fit their square; a weapon hung on a bo
 with them, so it is modelled at the size of the hand that holds it. One unit is about 0.45 m.
 
 Shapes are lofted from cross-sections rather than assembled from primitives, because a blade is
-a thing with a fuller and a taper in two directions at once, and a cone is not. Every surface
-is then baked — grain, rust, brushed steel — by `surface.py`, so the sword in Valeria's hand is
-a textured sword and not a grey wedge.
+a thing with a fuller and a taper in two directions at once, and a cone is not.
+
+FAMILIES. The swords, and the catalogue after them, are built by `weapon_families.py` from one
+recipe table: an id names its family (straight blade, curved blade...) and that family's parts
+and sizes. The first swords were one function at four lengths and the owner could not tell a
+longsword from a greatsword; a family builds the parts that make each weapon what it is — the
+zweihander's ricasso and lugs, the gladius's parallel edges — so they cannot come out alike.
+The builders below are the models from before the families, kept until their family exists.
+
+TWO WAYS OUT. What characters hold today (BAKED) is baked by `surface.py` — grain, rust, brushed
+steel into colour, ORM and normal atlases — so the sword in Valeria's hand matches the textured
+creatures round it. Everything else is exported with a few shared materials named exactly as
+in `weapon_families.MATERIALS` and no textures, for the game to swap for its own tileable ones:
+hundreds of weapons at 3 MB each would not fit in the repository. A rune's glow is never baked.
 """
 import math
 import os
@@ -34,10 +45,12 @@ from mathutils import Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import generate_goblin as gg  # noqa: E402
 import surface  # noqa: E402
+import weapon_families as wf  # noqa: E402
 
-SILVER = gg.mat("Silvered_Steel", (0.84, 0.87, 0.93), 0.45, 0.25)
 STEEL = gg.mat("Sword_Steel", (0.58, 0.59, 0.62), 0.45, 0.40)
-COLD_IRON = gg.mat("Cold_Iron", (0.19, 0.21, 0.25), 0.30, 0.55)
+# Cold iron was a steel 6% darker, and its icon read as plain steel. It is the shared
+# near-black-with-a-blue-sheen now, the same one every cold-iron weapon in the catalogue wears.
+COLD_IRON = wf.material("ColdIron")
 ASH = gg.mat("Ash_Wood", (0.52, 0.37, 0.20), 0.0, 0.85)
 WRAP = gg.mat("Grip_Wrap", (0.16, 0.08, 0.04), 0.0, 0.9)
 surface.RECIPES["Grip_Wrap"] = lambda c, m, r: surface.leather(c)
@@ -85,53 +98,6 @@ def wrapped_grip(name, z0, z1, radius, turns, material=WRAP):
         swell = radius * (1.0 + 0.09 * math.sin(t * turns * 2 * math.pi))
         sections.append(round_section(z0 + (z1 - z0) * t, swell, swell, 12))
     return gg.loft(name, sections, material)
-
-
-def sword(steel, length=2.0, width=0.13, curved=False, grip=0.21, guard=None, fitting=None):
-    """A sword: wound grip, pommel, a guard, and a blade with a fuller.
-
-    `grip` is how far the grip runs up from the hand — a two-handed sword's is long enough for
-    both, and its pommel hangs below the lower one. Everything above the grip moves up with it.
-    """
-    grip_r = 0.047
-    fitting = fitting or (gg.GOLD if not curved else gg.IRON)
-    below = grip - 0.21                                  # how much longer than a longsword's
-    parts = [
-        wrapped_grip("Grip", -0.02 - below, 0.21, grip_r, max(7, int(7 * grip / 0.21))),
-        gg.loft("Pommel", [point(-0.27 - below), round_section(-0.24 - below, 0.05, 0.05, 12), round_section(-0.19 - below, 0.082, 0.082, 12),
-                           round_section(-0.13 - below, 0.082, 0.082, 12), round_section(-0.10 - below, 0.052, 0.052, 12), round_section(-0.02 - below, 0.05, 0.05, 12)],
-                fitting),
-    ]
-
-    # The guard: a bar that thickens at the middle and droops at the ends toward the blade.
-    guard_w = guard if guard is not None else (0.30 if not curved else 0.19)
-    sections = []
-    for i in range(9):
-        t = i / 8 * 2 - 1
-        droop = 0.045 * t * t * (1 if curved else -1)
-        half = 0.028 * (1.0 - 0.45 * abs(t)) + 0.01
-        sections.append(ring([(guard_w / 2 * t, y, 0.24 + droop + z) for y, z in ((-0.045, -half), (0.045, -half), (0.045, half), (-0.045, half))]))
-    parts.append(gg.loft("Guard", sections, fitting, smooth_shading=False))
-
-    # The blade: wide and thick at the shoulder, running to a point in both dimensions, with
-    # the fuller fading out before the tip. A scimitar's is swept back and single-edged.
-    sections = [blade_section(0.22, width * 0.9, 0.026, 0.5)]
-    base = 0.26
-    steps = 14
-    for i in range(steps + 1):
-        t = i / steps
-        z = base + (length - base) * t
-        w = width * (1.0 - 0.72 * t ** 2.2) if not curved else width * (1.0 + 0.35 * math.sin(t * math.pi) - 0.9 * t ** 3)
-        th = 0.030 * (1.0 - 0.70 * t)
-        sec = blade_section(z, w, th, 0.45 + 0.5 * t ** 2)
-        if curved:
-            sweep = 0.34 * t * t
-            sec = ring([(p.x + sweep + w * 0.35, p.y, p.z) for p in sec])        # the edge carries forward
-        sections.append(sec)
-    tip = Vector((0.34 + width * 0.35, 0, length)) if curved else Vector((0, 0, length))
-    sections.append(point(tip.z + 0.06, tip.x, 0))
-    parts.append(gg.loft("Blade", sections, steel))
-    return parts
 
 
 def greataxe(steel):
@@ -321,22 +287,9 @@ def spear(steel):
     return parts
 
 
-RUNE_STEEL = gg.mat("Rune_Steel", (0.60, 0.66, 0.78), 0.45, 0.30)
-surface.RECIPES["Rune_Steel"] = lambda c, m, r: surface.steel(c, 0.75)
-
-
 WEAPONS = {
-    "greatsword": lambda: sword(STEEL, length=2.75, width=0.16, grip=0.62, guard=0.40),
-    # The merchant's sword: the same blade forged better, bright steel with a cold blue to it,
-    # and gold where the plain one has iron. Which of the two Aldric holds should be visible.
-    "greatsword-plus-one": lambda: sword(RUNE_STEEL, length=2.75, width=0.16, grip=0.62, guard=0.44),
-    "short-sword": lambda: sword(STEEL, length=1.25, width=0.12, guard=0.24, fitting=gg.IRON),
-    "dagger": lambda: sword(STEEL, length=0.70, width=0.10, guard=0.18, fitting=gg.IRON),
     "light-mace": lambda: mace(STEEL),
     "shortspear": lambda: spear(STEEL),
-    "longsword": lambda: sword(STEEL),
-    "silvered-longsword": lambda: sword(SILVER),
-    "scimitar": lambda: sword(STEEL, length=1.75, width=0.15, curved=True),
     "greataxe": lambda: greataxe(STEEL),
     "cold-iron-greataxe": lambda: greataxe(COLD_IRON),
     "quarterstaff": quarterstaff,
@@ -344,6 +297,17 @@ WEAPONS = {
     "light-crossbow": crossbow,
     "heavy-shield": lambda: shield(0.80, heavy=True),
     "light-shield": lambda: shield(0.60, heavy=False),
+}
+# Everything the families build: the swords, and in time the catalogue.
+WEAPONS.update({weapon: (lambda w: lambda: wf.build(w)[0])(weapon) for weapon in wf.RECIPES})
+
+# What characters hold today keeps the baked textures it was accepted with, so it matches the
+# models it stands next to. Everything else exports with the shared named materials and no
+# textures: hundreds of weapons at 3 MB each would not fit in the repository.
+BAKED = {
+    "dagger", "short-sword", "longsword", "silvered-longsword", "greatsword", "greatsword-plus-one", "scimitar",
+    "light-mace", "shortspear", "greataxe", "cold-iron-greataxe", "quarterstaff", "shortbow", "light-crossbow",
+    "heavy-shield", "light-shield",
 }
 
 POINTED = {"light-crossbow"}
@@ -358,7 +322,9 @@ def build(name, directory, keep=None):
     parts = WEAPONS[name]()
     bpy.context.view_layer.update()
 
-    surface.finish([(name, parts, 1024, True)], keep=keep)
+    if name in BAKED:
+        # A rune's glow is not a colour and does not survive a bake: it keeps its own material.
+        surface.finish([(name, [p for p in parts if not wf.is_unbaked(p)], 1024, True)], keep=keep)
 
     # One mesh: a sword is one thing, and should be one draw call.
     bpy.ops.object.select_all(action="DESELECT")

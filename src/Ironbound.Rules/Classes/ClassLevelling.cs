@@ -249,9 +249,13 @@ public static class ClassLevelling
             return feat;
         }
 
+        // A proficiency feat is taken for a weapon of its own category that the creature cannot
+        // use yet; anything else for whatever it fights with first.
         var weapons = new[] { creature.MeleeAttack, creature.PrimaryAttack }
             .Concat(creature.Attacks)
             .OfType<Combat.WeaponAttack>()
+            .Where(weapon => !Proficiency.IsProficiencyFeat(feat.Effect)
+                || (Proficiency.FeatCovers(feat, weapon) && !Proficiency.IsProficient(creature, weapon)))
             .Select(weapon => weapon.Kind)
             .OfType<string>()
             .Distinct();
@@ -301,6 +305,7 @@ public static class ClassLevelling
         FeatEffect.PointBlankShot or FeatEffect.PreciseShot or FeatEffect.RapidShot =>
             creature.PrimaryAttack is { IsRanged: true },
         FeatEffect.ShieldFocus => creature.Equipment.HasShield,
+        _ when Proficiency.IsProficiencyFeat(feat.Effect) => Proficiency.WouldHelp(creature, feat),
         _ => true,
     };
 

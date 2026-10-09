@@ -83,6 +83,14 @@ public static class Strike
         var feet = field?.DistanceInFeet(attacker, target);
         var flanking = FlankingPartner(attacker, target, field) is not null;
 
+        // A bullet up close goes through armour as if it were not there.
+        if (Firearms.TargetsTouch(weapon, feet))
+        {
+            asked |= DefenseOptions.TouchAttack;
+        }
+
+        var broken = attacker.Equipment.IsBroken(weapon);
+
         var attack = weapon.Attack.Resolve(
             target.ArmorClass,
             random,
@@ -91,7 +99,25 @@ public static class Strike
             rules,
             CoverFor(attacker, target, field),
             ProneFor(weapon, target),
-            Martial.Critical(attacker, weapon));
+            CriticalFor(attacker, weapon));
+
+        // A misfire is a miss whatever the total came to, and it costs the gun.
+        var misfired = Firearms.Misfires(weapon, attack.NaturalRoll, broken);
+        if (misfired)
+        {
+            attack = attack with { Outcome = AttackOutcome.Miss, Threatened = false, CriticalMultiplier = 1 };
+            notes.Add(Misfire(attacker, weapon, broken, random, rules));
+        }
+        else if (weapon.Has(WeaponSpecial.Fragile) && attack.NaturalRoll == 1 && Crack(attacker, weapon, broken) is { } cracked)
+        {
+            notes.Add(cracked);
+        }
+
+        // Thrown, hit or miss, it is somewhere on the floor now.
+        if (weapon.IsThrownUse && attacker.Equipment.LetGo(weapon))
+        {
+            notes.Add($"{attacker.Name}'s {ItemName(attacker, weapon)} is out of hand until the fight is over");
+        }
 
         // Declared before the roll, so the roll spends it whether it hit or not.
         var surprised = attacker.Stances.Spend(Combat.Stance.SurpriseAccuracy);
@@ -102,7 +128,7 @@ public static class Strike
 
         if (surprised)
         {
-            notes.Add("surprise accuracy");
+            notes.Insert(0, "surprise accuracy");
         }
 
         DamageRoll? damage = null;
@@ -114,7 +140,8 @@ public static class Strike
         if (attack.IsHit)
         {
             var denied = (attack.Options & DefenseOptions.DexterityDenied) != 0;
-            var packet = DamageFor(attacker, weapon, feet, powerful, vital);
+            var type = DamageTypeAgainst(weapon, target);
+            var packet = DamageFor(attacker, weapon, feet, powerful, vital, type);
 
             if (SneakAttack.Applies(attacker, weapon, denied, flanking, feet))
             {
@@ -125,7 +152,7 @@ public static class Strike
             // Damage dice are only rolled on a hit, so a miss leaves the random stream
             // exactly where a replay expects to find it.
             damage = packet.Roll(random, attack.CriticalMultiplier);
-            taken = target.Defenses.Apply(damage, weapon.Qualities, rules);
+            taken = target.Defenses.Apply(damage, QualitiesOf(weapon), rules);
 
             var (dealt, rolled) = RogueDefences.DefensiveRoll(target, taken.Total, denied, random, rules);
             if (rolled is not null)
@@ -133,7 +160,10 @@ public static class Strike
                 notes.Add($"{target.Name} rolls with it: {rolled}");
             }
 
-            (applied, nonlethal) = Apply(target, taken, dealt);
+            // A sap's blow is nonlethal all through, sneak attack and all, as the book has it.
+            (applied, nonlethal) = packet.Components.Any(component => component.Nonlethal)
+                ? (default(DamageApplication), target.HitPoints.TakeNonlethal(dealt))
+                : Apply(target, taken, dealt);
 
             if (sneak > 0)
             {
@@ -161,8 +191,132 @@ public static class Strike
             TargetAfter = target.HitPoints.ToString(),
             SneakAttackDice = sneak,
             Vital = vital,
+            Misfired = misfired,
             Notes = notes,
         };
+    }
+
+    /// <summary>
+    /// The critical this wielder threatens with this weapon: Improved Critical's, unless the
+    /// weapon is broken, when it threatens only on a twenty and only doubles.
+    /// </summary>
+    public static CriticalProfile CriticalFor(Creature attacker, WeaponAttack weapon)
+    {
+        ArgumentNullException.ThrowIfNull(attacker);
+        ArgumentNullException.ThrowIfNull(weapon);
+
+        return attacker.Equipment.IsBroken(weapon) ? CriticalProfile.Standard : Martial.Critical(attacker, weapon);
+    }
+
+    /// <summary>What the weapon's damage types let it past: every one of them, for "B and P".</summary>
+    private static DamageBypass QualitiesOf(WeaponAttack weapon)
+    {
+        var qualities = weapon.Qualities;
+
+        if (weapon.DamageRule == DamageRule.Both)
+        {
+            foreach (var type in weapon.DamageTypes)
+            {
+                qualities |= DamageBypasses.Of(type);
+            }
+        }
+
+        return qualities;
+    }
+
+    /// <summary>
+    /// The type a "P or S" weapon is swung as against this target: whichever its damage
+    /// reduction stops least, then whichever its resistances and immunities spare, then the
+    /// first the weapon lists. Anything else deals the one type it deals.
+    /// </summary>
+    public static DamageType? DamageTypeAgainst(WeaponAttack weapon, Creature target)
+    {
+        ArgumentNullException.ThrowIfNull(weapon);
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (weapon.DamageRule != DamageRule.Either || weapon.DamageTypes.Count < 2)
+        {
+            return null;
+        }
+
+        var defenses = target.Defenses;
+
+        return weapon.DamageTypes
+            .Select((type, order) => (Type: type, Order: order))
+            .OrderBy(choice => defenses.IsImmuneTo(choice.Type) ? 1 : 0)
+            .ThenBy(choice => defenses.ReductionAgainst(weapon.Qualities | DamageBypasses.Of(choice.Type)))
+            .ThenBy(choice => defenses.ResistanceTo(choice.Type))
+            .ThenBy(choice => defenses.IsVulnerableTo(choice.Type) ? 0 : 1)
+            .ThenBy(choice => choice.Order)
+            .First()
+            .Type;
+    }
+
+    /// <summary>
+    /// A gun misfiring: broken if it was sound, and if it was already broken, gone — burst in
+    /// the wielder's hands.
+    /// </summary>
+    /// <remarks>
+    /// The burst is <see cref="Firearms"/>' simplification: the gun's own dice as fire damage to
+    /// the wielder alone, a Reflex save for half.
+    /// </remarks>
+    private static string Misfire(Creature attacker, WeaponAttack weapon, bool broken, IRandomSource random, RuleOptions rules)
+    {
+        var name = ItemName(attacker, weapon);
+
+        if (!broken)
+        {
+            attacker.Equipment.Break(weapon);
+            return $"misfire — the {name} is broken";
+        }
+
+        attacker.Equipment.Destroy(weapon);
+
+        var save = attacker.Saves.Attempt(Saves.Save.Reflex, Firearms.ExplosionSaveDc, random, rules);
+        var rolled = weapon.Damage.Components.Count > 0
+            ? weapon.Damage.Components[0].Amount.DiceOnly().Roll(random).Total
+            : 0;
+        var amount = save.Succeeded ? rolled / 2 : rolled;
+        var taken = amount > 0
+            ? attacker.Defenses.Apply(DamagePacket.Weapon(amount.ToString(), DamageType.Fire).Roll(random), DamageBypass.None, rules).Total
+            : 0;
+
+        attacker.HitPoints.Take(taken);
+        return $"misfire — the {name} bursts: {save}, {taken} fire damage to {attacker.Name}";
+    }
+
+    /// <summary>
+    /// A fragile weapon on a natural 1: cracked if it was whole, and gone if it was not. Null for
+    /// one that came from no item, which has nothing to crack.
+    /// </summary>
+    private static string? Crack(Creature attacker, WeaponAttack weapon, bool broken)
+    {
+        var name = ItemName(attacker, weapon);
+
+        if (broken)
+        {
+            return attacker.Equipment.Destroy(weapon) ? $"the {name} shatters" : null;
+        }
+
+        return attacker.Equipment.Break(weapon) ? $"the {name} cracks" : null;
+    }
+
+    private static string ItemName(Creature attacker, WeaponAttack weapon) =>
+        attacker.Equipment.ItemFor(weapon)?.Name ?? weapon.Name;
+
+    /// <summary>What a broken weapon costs on both rolls.</summary>
+    public const int BrokenPenalty = -2;
+
+    private static ModifierStack Broken(Creature attacker, WeaponAttack weapon)
+    {
+        var stack = new ModifierStack();
+
+        if (attacker.Equipment.IsBroken(weapon))
+        {
+            stack.Add(BrokenPenalty, BonusType.Untyped, "broken");
+        }
+
+        return stack;
     }
 
     /// <summary>
@@ -192,6 +346,8 @@ public static class Strike
             Iterative(iterativePenalty),
             Stance(attacker, !weapon.IsRanged),
             Martial.AttackBonus(attacker, weapon, feet),
+            Proficiency.AttackPenalties(attacker, weapon),
+            Broken(attacker, weapon),
             Derived(attacker, Martial.AttackAbility(attacker, weapon), modifier => modifier));
     }
 
@@ -353,7 +509,8 @@ public static class Strike
         ArgumentNullException.ThrowIfNull(weapon);
 
         var stance = new ModifierStack();
-        var bonus = attacker.Stances.DamageBonus(!weapon.IsRanged);
+        var bonus = attacker.Stances.DamageBonus(
+            !weapon.IsRanged, twoHanded: weapon.DamageScale == AbilityDamageScale.OneAndAHalf);
 
         if (bonus != 0)
         {
@@ -373,6 +530,7 @@ public static class Strike
             weapon.DamageModifiers,
             stance,
             Martial.DamageBonus(attacker, weapon, feet),
+            Broken(attacker, weapon),
             Derived(attacker, weapon.DamageAbility, weapon.ScaleDamage));
     }
 
@@ -407,11 +565,12 @@ public static class Strike
     /// The powerful blow is passed in rather than read from the stance, because the roll that
     /// spent it has already taken it away.
     /// </remarks>
+    /// <param name="type">What a "P or S" weapon is being swung as, or null to keep its own.</param>
     private static DamagePacket DamageFor(
-        Creature attacker, WeaponAttack weapon, int? feet, int powerful, bool vital)
+        Creature attacker, WeaponAttack weapon, int? feet, int powerful, bool vital, DamageType? type = null)
     {
         var bonus = DamageBonus(attacker, weapon, feet).Total + powerful;
-        var packet = Fold(weapon, bonus);
+        var packet = Fold(weapon, bonus, type);
 
         // Vital Strike rolls the weapon's dice again — dice only, and not multiplied on a
         // critical, which is the same shape as precision damage.
@@ -419,16 +578,19 @@ public static class Strike
         {
             foreach (var component in weapon.Damage.Components.Where(c => c.MultipliedOnCritical))
             {
-                packet.Add(DamageComponent.Extra(component.Amount.DiceOnly(), component.Type));
+                packet.Add(DamageComponent.Extra(component.Amount.DiceOnly(), type ?? component.Type) with
+                {
+                    Nonlethal = component.Nonlethal,
+                });
             }
         }
 
         return packet;
     }
 
-    private static DamagePacket Fold(WeaponAttack weapon, int bonus)
+    private static DamagePacket Fold(WeaponAttack weapon, int bonus, DamageType? type)
     {
-        if (bonus == 0)
+        if (bonus == 0 && type is null)
         {
             return new DamagePacket(weapon.Damage.Components);
         }
@@ -440,7 +602,10 @@ public static class Strike
         {
             if (!folded && component.MultipliedOnCritical)
             {
-                packet.Add(new DamageComponent(component.Amount.Plus(bonus), component.Type, true));
+                packet.Add(new DamageComponent(component.Amount.Plus(bonus), type ?? component.Type, true)
+                {
+                    Nonlethal = component.Nonlethal,
+                });
                 folded = true;
             }
             else
@@ -449,12 +614,12 @@ public static class Strike
             }
         }
 
-        if (!folded)
+        if (!folded && bonus != 0)
         {
-            var type = weapon.Damage.Components.Count > 0
+            var first = weapon.Damage.Components.Count > 0
                 ? weapon.Damage.Components[0].Type
                 : DamageType.Untyped;
-            packet.Add(DiceExpression.Constant(bonus), type);
+            packet.Add(DiceExpression.Constant(bonus), type ?? first);
         }
 
         return packet;

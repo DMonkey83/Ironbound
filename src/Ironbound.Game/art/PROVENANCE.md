@@ -100,6 +100,25 @@ character fights with is in their hands; a shield goes on the forearm when the l
 and on the back when it is not, and anything else worn is slung across the back. The old single
 "+90 degrees about X" was right for none of them, and two main-hand items used to share one fist.
 
+The seven swords were rebuilt from `tools/weapon_families.py`'s recipe table after the owner's
+verdict on the first icon sheet ("some of those swords look way too similar, some dont look
+correct"): a dagger with a narrow, evenly tapering diamond-section blade and a scent-stopper
+pommel; a gladius-like short sword with parallel edges, a short angular point, an oval bronze
+hilt-guard and a ridged bone grip; a slender longsword with a two-thirds fuller, a long straight
+cross, a hand-and-a-half grip and a wheel pommel; a zweihander greatsword with a leather-wrapped
+ricasso, parrying lugs, side rings and a forearm-long grip; a scimitar with a clip point at the
+end of a flared, curving single-edged blade. The silvered longsword is that longsword in bright
+mirror silver, fittings and all; the +1 greatsword is gilt with a faint emissive rune line down
+its fuller (its own `Rune1` material, not baked). Their origins and length axes are unchanged and
+each is within 6% of its old length. The cold-iron greataxe kept its shape and is now near-black
+with a blue temper sheen; its icon used to read as plain steel.
+
+## Weapon icons — `icons/weapons/*.png`
+
+**Rendered**, by `tools/render_icons.py`, from the same `.glb` files the game loads: 256² with a
+transparent background, grip bottom left, under one fixed light. Sized by hands class, not
+filled to the slot, so a dagger stays smaller than a greatsword.
+
 ## Werewolf — `werewolf.glb`
 
 **Generated**, by `tools/generate_werewolf.py`, which borrows the goblin generator's machinery —

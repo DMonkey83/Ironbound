@@ -69,14 +69,28 @@ public readonly record struct SpellRange
         {
             SpellRangeKind.Personal => 0,
 
-            // Your own reach, so an enlarged wizard really does touch further.
-            SpellRangeKind.Touch => caster.Reach,
+            // Your own reach, so an enlarged wizard really does touch further — and only your own:
+            // a polearm in the other hand lengthens nobody's touch.
+            SpellRangeKind.Touch => Maps.ReachBand.Natural(caster).Maximum,
 
             SpellRangeKind.Close => 25 + (5 * (level / 2)),
             SpellRangeKind.Medium => 100 + (10 * level),
             SpellRangeKind.Long => 400 + (40 * level),
             _ => Feet,
         };
+    }
+
+    /// <summary>
+    /// Whether the spell carries from one square to another. A touch spell asks the caster's own
+    /// reach, so the second diagonal a ten-foot reach gets is a touch too, and a polearm is not.
+    /// </summary>
+    public bool Reaches(Creature caster, Maps.GridSquare from, Maps.GridSquare to, int level)
+    {
+        ArgumentNullException.ThrowIfNull(caster);
+
+        return Kind == SpellRangeKind.Touch
+            ? from == to || Maps.ReachBand.Natural(caster).Covers(from, to)
+            : Maps.Distance.Between(from, to) <= InFeet(caster, level);
     }
 
     public override string ToString() =>

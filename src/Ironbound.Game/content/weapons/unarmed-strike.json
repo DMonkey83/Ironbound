@@ -1,0 +1,19 @@
+// Hand-made: no table row covers a fist. Nobody's attacks include it yet; it is here for the
+// monk, who fights with nothing else, and for the proficiency rules, which name it.
+{
+  "kind": "weapon",
+  "id": "unarmed-strike",
+  "name": "unarmed strike",
+  "category": "simple",
+  "hands": "light",
+  "damageSmall": "1d2",
+  "damageMedium": "1d3",
+  "damageTypes": ["Bludgeoning"],
+  "threatsOn": 20,
+  "multiplier": 2,
+  "specials": ["nonlethal"],
+  "groups": ["close", "monk", "natural", "tribal"],
+  "cost": 0,
+  "weight": 0,
+  "description": "A punch or a kick. Hurts without killing, unless the one throwing it is a monk."
+}

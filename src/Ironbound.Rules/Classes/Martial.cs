@@ -19,11 +19,16 @@ namespace Ironbound.Rules.Classes;
 /// </remarks>
 public static class Martial
 {
-    /// <summary>Every fighter weapon group, by the ids weapon files use.</summary>
+    /// <summary>
+    /// Every fighter weapon group, by the ids weapon files use: the Core Rulebook's, then the
+    /// tribal group the Advanced Player's Guide added and the firearms and siege engines groups
+    /// of Ultimate Combat, which the catalogue's guns and engines need.
+    /// </summary>
     public static IReadOnlyList<string> WeaponGroups { get; } =
     [
         "axes", "heavy-blades", "light-blades", "bows", "close", "crossbows", "double",
         "flails", "hammers", "monk", "natural", "polearms", "spears", "thrown",
+        "tribal", "firearms", "siege-engines",
     ];
 
     /// <summary>"heavy-blades" as a sheet would say it: "heavy blades".</summary>
@@ -39,6 +44,9 @@ public static class Martial
 
     /// <summary>Shield Focus's one point.</summary>
     public const int ShieldFocusBonus = 1;
+
+    /// <summary>What a blocking weapon adds while its wielder fights defensively.</summary>
+    public const int BlockingBonus = 1;
 
     /// <summary>Bravery: one against fear at second level, one more every four levels after.</summary>
     public static int Bravery(Creature creature) => ClassFeatures.Rank(creature, FeatureIds.Bravery);
@@ -224,9 +232,21 @@ public static class Martial
         var touch = (options & DefenseOptions.TouchAttack) != 0;
         var denied = (options & DefenseOptions.DexterityDenied) != 0;
 
-        if (!touch && creature.Equipment.HasShield && creature.HasFeat(FeatEffect.ShieldFocus))
+        // Only a shield that is being used: one hanging behind a greataxe is focused on in vain.
+        if (!touch && creature.Equipment.ShieldInUse && creature.HasFeat(FeatEffect.ShieldFocus))
         {
             yield return new Modifier(ShieldFocusBonus, BonusType.Shield, "Shield Focus");
+        }
+
+        // A blocking weapon earns its name only while its wielder fights defensively with it:
+        // total defence is not fighting with it at all. The book makes it a shield bonus, so it
+        // is no help against a touch and does not add to a real shield in the other hand.
+        if (!touch
+            && creature.Stances.IsActive(Stance.FightingDefensively)
+            && creature.MeleeAttack is { } weapon
+            && weapon.Has(WeaponSpecial.Blocking))
+        {
+            yield return new Modifier(BlockingBonus, BonusType.Shield, "Blocking");
         }
 
         // A dodge bonus, so it is lost with Dexterity like any other.

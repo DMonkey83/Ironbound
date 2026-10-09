@@ -240,6 +240,16 @@ public partial class Main : Node3D
 					Append($"— {taken} thing(s) taken from the fallen —", []);
 				}
 
+				// Whatever was thrown or dropped is picked up once the fight is over; the
+				// figures take it back in hand when the last blow has been shown.
+				Enqueue(0.0, () =>
+				{
+					foreach (var member in _battle.Party)
+					{
+						Rearm(member);
+					}
+				});
+
 				if (_campaign.IsLevel)
 				{
 					// After the last blow has been shown, not while it is still in the air.
@@ -369,6 +379,16 @@ public partial class Main : Node3D
 			{
 				_stash.Selected = 0;
 			}
+		}
+
+		// What each thing is, and whether whoever would be given it can use it — set every time,
+		// because the answer changes with the bearer picked even when the list does not.
+		var bearer = _bearer.Selected >= 0 && _bearer.Selected < _campaign.Party.Count
+			? _campaign.Party[_bearer.Selected]
+			: null;
+		for (var i = 0; i < loot.Count && i < _stash.ItemCount; i++)
+		{
+			_stash.SetItemTooltip(i, string.Join("\n", _content.DescribeItem(loot[i], bearer)));
 		}
 
 		if (_bearer.ItemCount != _campaign.Party.Count)
@@ -772,15 +792,12 @@ public partial class Main : Node3D
 
 		var feet = field.DistanceInFeet(actor, target) ?? 0;
 
-		foreach (var weapon in actor.Attacks)
-		{
-			if (weapon.IsRanged && weapon.IsWithinRange(feet))
-			{
-				return weapon;
-			}
-		}
-
-		return null;
+		// A bow before a thrown dagger: the dagger, once thrown, lies where it fell until the
+		// fight is over, and the bow does not.
+		return actor.Attacks
+			.Where(weapon => weapon.IsRanged && weapon.IsWithinRange(feet) && !IsOutOfHand(actor, weapon))
+			.OrderBy(weapon => weapon.IsThrownUse)
+			.FirstOrDefault();
 	}
 
 	/// <summary>
@@ -1950,7 +1967,11 @@ public partial class Main : Node3D
 			text.Append($"\n[b]{section.Heading}[/b]\n");
 			foreach (var line in section.Lines)
 			{
-				text.Append($"  {line}\n");
+				// Fighting with something you were never taught, or in armour you were never
+				// taught to wear, costs on every swing; it should not read like the lines around it.
+				text.Append(line.Contains("not proficient", System.StringComparison.OrdinalIgnoreCase)
+					? $"  [color=#c0392b]{line}[/color]\n"
+					: $"  {line}\n");
 			}
 		}
 

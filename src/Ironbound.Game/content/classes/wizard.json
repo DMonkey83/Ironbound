@@ -7,6 +7,10 @@
   "attack": "Half",
   "goodSaves": ["Will"],
   "classSkills": ["Knowledge", "Spellcraft", "SenseMotive"],
+
+  // Five weapons by name and no armour at all.
+  "weaponProficiencies": ["club", "dagger", "heavy-crossbow", "light-crossbow", "quarterstaff"],
+  "armourProficiencies": [],
   "casting": "Full",
   "castingAbility": "Intelligence",
 

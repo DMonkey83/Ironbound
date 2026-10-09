@@ -31,13 +31,15 @@ public sealed record SavedGame(
     SavedCombatant[] Order,
     SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 13;
+    public const int CurrentVersion = 14;
 
     /// <summary>
     /// The oldest version still read. Twelve only added a field that eleven did without, so an
     /// eleven reads as a twelve that never had a level in it — which is exactly what it was.
     /// Thirteen added class features; an older file is given what its creatures' own content
-    /// files choose, with every daily pool full and nobody raging.
+    /// files choose, with every daily pool full and nobody raging. Fourteen added the weapon
+    /// catalogue and races: an older file has nothing broken, everything in hand, and the race
+    /// its creatures' files give them.
     /// </summary>
     public const int OldestReadable = 11;
 }
@@ -135,7 +137,8 @@ public sealed record SavedSpellcasting(
     SavedSlot[]? Specialty = null,
     string[]? Spellbook = null);
 
-public sealed record SavedDamageComponent(string Amount, DamageType Type, bool MultipliedOnCritical);
+/// <param name="Nonlethal">A sap's or a whip's damage. False in a save before fourteen, which had none.</param>
+public sealed record SavedDamageComponent(string Amount, DamageType Type, bool MultipliedOnCritical, bool Nonlethal = false);
 
 /// <summary>Ranks in one skill, and anything else stacked on it.</summary>
 public sealed record SavedSkill(Skills.Skill Skill, int Ranks, SavedModifier[] Modifiers);
@@ -143,8 +146,10 @@ public sealed record SavedSkill(Skills.Skill Skill, int Ranks, SavedModifier[] M
 /// <summary>So many levels of a class, by id.</summary>
 public sealed record SavedClassLevel(string ClassId, int Level);
 
-/// <summary>An equipped item: which one, and where it actually ended up.</summary>
-public sealed record SavedItem(string Id, Items.EquipmentSlot Slot);
+/// <summary>An equipped item: which one, where it actually ended up, and what has happened to it.</summary>
+/// <param name="Broken">Cracked on a natural 1 or a misfire. False before fourteen.</param>
+/// <param name="OutOfHand">Thrown or dropped and not yet picked up. False before fourteen.</param>
+public sealed record SavedItem(string Id, Items.EquipmentSlot Slot, bool Broken = false, bool OutOfHand = false);
 
 public sealed record SavedWeapon(
     string Name,
@@ -239,4 +244,5 @@ public sealed record SavedCreature(
     SavedWeapon[] Weapons,
     SavedEffect[] Effects,
     SavedSquare? Square,
-    SavedFeatures? Features = null);
+    SavedFeatures? Features = null,
+    string? Race = null);

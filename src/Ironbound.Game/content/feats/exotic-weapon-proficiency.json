@@ -1,0 +1,12 @@
+// The only way anybody learns an exotic weapon, one weapon at a time, and not before they can
+// fight at all.
+{
+  "kind": "feat",
+  "id": "exotic-weapon-proficiency",
+  "name": "Exotic Weapon Proficiency",
+  "combat": true,
+  "takes": "Weapon",
+  "description": "Trained with one exotic weapon: no more -4 on the attack roll.",
+  "effect": "ExoticWeaponProficiency",
+  "requires": { "baseAttack": 1 }
+}

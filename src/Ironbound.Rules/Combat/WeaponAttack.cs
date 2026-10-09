@@ -90,6 +90,54 @@ public sealed class WeaponAttack
 
     public bool IsIn(string group) => Groups.Contains(group, StringComparer.Ordinal);
 
+    /// <summary>
+    /// Simple, martial, exotic or natural: what proficiency is asked about. An attack built by
+    /// hand, with no <see cref="Kind"/>, is never asked.
+    /// </summary>
+    public WeaponCategory Category { get; init; } = WeaponCategory.Simple;
+
+    /// <summary>
+    /// How it is held. Two-handed is what gives half again Strength and Power Attack on damage,
+    /// and what leaves a shield on the other arm doing nothing.
+    /// </summary>
+    public WeaponHands Hands { get; init; } = WeaponHands.OneHanded;
+
+    /// <summary>What its Special column says: reach, trip, fragile and the rest.</summary>
+    public WeaponSpecial Specials { get; init; }
+
+    public bool Has(WeaponSpecial special) => special != WeaponSpecial.None && (Specials & special) == special;
+
+    /// <summary>A polearm: it threatens at twice the wielder's reach, and not beside them.</summary>
+    public bool IsReach => !IsRanged && Has(WeaponSpecial.Reach);
+
+    /// <summary>
+    /// The second use of a melee weapon that can be thrown: the dagger leaving the hand, as
+    /// opposed to the dagger in it. Same kind, same item, a range of its own.
+    /// </summary>
+    /// <remarks>
+    /// Kept as a separate attack rather than a mode on the first, because every caller that picks
+    /// a weapon already picks between attacks — the autopilot, the opportunity rules, the screen.
+    /// Throwing it puts the item out of the hand, and both uses go with it until the fight ends.
+    /// </remarks>
+    public bool IsThrownUse { get; init; }
+
+    /// <summary>
+    /// Every type it deals, first one first. Empty for an attack built by hand, which deals
+    /// whatever its damage packet says.
+    /// </summary>
+    public IReadOnlyList<DamageType> DamageTypes { get; init; } = [];
+
+    /// <summary>For more than one type: one at the wielder's choice, or all at once.</summary>
+    public DamageRule DamageRule { get; init; } = DamageRule.Single;
+
+    /// <summary>Early or advanced, for a gun; none for everything else.</summary>
+    public FirearmEra Firearm { get; init; }
+
+    /// <summary>The highest natural roll that misfires, for a gun: 1 for a pistol, 2 for a musket.</summary>
+    public int Misfire { get; init; }
+
+    public bool IsFirearm => Firearm != FirearmEra.None;
+
     public Attack Attack { get; }
 
     public DamagePacket Damage { get; }
@@ -216,6 +264,7 @@ public sealed class WeaponAttack
             DamageScale = scale,
             RangeIncrement = rangeIncrement,
             MaximumIncrements = maximumIncrements,
+            Hands = WeaponHands.Ranged,
         };
     }
 

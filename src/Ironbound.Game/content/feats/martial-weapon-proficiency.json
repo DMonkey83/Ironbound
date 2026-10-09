@@ -1,0 +1,11 @@
+// Taken for one weapon, named after a colon: "martial-weapon-proficiency:longbow". Taken again,
+// it is another weapon.
+{
+  "kind": "feat",
+  "id": "martial-weapon-proficiency",
+  "name": "Martial Weapon Proficiency",
+  "combat": true,
+  "takes": "Weapon",
+  "description": "Trained with one martial weapon: no more -4 on the attack roll.",
+  "effect": "MartialWeaponProficiency"
+}

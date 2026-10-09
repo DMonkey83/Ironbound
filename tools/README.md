@@ -70,7 +70,30 @@ One static `.glb` per hand-held item; an item's content file names it with `"mod
 measured per idle stance (see `art/PROVENANCE.md`), and slings the rest on their back. Read the convention at the top of the script before adding one: grip at the origin,
 business end up, and things you point are built lying forward. Shapes are lofted from
 cross-sections (`gg.loft`) — a blade has a fuller and tapers two ways at once, which no
-primitive does — and textured by `surface.py` like everything else.
+primitive does.
+
+New weapons are not new functions. `weapon_families.py` holds one recipe table, `RECIPES`,
+mapping each id to a family (`straight`, `curved` so far) and that family's parts and sizes,
+plus its hands class and an optional `variant` (`cold-iron`, `silver`, `adamantine`,
+`mithral`, `+1`…`+5`); `like` starts a row from another. The sixteen items characters hold
+today (`BAKED`) are textured by `surface.py` like everything else; any other weapon exports
+with a few materials named exactly as in `weapon_families.MATERIALS` (`Steel`, `DarkIron`,
+`Bronze`, `Wood`, `Wrap`, `Bone`, `Cloth`, `Gold`, `Stone`, and the special metals) and no
+textures, for the game to swap for shared ones. An enhancement's rune line is its own emissive
+material (`Rune1`…`Rune5`) and is never baked.
+
+## `render_icons.py` — inventory icons
+
+```sh
+blender -b --factory-startup --python tools/render_icons.py -- src/Ironbound.Game/art/weapons src/Ironbound.Game/art/icons/weapons [id ...]
+```
+
+One 256² transparent PNG per `.glb`, drawn from the model the game uses: grip bottom left,
+turned 22° about its length, under a fixed three-light setup. Icons keep relative size — the
+frame is set by the weapon's hands class (`weapon_families.hands`), so a dagger fills about
+60% of the slot's diagonal, a longsword 85% and a greatsword all of it. A model with the shared
+named materials is drawn with each name's procedural recipe, so its icon is not flat grey.
+Judge a batch on a contact sheet of dark slots, and at 64 px as well as full size.
 
 ## `surface.py` — the textures
 
@@ -152,6 +175,26 @@ orthographic at 100 pixels to the unit, so `Menu.cs` can place words on the pape
 in `DESK_PAGE` and `DESK_NOTE`; move them together. The adventure cards
 (`art/menu/<campaign id>.png`) are crops of in-game shots. `parchment` is the paper every page,
 the hotbar and the log are printed on.
+
+## `import_weapons.py` — the weapon catalogue
+
+```sh
+python3 tools/import_weapons.py [reference/pf1e] [src/Ironbound.Game/content]
+```
+
+Not Blender: plain Python, and the one tool here that writes content rather than art. It reads
+the weapon tables the owner pasted into the gitignored `reference/pf1e/` (`weapons.psv`,
+`firearms.psv`, `special-weapons.psv`, `siege-engines.psv`, `ammunition.psv`,
+`weapon-mods.psv`) and writes a file per weapon to `content/weapons/` and a file per table of
+things that are not weapons — ammunition, firearm gear, siege ammunition, weapon modifications —
+to `content/catalogue/`. Re-run it whenever the script changes; it only rewrites a file whose text
+would change, so a second run reports nothing changed. `bite`, `rat-bite`, `ogre-axe` and
+`unarmed-strike` are hand-made and listed in the script as files it never touches.
+
+What the tables do not say is in the script, in our own words: the fighter weapon groups of
+every weapon, which ranged weapons are thrown rather than shot, which slings put Strength into
+the shot, and a line for every weapon whose Special column says *see text*, saying what that text
+is about and that the game does not do it yet. Edit the script, not the generated files.
 
 ## Menus, pages and experience
 

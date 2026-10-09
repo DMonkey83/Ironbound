@@ -6,6 +6,8 @@
   "attack": "ThreeQuarters",
   "goodSaves": ["Reflex"],
   "classSkills": ["Acrobatics", "Bluff", "Climb", "DisableDevice", "Perception", "SenseMotive", "Stealth"],
+  "weaponProficiencies": ["simple", "hand-crossbow", "rapier", "sap", "short-sword", "shortbow"],
+  "armourProficiencies": ["light"],
 
   // Sneak attack is a d6 for every row reached; a talent row is a pick from the rogue talents.
   "features": [

@@ -46,6 +46,7 @@ public sealed class FullAttackAction : GameAction
         Target.IsAlive
         && !ReferenceEquals(Target, context.Actor)
         && WeaponFor(context.Actor) is { } weapon
+        && context.Actor.CanAttackWith(weapon)
         && Reaches(context, weapon);
 
     public override ActionResult Perform(ActionContext context)
@@ -82,8 +83,9 @@ public sealed class FullAttackAction : GameAction
                 }
 
                 // No point hacking at something already down, and stopping keeps the random
-                // stream where a replay expects to find it.
-                if (!Target.IsConscious)
+                // stream where a replay expects to find it. Nor in swinging a weapon that has
+                // just been thrown, shattered or let go of.
+                if (!Target.IsConscious || !actor.CanAttackWith(weapon))
                 {
                     break;
                 }
@@ -138,7 +140,7 @@ public sealed class FullAttackAction : GameAction
 
         if (!weapon.IsRanged)
         {
-            return field.IsWithinReach(context.Actor, Target);
+            return field.IsWithinReach(context.Actor, Target, weapon);
         }
 
         return field.HasLineOfSight(context.Actor, Target)

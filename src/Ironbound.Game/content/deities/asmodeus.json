@@ -1,4 +1,4 @@
-// Favoured weapon in words: the game has no such weapon yet.
+// Favoured weapon by id. The book says "mace"; the heavy mace is taken to be the one meant.
 {
   "kind": "deity",
   "id": "asmodeus",
@@ -11,5 +11,5 @@
     "magic",
     "trickery"
   ],
-  "favoredWeapon": "mace"
+  "favoredWeapon": "heavy-mace"
 }

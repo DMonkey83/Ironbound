@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "tower-shield-proficiency",
+  "name": "Tower Shield Proficiency",
+  "combat": true,
+  "description": "Trained to fight behind a tower shield as well.",
+  "effect": "TowerShieldProficiency",
+  "requires": { "armour": ["shields"] }
+}

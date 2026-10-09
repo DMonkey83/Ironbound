@@ -84,10 +84,12 @@ public static class Maneuvers
         }
 
         // A trip is made with the weapon in hand, so a fighter trained in its group is better at
-        // it. A bull rush is made with the whole body and gets nothing from the blade.
-        if (kind == ManeuverKind.Trip
-            && creature.MeleeAttack is { } weapon
-            && Classes.Martial.WeaponTraining(creature, weapon) is > 0 and var trained)
+        // it — and somebody never taught to use it is worse. A bull rush is made with the whole
+        // body and gets nothing from the blade, either way.
+        var tripping = kind == ManeuverKind.Trip ? creature.MeleeAttack : null;
+
+        if (tripping is not null
+            && Classes.Martial.WeaponTraining(creature, tripping) is > 0 and var trained)
         {
             innate.Add(trained, BonusType.Untyped, "Weapon training");
         }
@@ -101,7 +103,8 @@ public static class Maneuvers
                 Stances.Name(Stance.StrengthSurge));
         }
 
-        return ModifierStack.Combine(innate, creature.AttackModifiers);
+        // Armour worn untrained hampers a manoeuvre as it does a swing.
+        return ModifierStack.Combine(innate, creature.AttackModifiers, Classes.Proficiency.AttackPenalties(creature, tripping));
     }
 
     /// <summary>

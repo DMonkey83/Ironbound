@@ -1,0 +1,9 @@
+// For the rare character no class taught the simple weapons: a wizard who wants a spear.
+{
+  "kind": "feat",
+  "id": "simple-weapon-proficiency",
+  "name": "Simple Weapon Proficiency",
+  "combat": true,
+  "description": "Trained with every simple weapon: no more -4 on the attack roll.",
+  "effect": "SimpleWeaponProficiency"
+}

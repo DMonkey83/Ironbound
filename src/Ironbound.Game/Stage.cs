@@ -327,7 +327,18 @@ public partial class Main
 
 			if (ranged)
 			{
-				beat.TweenCallback(Callable.From(() => Launch(from, to, flight, new Color(0.85f, 0.75f, 0.55f), 0.035f)));
+				// A thrown weapon leaves the hand as it flies, and a brighter, heavier spark than
+				// an arrow's stands in for it.
+				var thrown = strike.Weapon.IsThrownUse;
+				beat.TweenCallback(Callable.From(() =>
+				{
+					if (thrown && attacker.Equipment.ItemFor(strike.Weapon) is { } item)
+					{
+						LetGo(attacker, item);
+					}
+
+					Launch(from, to, flight, thrown ? new Color(0.78f, 0.80f, 0.84f) : new Color(0.85f, 0.75f, 0.55f), thrown ? 0.06f : 0.035f);
+				}));
 				beat.TweenInterval(flight);
 			}
 
@@ -349,7 +360,20 @@ public partial class Main
 			}));
 
 			beat.TweenInterval(Math.Max(0.05, swing * 0.45));
-			beat.TweenCallback(Callable.From(() => Idle(attacker)));
+
+			// After a throw, whatever is still carried comes to hand: the sword off the back once
+			// the dagger has gone.
+			beat.TweenCallback(Callable.From(() =>
+			{
+				if (strike.Weapon.IsThrownUse)
+				{
+					Rearm(attacker);
+				}
+				else
+				{
+					Idle(attacker);
+				}
+			}));
 		});
 	}
 
@@ -367,7 +391,7 @@ public partial class Main
 		var line = maneuver.Description;
 		var victimAfter = PostureOf(victim);
 		var actorAfter = PostureOf(actor);
-		var clips = new[] { "trip", $"cast_{Grip(actor.PrimaryAttack)}", "attack_melee", "attack" };
+		var clips = new[] { "trip", $"cast_{Grip(InHand(actor))}", "attack_melee", "attack" };
 		var seconds = ClipSeconds(actor, 0.45, clips);
 
 		Enqueue(seconds + 0.15, () =>
@@ -403,7 +427,20 @@ public partial class Main
 				}
 			}));
 			tween.TweenProperty(from, "position", home, seconds * 0.5f).SetEase(Tween.EaseType.Out);
-			tween.TweenCallback(Callable.From(() => Idle(actor)));
+
+			// A trip that turns on a wielder with a trip weapon costs the weapon rather than her
+			// feet, and the figure should not go on holding it.
+			tween.TweenCallback(Callable.From(() =>
+			{
+				if (check.Backfired)
+				{
+					Rearm(actor);
+				}
+				else
+				{
+					Idle(actor);
+				}
+			}));
 		});
 	}
 
@@ -417,7 +454,7 @@ public partial class Main
 		var line = maneuver.Description;
 		var landing = _battle.Battlefield?.SquareOf(victim);
 		var victimAfter = PostureOf(victim);
-		var clips = new[] { "shove", $"cast_{Grip(actor.PrimaryAttack)}", "attack_melee", "attack" };
+		var clips = new[] { "shove", $"cast_{Grip(InHand(actor))}", "attack_melee", "attack" };
 		var seconds = ClipSeconds(actor, 0.45, clips);
 
 		Enqueue(seconds + 0.30, () =>
@@ -627,24 +664,37 @@ public partial class Main
 	/// </remarks>
 	private static string Grip(WeaponAttack weapon)
 	{
-		var name = weapon?.Name.ToLowerInvariant() ?? string.Empty;
+		if (weapon is null)
+		{
+			return "main_hand_melee";
+		}
 
-		if (name.Contains("crossbow"))
+		// What the rules say the weapon is rather than what it is called. Guessing from the name
+		// gave the ogre's "massive axe" a one-handed grip, and a catalogue of nearly three hundred
+		// weapons is mostly names that say nothing about hands.
+		if (weapon.IsIn("crossbows"))
 		{
 			return "two_handed_crossbow";
 		}
 
-		if (weapon?.IsRanged == true)
+		if (weapon.IsIn("bows"))
 		{
 			return "two_handed_bow";
 		}
 
-		if (name.Contains("staff"))
+		// Everything else that leaves the hand — a javelin, a sling stone, a thrown dagger — goes
+		// from one hand.
+		if (weapon.IsRanged)
+		{
+			return "main_hand_melee";
+		}
+
+		if (weapon.Name.Contains("staff", StringComparison.OrdinalIgnoreCase))
 		{
 			return "two_handed_staff";
 		}
 
-		return name.Contains("great") || name.Contains("two-handed") ? "two_handed_melee" : "main_hand_melee";
+		return weapon.Hands == WeaponHands.TwoHanded ? "two_handed_melee" : "main_hand_melee";
 	}
 
 	private static string[] AttackClips(WeaponAttack weapon) =>
@@ -657,7 +707,7 @@ public partial class Main
 			return;
 		}
 
-		PlayClip(creature, loop: true, $"idle_combat_{Grip(creature.PrimaryAttack)}", "idle_combat", "idle");
+		PlayClip(creature, loop: true, $"idle_combat_{Grip(InHand(creature))}", "idle_combat", "idle");
 	}
 
 	private bool HasClip(Creature creature, params string[] wanted) =>

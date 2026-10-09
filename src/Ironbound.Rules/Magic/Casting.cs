@@ -289,6 +289,12 @@ public static class Casting
     {
         AttackResult? attack = null;
 
+        // An elf does not fall asleep however the spell is aimed or whether she saves.
+        if (target.Race is { } race && race.IsImmuneTo(spell))
+        {
+            return new SpellTargetResult(target, null, null, 0, 0, [$"immune ({race.Name.ToLowerInvariant()})"]);
+        }
+
         if (spell.Target is RayTarget)
         {
             attack = ShootRay(caster, spell, target, random, rules);

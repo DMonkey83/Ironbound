@@ -124,7 +124,7 @@ public sealed class CastSpellAction : GameAction
         }
 
         var to = Aim.Point ?? (Aim.Creature is { } at ? field.SquareOf(at) : null);
-        return to is not { } destination || Distance.Between(from, destination) <= Spell.Range.InFeet(caster);
+        return to is not { } destination || Spell.Range.Reaches(caster, from, destination, caster.Spells.CasterLevel);
     }
 }
 

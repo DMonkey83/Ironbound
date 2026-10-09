@@ -241,7 +241,7 @@ public sealed class UsePowerAction : GameAction
 
         var to = Aim.Point ?? (Aim.Creature is { } at ? field.SquareOf(at) : null);
         return to is not { } destination
-            || Distance.Between(from, destination) <= power.Effect.Range.InFeet(actor, power.Use == PowerUse.Spell
+            || power.Effect.Range.Reaches(actor, from, destination, power.Use == PowerUse.Spell
                 ? actor.Spells.CasterLevel
                 : power.CasterLevel);
     }

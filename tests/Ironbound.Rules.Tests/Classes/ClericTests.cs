@@ -395,9 +395,30 @@ public class DeityTests
     [Fact]
     public void AFavouredWeaponTheGameLacksIsWrittenInWords()
     {
+        // Every shipped god's weapon is in the catalogue now, so the words path needs a made-up
+        // god with a made-up weapon to stay tested: it loads, and says what it says.
+        var library = ClassKit.Library(("sunlord.json", """
+            { "kind": "deity", "id": "sunlord", "name": "The Sun Lord", "alignment": "LG",
+              "domains": ["good", "war"], "favoredWeapon": "flaming sunblade" }
+            """));
+
+        Assert.Empty(library.Problems);
+        Assert.Equal("flaming sunblade", library.GetDeity("sunlord")!.FavoredWeapon);
+        Assert.Null(library.GetWeapon("flaming sunblade"));
+        Assert.Equal(Alignment.LawfulGood, library.GetDeity("sunlord")!.Alignment);
+    }
+
+    [Fact]
+    public void EveryShippedGodsFavouredWeaponIsAWeaponTheGameHas()
+    {
+        foreach (var deity in TestContent.Library.Deities)
+        {
+            Assert.True(TestContent.Library.GetWeapon(deity.FavoredWeapon) is not null, $"{deity.Name}: {deity.FavoredWeapon}");
+        }
+
         Assert.Equal("longbow", TestContent.Library.GetDeity("erastil")!.FavoredWeapon);
-        Assert.Null(TestContent.Library.GetWeapon("longbow"));
-        Assert.Equal(Alignment.LawfulGood, TestContent.Library.GetDeity("erastil")!.Alignment);
+        Assert.Equal("unarmed-strike", TestContent.Library.GetDeity("irori")!.FavoredWeapon);
+        Assert.Equal("spiked-chain", TestContent.Library.GetDeity("zon-kuthon")!.FavoredWeapon);
     }
 
     [Fact]

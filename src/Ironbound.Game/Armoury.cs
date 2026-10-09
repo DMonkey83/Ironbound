@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Ironbound.Rules.Combat;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Items;
 
@@ -88,7 +89,7 @@ public partial class Main
 		}
 
 		// The weapon in hand is the one it fights with: the attack and the item are one object.
-		var weapon = creature.PrimaryAttack;
+		var weapon = InHand(creature);
 		var grip = Grip(weapon);
 		var inHand = creature.Equipment.Worn.FirstOrDefault(worn => worn.Weapon is not null && ReferenceEquals(worn.Weapon, weapon));
 		var leftFree = grip == "main_hand_melee";
@@ -96,7 +97,9 @@ public partial class Main
 
 		foreach (var worn in creature.Equipment.Worn)
 		{
-			if (worn.Item.Model.Length == 0)
+			// Thrown, or dropped on a trip that went wrong: on the floor somewhere until the fight
+			// is over, not on the figure.
+			if (worn.Item.Model.Length == 0 || creature.Equipment.IsOutOfHand(worn.Item))
 			{
 				continue;
 			}
@@ -139,6 +142,27 @@ public partial class Main
 			mount.AddChild(item);
 			item.RotationDegrees = at.Rotation;
 			item.Position = at.Position;
+		}
+	}
+
+	/// <summary>
+	/// What the creature has in its hand to fight with: the first of its weapons it still holds,
+	/// and never the throwing half of one, which is the same dagger.
+	/// </summary>
+	private static WeaponAttack InHand(Creature creature) =>
+		creature.Attacks.FirstOrDefault(attack => !attack.IsThrownUse && !IsOutOfHand(creature, attack));
+
+	private static bool IsOutOfHand(Creature creature, WeaponAttack attack) =>
+		creature.Equipment.ItemFor(attack) is { } item && creature.Equipment.IsOutOfHand(item);
+
+	/// <summary>Takes one thing out of a figure's hand without stopping whatever it is doing: a
+	/// dagger leaving on the throw, before the rest of the swing has played.</summary>
+	private void LetGo(Creature creature, ItemDefinition item)
+	{
+		if (_figures.TryGetValue(creature, out var figure)
+			&& figure.FindChild($"Held_{item.Id}", true, false) is { } mount)
+		{
+			mount.QueueFree();
 		}
 	}
 

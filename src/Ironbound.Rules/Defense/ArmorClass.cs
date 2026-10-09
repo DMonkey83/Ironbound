@@ -58,6 +58,19 @@ public sealed class ArmorClass(AbilityScore dexterity)
     /// </remarks>
     public Func<DefenseOptions, IEnumerable<Modifier>>? Situational { get; set; }
 
+    /// <summary>
+    /// Modifiers that are in the stack but not counting right now: a shield on the arm while
+    /// both hands are on a greataxe.
+    /// </summary>
+    /// <remarks>
+    /// Left in the stack rather than taken out and put back, because what decides it — which
+    /// weapon is in hand — changes in the middle of a fight, and a modifier that came and went
+    /// with it would be one more thing for a save to get wrong. Left out of
+    /// <see cref="Explain"/> entirely, as anything that does not apply is; whoever shows the
+    /// number says why.
+    /// </remarks>
+    public Func<Modifier, bool>? Suppressed { get; set; }
+
     public void CapDexterity(string source, int maximum)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
@@ -78,7 +91,7 @@ public sealed class ArmorClass(AbilityScore dexterity)
 
     public int Value(DefenseOptions options = DefenseOptions.None) =>
         BaseValue + SizeModifier + DexterityContribution(options)
-        + Modifiers.TotalWhere(m => Applies(m, options))
+        + Modifiers.TotalWhere(m => Applies(m, options) && Suppressed?.Invoke(m) != true)
         + (Situational?.Invoke(options).Sum(m => m.Value) ?? 0);
 
     /// <summary>
@@ -105,7 +118,7 @@ public sealed class ArmorClass(AbilityScore dexterity)
 
         foreach (var modifier in Modifiers.Modifiers)
         {
-            if (Applies(modifier, options))
+            if (Applies(modifier, options) && Suppressed?.Invoke(modifier) != true)
             {
                 stack.Add(modifier);
             }

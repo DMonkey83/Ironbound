@@ -5,6 +5,7 @@ using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Items;
+using Ironbound.Rules.Maps;
 using Ironbound.Rules.Saves;
 using Ironbound.Rules.Skills;
 
@@ -44,6 +45,7 @@ public static class CharacterSheet
             Saves(creature),
             Attacks(creature),
             Features(creature),
+            RacialTraits(creature),
             Training(creature),
             Gear(creature),
             Magic(creature),
@@ -56,8 +58,8 @@ public static class CharacterSheet
         string.Join("\n\n", Of(creature).Where(section => section.Lines.Count > 0));
 
     private static SheetSection Who(Creature creature) => new("Who", [
-        creature.Description,
-        $"{CreatureSizes.Name(creature.Size)}, speed {creature.CurrentSpeed} ft, reach {creature.Reach} ft",
+        creature.Race is { } race ? $"{race.Name} {creature.Description}" : creature.Description,
+        $"{CreatureSizes.Name(creature.Size)}, speed {creature.CurrentSpeed} ft, reach {Battlefield.ReachOf(creature)}",
         $"Hit points {creature.HitPoints}",
         $"Base attack +{creature.BaseAttackBonus}, "
             + $"{creature.AttacksPerFullAttack} attack(s) on a full attack",
@@ -77,6 +79,14 @@ public static class CharacterSheet
             $"Touch {creature.ArmorClass.Touch}, flat-footed {creature.ArmorClass.FlatFooted}",
             $"Manoeuvre defence {Maneuvers.Defense(creature)} — {Maneuvers.DefenseBonus(creature)}",
         };
+
+        // A shield the armour class above leaves out has to say why, or it reads as a mistake.
+        if (creature.Equipment.ShieldSetAside
+            && creature.Equipment.InSlot(EquipmentSlot.Shield).FirstOrDefault() is { } shield
+            && creature.MeleeAttack is { } twoHanded)
+        {
+            lines.Add($"{shield.Name} not counted: both hands are on the {twoHanded.Name}");
+        }
 
         foreach (var reduction in creature.Defenses.Reductions)
         {
@@ -111,10 +121,16 @@ public static class CharacterSheet
             var damage = Strike.DamageBonus(creature, weapon).Total;
             var reach = weapon.IsRanged
                 ? $"range {weapon.RangeIncrement} ft"
-                : $"reach {creature.Reach} ft";
+                : $"reach {Battlefield.ReachOf(creature, weapon)}";
+            var state = creature.Equipment.EntryFor(weapon) switch
+            {
+                { IsOutOfHand: true } => ", out of hand",
+                { IsBroken: true } => ", broken",
+                _ => string.Empty,
+            };
 
-            lines.Add($"{weapon.Name} {bonus.Total:+0;-0;+0} ({reach}) — {bonus}");
-            lines.Add($"  damage {weapon.Damage} {damage:+0;-0;+0}, {weapon.Attack.Critical}");
+            lines.Add($"{weapon.Name} {bonus.Total:+0;-0;+0} ({reach}{state}) — {bonus}");
+            lines.Add($"  damage {weapon.Damage} {damage:+0;-0;+0}, {Strike.CriticalFor(creature, weapon)}");
         }
 
         if (lines.Count > 0)
@@ -151,6 +167,14 @@ public static class CharacterSheet
         return new SheetSection("Class features", lines);
     }
 
+    /// <summary>
+    /// The creature's people and each of its traits, a line apiece, as class features are. Empty
+    /// for a creature with no race, which leaves the heading out of the written form.
+    /// </summary>
+    private static SheetSection RacialTraits(Creature creature) => new(
+        "Racial traits",
+        creature.Race is { } race ? [.. race.Traits.Select(trait => trait.ToString())] : []);
+
     private static string Title(string pool) => pool switch
     {
         ClassPowers.ArcaneBondPool => "Bonded object",
@@ -171,7 +195,14 @@ public static class CharacterSheet
         foreach (var entry in creature.Equipment.Worn)
         {
             var where = entry.IsWorn ? entry.Slot.ToString() : "stowed";
-            lines.Add($"{entry.Item.Name} ({where})");
+            var state = (entry.IsBroken ? ", broken" : string.Empty) + (entry.IsOutOfHand ? ", out of hand" : string.Empty);
+            var untrained = Proficiency.IsProficient(creature, entry.Item) ? string.Empty : ", not proficient";
+            lines.Add($"{entry.Item.Name} ({where}{state}{untrained})");
+        }
+
+        if (Proficiency.Describe(creature) is { Length: > 0 } trained)
+        {
+            lines.Add(trained);
         }
 
         foreach (var feat in creature.Feats)

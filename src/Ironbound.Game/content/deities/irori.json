@@ -1,4 +1,4 @@
-// Favoured weapon in words: the game has no such weapon yet.
+// Favoured weapon by id: the game has one.
 {
   "kind": "deity",
   "id": "irori",
@@ -11,5 +11,5 @@
     "rune",
     "strength"
   ],
-  "favoredWeapon": "unarmed strike"
+  "favoredWeapon": "unarmed-strike"
 }

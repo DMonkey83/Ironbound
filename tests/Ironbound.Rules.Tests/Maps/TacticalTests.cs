@@ -39,12 +39,13 @@ public class ThreatenedSquareTests
 
         var threatened = field.ThreatenedBy(ogre).ToHashSet();
 
-        // Twenty, not twenty-four: the far corners of the second ring are two diagonals away,
-        // which the alternating rule prices at fifteen feet — outside a ten-foot reach.
-        Assert.Equal(20, threatened.Count);
+        // Twenty-four: the far corners of the second ring are two diagonals away, which the
+        // alternating rule prices at fifteen feet, but the book makes ten-foot reach the one
+        // exception and lets it reach them. (Twenty before the weapons catalogue added it.)
+        Assert.Equal(24, threatened.Count);
         Assert.Contains(new GridSquare(7, 2), threatened);
         Assert.Contains(new GridSquare(6, 4), threatened);
-        Assert.DoesNotContain(new GridSquare(7, 4), threatened);
+        Assert.Contains(new GridSquare(7, 4), threatened);
         Assert.DoesNotContain(new GridSquare(5, 2), threatened);
     }
 
