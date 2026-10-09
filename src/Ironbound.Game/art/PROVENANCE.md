@@ -75,34 +75,38 @@ then the whole body into them). The death walks the root forward as it tips back
 to rest on the square it died in rather than laid out across the one behind: measured, the fallen
 body's middle is within 0.12 of its square's centre for all four generated creatures.
 
-The ceiling is a stylised sculpt. Pitted iron, pores and stitched leather come from sculpting and
-painted textures, and no script produces those.
+The ceiling is a stylised sculpt. The pitted iron, the pores and the leather grain *are* now
+produced by a script — `tools/surface.py` bakes procedural materials into a colour, roughness,
+metallic and normal atlas per model, embedded in the `.glb` — but they are procedural noise
+shaped by rules, not a sculptor's wrinkles, and the difference shows close up.
 
 ## Weapons — `weapons/*.glb`
 
 **Generated**, by `tools/generate_weapons.py`: ten small static meshes, one per hand-held item,
-284 KB between them. Each item's content file names its own, so the silvered longsword and the
+lofted from cross-sections and textured by the same bake as the creatures, so each is 1–3 MB. Each item's content file names its own, so the silvered longsword and the
 plain one are different models — which blade Valeria is holding is the point of the werewolf
 fight, and now it shows.
 
 They hang on the `wep_pos_R` / `wep_pos_L` socket bones the human pack's skeleton already had.
 The generated creatures have no sockets and carry their own modelled kit, so they are untouched.
 
-One convention, so that the only orientation anybody had to discover was the hand's: grip at the
-origin, business end up. A shield faces forward from its strap; anything you *point* rather than
-swing (the crossbow) is built lying forward instead, so the same grip works for it too. The grip
-for held things — +90 degrees about the socket's X — was found by putting a sword in Valeria's
-hand at four rotations and looking. Shields do not use the hand socket at all: they are strapped
-to `arm_lower_L`, a third of the way down and out past the arm's thickness. On the hand socket a
-shield looked right in the rest pose and lay flat like a tray in the fighting stance, because a
-palm turns and a forearm does not — so judge any attachment in the idle clip, never at rest.
+One convention for all of them: grip at the origin, business end up; a shield faces forward
+from its strap; anything you *point* (the crossbow) is built lying forward. How each kind sits
+in a hand was then **measured**, not found by looking: a scratch Godot scene posed each
+character in the idle clip for each grip, found each fist from its finger bones, aimed the item
+through it — through both fists for a two-handed weapon, the left fist for a bow — and read the
+result back in the socket bone's space. That table is in `Armoury.cs`. Only the weapon a
+character fights with is in their hands; a shield goes on the forearm when the left hand is free
+and on the back when it is not, and anything else worn is slung across the back. The old single
+"+90 degrees about X" was right for none of them, and two main-hand items used to share one fist.
 
 ## Werewolf — `werewolf.glb`
 
 **Generated**, by `tools/generate_werewolf.py`, which borrows the goblin generator's machinery —
 skeleton, skinning, animation format, export, validation — and supplies only the creature. About
-14,900 triangles in 16 meshes: a hundred locks of fur are merged by the bone that carries them,
-so the pelt is eight draw calls rather than a hundred.
+55,000 triangles, most of them the coat: some five thousand hair cards (`tools/cards.py`), one
+mesh and one alpha-tested material, so the pelt is a single draw call. That is heavy for a
+goblin and fine for the one boss on the board.
 
 He stands on his toes. The goblin's bone names already fit a wolf's hind leg — thigh forward to
 the knee, shin *back* to a raised hock, a long foot down to the toes — so the same skeleton and

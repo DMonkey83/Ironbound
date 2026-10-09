@@ -27,14 +27,16 @@ the skeleton, and exports glTF with every animation.
 Drops the author's workspace objects, bakes transforms, fixes the winding on mirrored meshes,
 folds a separate alpha mask into the colour texture, recentres on the origin and exports.
 
-## `generate_goblin.py` — build a goblin out of primitives
+## `generate_goblin.py` — grow a goblin
 
 ```sh
 blender -b --factory-startup --python tools/generate_goblin.py -- <variant> <out.glb>
 ```
 
 `variant` is `goblin`, `goblin-archer` or `hobgoblin`. No source art and nothing to licence: the
-model is the script. It prints a self-check parsed back out of the exported GLB — mesh count,
+model is the script. The body is grown from metaballs, the kit is placed on it from the same
+landmarks, and every surface is baked to textures by `surface.py` before export. Each build
+takes about two minutes, nearly all of it the bake. It prints a self-check parsed back out of the exported GLB — mesh count,
 skinned count, triangles, joints, animation names, bounding box — and ends in PASS or FAIL on
 whether every primitive carries `JOINTS_0`. Trust that, not the absence of a traceback.
 
@@ -51,7 +53,9 @@ blender -b --factory-startup --python tools/generate_werewolf.py -- <out.glb>
 ```
 
 Imports `generate_goblin.py` for everything that is not specifically a wolf, so a fix to the
-skeleton, the exporter or the validator lands in both. New creatures should start the same way:
+skeleton, the exporter or the validator lands in both. The hide is displaced into clumps before
+it is thinned, and the coat is several hundred lofted locks, jittered so they do not repeat,
+joined into one mesh per bone. New creatures should start the same way:
 a `frame()` of landmarks, a body grown from them, and whatever is sharp or bright added on top.
 
 ## `generate_weapons.py` — what the party holds
@@ -61,9 +65,68 @@ blender -b --factory-startup --python tools/generate_weapons.py -- src/Ironbound
 ```
 
 One static `.glb` per hand-held item; an item's content file names it with `"model"`, and
-`Armoury.cs` hangs whatever is *worn* in main hand, off hand or shield slot on the model's hand
-sockets. Read the convention at the top of the script before adding one: grip at the origin,
-business end up, and things you point are built lying forward.
+`Armoury.cs` puts the weapon a character fights with in their hands, using a table of grips
+measured per idle stance (see `art/PROVENANCE.md`), and slings the rest on their back. Read the convention at the top of the script before adding one: grip at the origin,
+business end up, and things you point are built lying forward. Shapes are lofted from
+cross-sections (`gg.loft`) — a blade has a fuller and tapers two ways at once, which no
+primitive does — and textured by `surface.py` like everything else.
+
+## `surface.py` — the textures
+
+Not run on its own: the three generators call `surface.finish()` on their parts before they
+export. It swaps each flat material for a procedural one by name — `Leather` gets grain and
+rubbed-pale edges, `Rusty_Iron` gets dents and rust in its hollows, `Shield_Wood` gets a
+figure, `Goblin_Hide` gets pores and warts over the painted vertex colours, `Wolf_Fur` gets
+streaks — then unwraps every part of a group into one atlas and bakes colour, roughness,
+metallic and a tangent-space normal map into it. The parts leave wearing one ordinary
+textured material each, which is what the glTF exporter and Godot both understand without
+help.
+
+The recipes sample the model's *world position*, never its UVs, so there are no seams and no
+stretching however a part was unwrapped; the UVs only receive the bake. `surface.SCALE` tells
+the recipes how big a model unit is next to a goblin's, so the weapons — built at human size —
+get the same pore spacing. To add a material, give it a recipe in `RECIPES`; one that is not
+there stays flat, which is right for some things.
+
+Atlases are 1024 square: a creature is a few hundred pixels tall at most on the board, and a
+2048 set would double each `.glb` to 20 MB for nothing anybody could see.
+
+## `cards.py` — hair and fur
+
+Not run on its own. Fur and hair are *cards*: ribbons of a few quads wearing an alpha-tested
+texture of strands, scattered over a body by rules (`plan(point, normal)` → density, length,
+the way it lies, palette) and skinned from the body vertex nearest each root. The werewolf's
+coat and the goblins' crests are made this way. Solid locks were tried first and read as
+spikes and leaves at every density; the difference is that a card shows strands and the dark
+hide between them.
+
+The material exports as glTF `alphaMode: MASK`, double-sided, and Godot draws it with alpha
+scissor. Tufts are sparse on purpose — a full card is a leaf — and solid only in the bottom
+few percent, so the roots survive mipmapping. Cards are kept out of `surface.py`'s bake: they
+carry their own UVs and texture.
+
+## Hands, mouths, and finding things by ray
+
+`generate_goblin.grips()` decides once where each hand closes and round what (centre, grip
+axis, knuckle direction, back of the hand); `fist()` grows the metaball fist round it and the
+weapons are put through the same point. The grip is kept square to the forearm: a blade laid
+along the hand is what the flat-palmed version looked like.
+
+Teeth are not placed by coordinates. The mouth is cut open with a negative metaball, and rays
+cast from inside it (goblins) or straight down through the open jaws (`generate_werewolf.
+crossings`) find the gums; each tooth grows from just inside the gum toward the gap. So teeth
+are always inside the lips whatever the metaballs did to the face, and where the jaws have
+closed there is simply no tooth. The same gum points mark the inside of the mouth for painting.
+
+Armour is cut from the body, not placed over it. `torso_piece()` takes the goblin's own skin
+nearest the spine and collarbones (by distance to the bones, so the armhole falls round the
+shoulder joint), cuts it clean at the waist and neck, and `fitted_shell()` pushes it out and gives
+it thickness; straps are bands laid along that surface (`ribbon()`), studs sit on it, and all of
+it takes its skinning from the body under it. The ellipsoid shells this replaced let the
+shoulder blades through on one side and floated off the ribs on the other.
+
+`IRONBOUND_FAST=1` skips the texture bake, which is nearly all of a build's time — use it while
+iterating on shape, never for what goes in `art/`.
 
 ## `preview_model.py` — render what actually came out
 

@@ -19,8 +19,12 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import generate_goblin as gg  # noqa: E402
+import surface  # noqa: E402
+import cards  # noqa: E402
 
 FUR = gg.mat("Wolf_Fur", (0.105, 0.080, 0.064), 0.0, 0.95)
+FUR_PALE = gg.mat("Wolf_Fur_Pale", (0.36, 0.26, 0.19), 0.0, 0.95)
+surface.RECIPES["Wolf_Fur_Pale"] = lambda c, m, r: surface.fur(c)
 FANG = gg.mat("Wolf_Fang", (0.86, 0.80, 0.66), 0.0, 0.5)
 TALON = gg.mat("Wolf_Talon", (0.13, 0.11, 0.09), 0.0, 0.45)
 MAW = gg.mat("Wolf_Maw", (0.30, 0.05, 0.05), 0.0, 0.6)
@@ -102,7 +106,11 @@ def grow_body(L):
         ball(off(H, side * 0.085, -0.150, 0.062), (0.070, 0.05, 0.030))          # drawn down over each eye
     chain(off(H, 0, -0.15, -0.015), off(H, 0, -0.43, -0.075), 0.085, 0.052, 4)   # upper jaw
     ball(off(H, 0, -0.30, 0.0), (0.05, 0.10, 0.035))                             # bridge of the nose
-    chain(off(H, 0, -0.10, -0.115), off(H, 0, -0.385, -0.190), 0.066, 0.026, 7)  # lower jaw, open
+    # The lower jaw, hanging open: as wide at the tooth line as the upper, which is what makes
+    # it a wolf's and not a rat's. Two rami meeting at the chin, filled between.
+    chain(off(H, 0, -0.10, -0.115), off(H, 0, -0.385, -0.190), 0.056, 0.030, 7)
+    for side in (-1, 1):
+        chain(off(H, side * 0.042, -0.10, -0.112), off(H, side * 0.026, -0.37, -0.182), 0.046, 0.026, 7)
     for side in (-1, 1):
         ball(off(H, side * 0.125, -0.06, -0.04), (0.075, 0.09, 0.085))           # cheek and jaw muscle
         ball(off(H, side * 0.075, -0.180, 0.022), (0.036, 0.045, 0.022), negative=True)   # eye socket
@@ -135,6 +143,14 @@ def grow_body(L):
         for dx in (-0.066, -0.022, 0.022, 0.066):
             ball(off(ft, dx, -0.16, -0.02), (0.030, 0.06, 0.034))
 
+    # A tail: a thick root tapering away behind, for the brush of fur to grow on. Without
+    # flesh under it a tail of fur is a cloud with nothing in it.
+    root = L["pelvis"] + Vector((0, 0.17, -0.02))
+    for i, p in enumerate((root, root + Vector((0, 0.15, -0.12)), root + Vector((0, 0.25, -0.32)), root + Vector((0, 0.29, -0.54)))):
+        L[f"tail{i}"] = p
+    for i in range(3):
+        chain(L[f"tail{i}"], L[f"tail{i + 1}"], (0.075, 0.062, 0.048)[i], (0.062, 0.048, 0.030)[i], 3)
+
     bpy.ops.object.select_all(action="DESELECT")
     bpy.context.view_layer.objects.active = meta
     meta.select_set(True)
@@ -142,6 +158,7 @@ def grow_body(L):
     body = bpy.context.view_layer.objects.active
     body.name = "Body"
     gg.smooth(body)
+    shag(body, L)
     thin = body.modifiers.new("Thin", "DECIMATE")
     thin.ratio = 0.26
     bpy.ops.object.modifier_apply(modifier="Thin")
@@ -155,96 +172,193 @@ def grow_body(L):
     return body
 
 
-def tuft(name, base, direction, length, width, material=FUR):
-    """One lock of fur: a flattened spike lying along the body."""
-    bpy.ops.mesh.primitive_cone_add(vertices=5, radius1=width, radius2=width * 0.04, depth=length)
-    o = bpy.context.object
-    o.name = name
-    o.scale = (1.0, 0.42, 1.0)
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    for v in o.data.vertices:
-        v.co.z += length / 2
-    o.matrix_world = gg.aim(base, direction, wide=(1, 0, 0))
-    gg.apply_mat(o, material)
+def shag(body, L):
+    """Push the hide out in clumps before it is thinned, so the silhouette is a coat and not
+    a wetsuit. Kept off the muzzle, the palms and the feet, which are skin and pad."""
+    H = L["head"]
+    muzzle = H + Vector((0, -0.30, -0.08))
+    weight = body.vertex_groups.new(name="Shag")
+    for v in body.data.vertices:
+        p = v.co
+        w = 1.0 - max(0.0, 1.0 - (p - muzzle).length / 0.32)
+        w *= min(1.0, max(0.0, (p.z - 0.22) / 0.22))
+        for side in (-1, 1):
+            w *= 1.0 - max(0.0, 1.0 - (p - gg.mirror(L["palm"], side)).length / 0.24)
+        weight.add([v.index], w, "REPLACE")
+
+    clumps = bpy.data.textures.new("Shag", "CLOUDS")
+    clumps.noise_scale = 0.10
+    clumps.noise_depth = 3
+    mod = body.modifiers.new("Shag", "DISPLACE")
+    mod.texture = clumps
+    mod.texture_coords = "GLOBAL"
+    mod.strength = 0.055
+    mod.mid_level = 0.5
+    mod.vertex_group = "Shag"
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.modifier_apply(modifier="Shag")
+
+
+CARD = None
+
+
+def strand_texture():
+    """A card's worth of fur: a few dozen strands, dark at the root, paler at the tips, and
+    nothing at all between them. Painted here rather than loaded, so nothing is licensed."""
+    import random
+    import numpy as np
+
+    size = 256
+    rnd = random.Random(3)
+    rgba = np.zeros((size, size, 4), dtype=np.float32)
+    v = np.linspace(0.0, 1.0, size)[:, None]                 # row 0 is the root
+    u = np.linspace(0.0, 1.0, size)[None, :]
+    for _ in range(90):
+        x0 = rnd.uniform(0.04, 0.96)
+        x1 = x0 + rnd.uniform(-0.10, 0.10)
+        top = rnd.uniform(0.55, 1.0)
+        width = rnd.uniform(0.010, 0.026)
+        shade = rnd.uniform(0.55, 1.35)
+        centre = x0 + (x1 - x0) * v
+        half = width * np.clip(1.0 - v / top, 0.0, 1.0)
+        hit = (np.abs(u - centre) < half) & (v < top)
+        tone = np.array((0.19, 0.145, 0.11)) * shade
+        tip = np.clip(v / top, 0, 1)
+        colour = tone[None, None, :] * (0.55 + 0.75 * tip)
+        rgba[..., :3] = np.where(hit[..., None], colour, rgba[..., :3])
+        rgba[..., 3] = np.where(hit, 1.0, rgba[..., 3])
+    img = bpy.data.images.new("Fur_Strands", size, size, alpha=True)
+    img.pixels.foreach_set(rgba.ravel())
+    img.pack()
+    return img
+
+
+def card_material():
+    """Alpha-cut, double-sided, so the glTF says MASK and Godot draws it with alpha scissor:
+    no sorting, no halo, and the shadow has strands in it."""
+    global CARD
+    if CARD is not None:
+        return CARD
+    m = bpy.data.materials.new("Fur_Card")
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = strand_texture()
+    cut = nt.nodes.new("ShaderNodeMath")
+    cut.operation = "ROUND"                     # the exporter's cue for alphaMode MASK
+    nt.links.new(tex.outputs[0], bsdf.inputs["Base Color"])
+    nt.links.new(tex.outputs[1], cut.inputs[0])
+    nt.links.new(cut.outputs[0], bsdf.inputs["Alpha"])
+    bsdf.inputs["Roughness"].default_value = 0.9
+    m.blend_method = "CLIP"
+    m.use_backface_culling = False
+    CARD = m
+    return m
+
+
+def tuft(name, base, direction, length, width, material=None, curl=0.45, wide=(1, 0, 0)):
+    """One lock of fur as a hair card: a strip of three quads bending in its own Y, wearing
+    the strand texture, root at the base. Solid locks, however many, read as plates; a card
+    shows a dozen strands and the hide between them."""
+    import bmesh
+
+    bm = bmesh.new()
+    uv_layer = bm.loops.layers.uv.new("UVMap")
+    rows = []
+    n = 3
+    for i in range(n + 1):
+        t = i / n
+        y = curl * length * t * t
+        w = width * (1.0 - 0.25 * t)
+        rows.append((bm.verts.new((-w, y, t * length)), bm.verts.new((w, y, t * length)), t))
+    for (a0, b0, t0), (a1, b1, t1) in zip(rows, rows[1:]):
+        f = bm.faces.new((a0, b0, b1, a1))
+        for loop, (u, v) in zip(f.loops, ((0, t0), (1, t0), (1, t1), (0, t1))):
+            loop[uv_layer].uv = (u, v)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    o = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(o)
+    o.data.materials.append(card_material())
+    o.matrix_world = gg.aim(base, direction, wide=wide)
     return o
 
 
-def pelt(L):
-    """The coat, as locks grouped by the bone that carries them.
+# Root and tip colours of the strands. The hide under them is painted darker still, so a gap
+# between cards reads as deep fur and not as skin.
+PALETTES = {
+    "coat": ((0.035, 0.026, 0.020), (0.30, 0.215, 0.145)),
+    "dark": ((0.025, 0.019, 0.015), (0.17, 0.125, 0.090)),
+    "pale": ((0.09, 0.065, 0.048), (0.50, 0.385, 0.270)),
+}
 
-    Metaballs give a smooth hide, and a smooth wolf is a rubber toy. The mane is what makes the
-    silhouette: up over the skull, thick round the neck and shoulders, down the spine, with
-    ruffs at the cheeks, elbows and haunches, and a brush of a tail.
-    """
-    V = Vector
-    M = gg.mirror
-    groups = {"head": [], "chest": [], "spine": [], "pelvis": [],
-              "forearm_L": [], "forearm_R": [], "thigh_L": [], "thigh_R": []}
-    count = [0]
 
-    def lock(bone, base, direction, length, width):
-        count[0] += 1
-        groups[bone].append(tuft(f"Fur_{bone}_{count[0]}", base, direction, length, width))
-
+def coat_plan(L):
+    """Where the fur grows, how long, which way it lies, and what colour: the rules the cards
+    are scattered by. A mane over the neck, shoulders and back; a coat everywhere else; shorter
+    and paler down the chest; a brush of a tail; bare muzzle, palms and pads."""
     H = L["head"]
-    # Crown and nape: swept back from the brow.
-    for i in range(5):
-        t = i / 4
-        for dx in (-0.09, -0.03, 0.03, 0.09):
-            lock("head", H + V((dx, -0.02 + 0.20 * t, 0.12 - 0.05 * t)), (dx * 1.2, 0.75, 0.55 - 0.5 * t), 0.24 + 0.05 * t, 0.060)
-    # Cheek ruffs, flaring out and back.
+    M = gg.mirror
+    limbs = []
     for side in (-1, 1):
-        for j in range(4):
-            lock("head", H + V((side * 0.15, 0.0 + 0.03 * j, -0.06 - 0.035 * j)), (side * 0.85, 0.45, -0.35 - 0.1 * j), 0.20, 0.055)
+        for a, b, kind, reach in (("shoulder", "elbow", "upper", 0.20), ("elbow", "wrist", "fore", 0.15),
+                                  ("hip", "knee", "thigh", 0.22), ("knee", "ankle", "shin", 0.13), ("ankle", "foot", "foot", 0.10)):
+            limbs.append((M(L[a], side), M(L[b], side), kind, reach, side))
+    for i in range(3):
+        limbs.append((L[f"tail{i}"], L[f"tail{i + 1}"], "tail", 0.11, 0))
+    palms = [M(L["palm"], s) for s in (-1, 1)]
+    ribs = L["ribs"]
 
-    # The mane over the shoulders and down the spine, in rows across the back.
-    spine = [L["neck_b"], L["neck_a"], L["back"], L["ribs"] + V((0, 0.30, -0.02)), L["belly"] + V((0, 0.19, 0.0)), L["pelvis"] + V((0, 0.17, 0.02))]
-    for i in range(len(spine) - 1):
-        a, b = spine[i], spine[i + 1]
-        bone = "chest" if i < 3 else "spine" if i < 4 else "pelvis"
-        across = (0.30, 0.34, 0.30, 0.20, 0.15)[i]
-        for step in range(3):
-            at = a.lerp(b, step / 3)
-            for k in range(-2, 3):
-                dx = k / 2 * across
-                lift = 0.10 * (1 - abs(k) / 2.5) + 0.05
-                lock(bone, at + V((dx, 0.08 + 0.02 * abs(k), lift)), (dx * 0.5, 0.42, -0.80), 0.30 - 0.025 * i, 0.058)
+    def closest(p):
+        best = None
+        for a, b, kind, reach, side in limbs:
+            ab = b - a
+            t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
+            d = (p - (a + ab * t)).length
+            if d < reach and (best is None or d / reach < best[0]):
+                best = (d / reach, kind, ab.normalized(), side)
+        return best
 
-    # Shoulders: a ruff standing off each one.
-    for side in (-1, 1):
-        sh = M(L["shoulder"], side)
-        for j in range(5):
-            a = j / 4 * math.pi
-            lock("chest", sh + V((side * 0.08 * math.sin(a), 0.13 * math.cos(a), 0.14)), (side * 0.55, 0.45 * math.cos(a) + 0.2, -0.55), 0.24, 0.058)
+    def plan(p, n):
+        q = p - H
+        if p.z < 0.17 or min((p - c).length for c in palms) < 0.12:
+            return None                                                   # pads and palms
+        if q.length < 0.36 and q.y < -0.09:                               # the face and muzzle
+            if q.y < -0.40 or (q.z < -0.06 and abs(q.x) < 0.11):
+                return None                                               # nose, lips and the mouth
+            # Short and lying flat, swept back off the nose: a face with fur on it, not bald.
+            return {"density": 9.0, "length": 0.075, "flow": (q.x * 2.0, 1.0, 0.25), "palette": "coat", "lift": 8, "shape": 0, "width": 0.35}
+        if q.length < 0.30:                                               # skull and cheek ruffs
+            if abs(q.x) > 0.10 and q.z < 0.03:
+                side = 1 if q.x > 0 else -1
+                return {"density": 4.0, "length": 0.17, "flow": (side * 0.7, 0.7, -0.3), "palette": "coat", "lift": 35}
+            return {"density": 3.0, "length": 0.11, "flow": (0, 1, 0.15), "palette": "coat", "lift": 18}
+        if q.length < 0.52 and q.z < -0.08 and q.y > -0.10 and n.y < 0.25 and n.z < 0.3:  # throat: a pale bib
+            return {"density": 3.0, "length": 0.11, "flow": (0, 0.15, -1), "palette": "pale", "lift": 15}
+        limb = closest(p)
+        if limb is not None:
+            _d, kind, axis, side = limb
+            if kind == "foot":
+                return None
+            outer = max(0.0, n.x * side) + max(0.0, n.y)                  # the outside and back of it
+            length = {"upper": 0.16, "fore": 0.13, "thigh": 0.19, "shin": 0.12, "foot": 0.06, "tail": 0.20}[kind]
+            if kind == "tail":
+                outer = 0.0
+            density = {"upper": 2.0, "fore": 1.8, "thigh": 2.2, "shin": 1.4, "foot": 0.8, "tail": 6.0}[kind]
+            return {"density": density, "length": length * (1.0 + 0.6 * outer), "flow": tuple(axis + Vector((0, 0.2, -0.3))),
+                    "palette": "dark" if kind == "tail" else "coat", "lift": 12 if kind != "tail" else 30}
+        if n.y < -0.30:                                                   # chest and belly
+            return {"density": 1.6, "length": 0.08 if p.z < ribs.z else 0.11, "flow": (0, -0.15, -1), "palette": "pale", "lift": 10}
+        if p.z > ribs.z - 0.10:                                           # the mane, behind
+            return {"density": 3.6, "length": 0.30, "flow": (n.x * 0.4, 0.5, -1), "palette": "dark", "lift": 28}
+        return {"density": 2.2, "length": 0.17, "flow": (n.x * 0.3, 0.35, -1), "palette": "coat", "lift": 14}
 
-        # Elbows and the backs of the forearms.
-        el, wr = M(L["elbow"], side), M(L["wrist"], side)
-        bone = "forearm_L" if side < 0 else "forearm_R"
-        for j in range(5):
-            at = el.lerp(wr, j / 6) + V((side * 0.05, 0.085, 0.0))
-            lock(bone, at, (side * 0.35, 0.70, -0.45), 0.21 - 0.015 * j, 0.052)
-
-        # Haunches.
-        hp, kn = M(L["hip"], side), M(L["knee"], side)
-        bone = "thigh_L" if side < 0 else "thigh_R"
-        for j in range(5):
-            at = hp.lerp(kn, j / 5) + V((side * 0.10, 0.14, 0.0))
-            lock(bone, at, (side * 0.30, 0.65, -0.60), 0.23, 0.060)
-
-    # Tail: a brush hanging behind, in overlapping locks round a core.
-    root = L["pelvis"] + V((0, 0.19, -0.04))
-    down = V((0, 0.55, -0.83)).normalized()
-    for i in range(6):
-        at = root + down * (0.10 * i)
-        for a in range(5):
-            ang = a * 2 * math.pi / 5 + i * 0.6
-            out = V((math.cos(ang) * 0.06, math.sin(ang) * 0.03, 0))
-            lock("pelvis", at + out, down + out * 3.0, 0.30 - 0.02 * i, 0.058)
-
-    return groups
+    return plan
 
 
-def head_parts(L):
+def head_parts(L, body):
     """Teeth, eyes, nose, ears, tongue: whatever must be sharp, bright or wet."""
     V = Vector
     H = L["head"]
@@ -256,19 +370,73 @@ def head_parts(L):
         parts.append(gg.uv(f"Eye_{suffix}", tuple(H + V((side * 0.075, -0.150, 0.020))), (0.0165,) * 3, AMBER, 10, 6))
         parts.append(gg.uv(f"Pupil_{suffix}", tuple(H + V((side * 0.074, -0.164, 0.019))), (0.0055, 0.004, 0.010), gg.PUPIL, 8, 5))
 
-        # Canines: long ones down from the upper jaw, shorter ones up from the lower.
-        parts.append(gg.cone(f"Tusk_Upper_{suffix}", tuple(H + V((side * 0.042, -0.405, -0.125))), 0.016, 0.002, 0.085, FANG, (math.pi, 0, 0), 8))
-        parts.append(gg.cone(f"Tusk_Lower_{suffix}", tuple(H + V((side * 0.030, -0.355, -0.150))), 0.012, 0.002, 0.060, FANG, (math.radians(-12), 0, 0), 8))
-        for j in range(5):                                                       # the rest, along each side
-            y = -0.20 - 0.038 * j
-            parts.append(gg.cone(f"Tusk_U_{suffix}_{j}", tuple(H + V((side * (0.060 - 0.004 * j), y, -0.098 - 0.009 * j))), 0.010, 0.002, 0.034, FANG, (math.pi, 0, 0), 6))
-            parts.append(gg.cone(f"Tusk_D_{suffix}_{j}", tuple(H + V((side * (0.046 - 0.004 * j), y + 0.02, -0.128 - 0.011 * j))), 0.009, 0.002, 0.028, FANG, vertices=6))
-
-    parts.append(gg.uv("Tusk_Nose", tuple(H + V((0, -0.468, -0.062))), (0.030, 0.020, 0.022), NOSE, 10, 6))
-    tongue = gg.uv("Tusk_Tongue", tuple(H + V((0, -0.27, -0.132))), (0.038, 0.120, 0.016), MAW, 10, 6)
-    tongue.rotation_euler = (math.radians(-15), 0, 0)
+    parts += teeth(L, body)
+    parts.append(gg.uv("Tusk_Nose", tuple(H + V((0, -0.462, -0.058))), (0.040, 0.030, 0.030), NOSE, 12, 8))
+    tongue = gg.uv("Tusk_Tongue", tuple(H + V((0, -0.27, -0.140))), (0.036, 0.110, 0.012), MAW, 10, 6)
+    tongue.rotation_euler = (math.radians(-12), 0, 0)
     parts.append(tongue)
     return parts
+
+
+def crossings(body, x, y, top, bottom):
+    """Every point where a vertical line through (x, y) crosses the hide, top down."""
+    out = []
+    origin = Vector((x, y, top))
+    down = Vector((0, 0, -1))
+    while origin.z > bottom:
+        hit, loc, _n, _i = body.ray_cast(origin, down, distance=origin.z - bottom)
+        if not hit:
+            break
+        out.append(loc)
+        origin = loc + down * 1e-4
+    return out
+
+
+def teeth(L, body):
+    """A wolf's teeth, set on its gums: found by dropping a line through the open jaws.
+
+    Top down, a line through the muzzle crosses the hide four times — into the upper jaw, out
+    of its gum, into the lower gum, out under the chin — so the second and third crossings are
+    where the upper and lower teeth grow from. Wherever the jaws have closed there are only two
+    and that tooth is left out, so nothing is ever stuck on the outside of the face.
+    """
+    H = L["head"]
+    parts = []
+    # (y, x, upper length, upper width, lower length, lower width, how pointed)
+    stations = [
+        (-0.425, 0.010, 0.036, 0.010, 0.030, 0.009, 0.45),       # incisors
+        (-0.418, 0.024, 0.040, 0.010, 0.032, 0.009, 0.45),
+        (-0.392, 0.036, 0.100, 0.016, 0.065, 0.013, 0.10),       # the fangs
+        (-0.350, 0.042, 0.040, 0.011, 0.036, 0.010, 0.20),
+        (-0.312, 0.046, 0.046, 0.012, 0.040, 0.011, 0.20),
+        (-0.272, 0.049, 0.050, 0.013, 0.036, 0.011, 0.25),       # the carnassial
+        (-0.232, 0.051, 0.032, 0.012, 0.030, 0.010, 0.35),
+    ]
+    for side in (-1, 1):
+        suffix = "L" if side < 0 else "R"
+        for k, (y, x, ul, uw, ll, lw, point) in enumerate(stations):
+            upper = lower = None
+            for shrink in (1.0, 0.8, 0.6, 0.4):
+                c = crossings(body, H.x + side * x * shrink, H.y + y, H.z + 0.40, H.z - 0.45)
+                # The second crossing is the upper gum if it is still up in the muzzle and not
+                # the underside of a closed jaw; the third, if there is one, is the lower gum.
+                if upper is None and len(c) >= 2 and c[1].z > H.z - 0.15:
+                    upper = c[1]
+                if lower is None and len(c) >= 4 and c[1].z - c[2].z > 0.008:
+                    lower = c[2]
+                if upper is not None and lower is not None:
+                    break
+            if upper is not None:
+                parts.append(gg_tooth(f"Tusk_U_{suffix}_{k}", upper + Vector((0, 0, 0.010)), (side * -0.10, 0.10, -1.0), ul, uw, FANG, point))
+            if lower is not None:
+                parts.append(gg_tooth(f"Tusk_D_{suffix}_{k}", lower - Vector((0, 0, 0.010)), (side * -0.10, -0.12, 1.0), ll, lw, FANG, point))
+            if upper is not None and lower is not None:
+                L.setdefault("gums", []).append((upper.copy(), lower.copy()))
+    return parts
+
+
+def gg_tooth(name, root, direction, length, width, material, point):
+    return gg.tooth(name, root, direction, length, width, material, point=point, curl=0.12)
 
 
 def talons(L):
@@ -323,10 +491,24 @@ def paint(body, ears, L):
     scene.cycles.samples = 48
     scene.render.bake.target = "VERTEX_COLORS"
 
-    coat = Vector((0.175, 0.132, 0.105))
-    dark = Vector((0.075, 0.058, 0.048))
-    chest = Vector((0.520, 0.335, 0.225))
+    # Dark: this is the undercoat seen between the cards, not the coat itself.
+    coat = Vector((0.085, 0.063, 0.047))
+    dark = Vector((0.040, 0.031, 0.025))
+    chest = Vector((0.260, 0.180, 0.125))
     pink = Vector((0.300, 0.150, 0.130))
+    lips = Vector((0.035, 0.022, 0.020))
+    maw = Vector((0.24, 0.06, 0.06))
+    gums = L.get("gums", [])
+
+    def mouth(v):
+        """1 inside the mouth, 0 outside it, by the gums the teeth found."""
+        near = [g for g in gums if abs(g[0].y - v.y) < 0.05]
+        if not near:
+            return 0.0
+        up, lo = min(near, key=lambda g: abs(g[0].y - v.y))
+        if abs(v.x) > abs(up.x) + 0.045:
+            return 0.0
+        return 1.0 if lo.z - 0.015 < v.z < up.z + 0.015 else 0.0
     middle = L["ribs"].lerp(L["belly"], 0.5)
     muzzle = L["head"] + Vector((0, -0.40, -0.08))
 
@@ -360,7 +542,7 @@ def paint(body, ears, L):
                 ao = attr.data[li].color[0] if baked else 1.0
 
                 if inner is not None:
-                    tone = pink if li in inner else dark
+                    tone = pink.lerp(dark, 0.35) if li in inner else dark
                 else:
                     tone = coat.copy()
                     front = max(0.0, min(1.0, (middle.y - v.y) * 4.0)) * max(0.0, 1 - abs(v.z - middle.z) * 1.7) * max(0.0, 1 - abs(v.x) * 2.2)
@@ -370,6 +552,10 @@ def paint(body, ears, L):
                     tone = tone.lerp(dark, max(0.0, 1 - v.z / 0.5) * 0.55)                # and the shins
                     tone = tone.lerp(dark, max(0.0, 1 - (v - muzzle).length / 0.13) * 0.6)
                     tone = tone.lerp(dark, max(0.0, mottle(v)) * 0.35)
+                    inside = mouth(v)
+                    if inside:
+                        # Black at the lips, red where the inside shows.
+                        tone = maw if abs(v.x) < 0.035 or (v - L["head"]).y > -0.30 else lips
 
                 shade = 0.10 + 0.90 * (ao ** 2.2)
                 attr.data[li].color = (tone.x * shade, tone.y * shade, tone.z * shade, 1.0)
@@ -483,8 +669,7 @@ def build(output):
 
     L = frame()
     body = grow_body(L)
-    face = head_parts(L)
-    fur = pelt(L)
+    face = head_parts(L, body)
     claws = talons(L)
     ears = [o for o in face if o.name.startswith("Ear_")]
 
@@ -492,14 +677,31 @@ def build(output):
     arm = gg.create_armature(L)
 
     gg.auto_skin(body, arm)
-    gg.rigid_skin(join([o for o in face if o not in ears], "Face"), arm, "head")
+    gg.fill_unweighted(body, arm)
+    face_mesh = join([o for o in face if o not in ears], "Face")
+    gg.rigid_skin(face_mesh, arm, "head")
     for ear in ears:
         gg.rigid_skin(ear, arm, "head")
-    for bone, locks in fur.items():
-        if locks:
-            gg.rigid_skin(join(locks, f"Fur_{bone}"), arm, bone)
+    coat = cards.grow(body, "Fur_Coat", cards.atlas("Wolf", PALETTES), coat_plan(L), 5200, seed=9, segments=3)
+    cards.skin_like(coat, body, arm)
+
+    # Fur on the backs of the ears, and a tuft at the root: an ear that is bare outside is a horn.
+    def ear_plan(p, n):
+        return {"density": 1.0, "length": 0.07, "flow": (0, 0.2, 1.0), "palette": "dark", "lift": 10, "shape": 0} if n.y > -0.1 else None
+
+    for ear in ears:
+        tufts = cards.grow(ear, f"Fur_{ear.name}", cards.atlas(f"WolfEar_{ear.name}", {"dark": PALETTES["dark"]}, size=256),
+                           ear_plan, 90, seed=13, segments=2)
+        cards.ROOTS.pop(tufts.name, None)
+        gg.rigid_skin(tufts, arm, "head")
+    talon_meshes = []
     for bone, set_ in claws.items():
-        gg.rigid_skin(join(set_, f"Talons_{bone}"), arm, bone)
+        talon_meshes.append(join(set_, f"Talons_{bone}"))
+        gg.rigid_skin(talon_meshes[-1], arm, bone)
+
+    # The hide is painted, so its recipe reads the vertex colours; but it is fur, not skin.
+    surface.RECIPES["Goblin_Hide"] = lambda c, m, r: surface.fur(None)
+    surface.finish([("hide", [body] + ears, 1024, False), ("kit", [face_mesh] + talon_meshes, 1024, True)])
 
     animate(arm)
 
