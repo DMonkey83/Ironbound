@@ -71,9 +71,12 @@ public sealed record SpellCast(
     {
         var name = Spell.Empowered ? $"empowered {Spell.Name}" : Spell.Name;
         var header = $"{Caster.Name} {Verb} {name} at {Aim}";
+
+        // A difficulty class is only worth printing for something that can be saved against;
+        // on a magic missile or a touch of battle rage it read as a number nobody rolls against.
         return Targets.Count == 0
             ? $"{header} — nothing in range"
-            : $"{header} (DC {DifficultyClass})";
+            : Spell.Save is null ? header : $"{header} (DC {DifficultyClass})";
     }
 }
 

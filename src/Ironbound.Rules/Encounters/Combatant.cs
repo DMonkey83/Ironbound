@@ -95,6 +95,17 @@ public sealed class Combatant
 
     public bool HasMoved { get; internal set; }
 
+    /// <summary>
+    /// Whoever has already had their swing at this creature for walking out of their reach
+    /// this turn. Leaving three squares a werewolf threatens is one opportunity, not three,
+    /// whatever Combat Reflexes says about how many it may take.
+    /// </summary>
+    /// <remarks>
+    /// Not saved. Reloading in the middle of a turn and walking out of the same reach a second
+    /// time would give that one enemy a second swing; that is the whole cost.
+    /// </remarks>
+    internal HashSet<Creature> WalkedAwayFrom { get; } = [];
+
     /// <summary>Set by a five-foot step. Bars ordinary movement for the rest of the turn.</summary>
     public bool HasTakenFiveFootStep { get; internal set; }
 
@@ -116,6 +127,7 @@ public sealed class Combatant
         HasUsedOpportunist = false;
         HasMoved = false;
         HasTakenFiveFootStep = false;
+        WalkedAwayFrom.Clear();
     }
 
     public override string ToString() => $"{Creature.Name} (initiative {Initiative})";

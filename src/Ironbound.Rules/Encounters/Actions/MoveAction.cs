@@ -118,7 +118,7 @@ public class MoveAction : GameAction
         {
             if (ProvokesLeaving(i - 1))
             {
-                opportunities.AddRange(Opportunities.Provoke(context.Encounter, actor, Path[i - 1]));
+                opportunities.AddRange(Opportunities.Provoke(context.Encounter, actor, Path[i - 1], walking: true));
 
                 // Cut down before getting out of the square. It goes no further.
                 if (!actor.IsConscious)

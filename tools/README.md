@@ -220,10 +220,27 @@ block bottom-left; the campaign and the turn order top-right.
 | --- | --- |
 | 1 – 7 | Move, Attack, Full attack, Trip, Shove, Help, Cast |
 | Z / X / C | Power Attack, Combat Expertise, Fight defensively |
+| R | Rage, or let it go (barbarians only; greyed while fatigued or out of rounds) |
+| V / B / N | Rage powers declared before a blow: powerful blow, surprise accuracy, strength surge |
 | G / Space | Stand up, End turn |
 | L / I | Log, character sheet (or double-click a portrait) |
 | Ctrl+A | Between fights: pick the whole party |
 | F5 / F9 | Save, Load |
+
+**Class features.** The Cast list (7) holds more than prepared spells:
+
+- each spell with its slots left, plus a domain or school slot it may use instead
+  ("2 + 1 school");
+- the same spells again, marked *empowered*, for a caster with Empower Spell and a slot two
+  levels up;
+- a good cleric's cures, cast in place of a prepared spell of that level or higher;
+- class powers with their uses left today (channel energy, Battle Rage, Rebuke Death, Force
+  Missile, Acid Dart, bonded spells).
+
+Channel energy is aimed by clicking the cleric herself. Taking a level asks for whatever the
+class table asks for at that level (a fighter's bonus feat, a weapon group, a rogue talent or
+rage power) and lists the features that come with it. The character sheet has a *Class
+features* section with what each one is worth right now.
 
 Portraits are not art: each is a small viewport with its own copy of the creature's model and a
 camera on its face, so anything with a model has a portrait. Icons are drawn in code
@@ -256,7 +273,10 @@ godot --path src/Ironbound.Game --write-movie /tmp/frames/f.png --fixed-fps 30 -
 
 Add `-- --autoplay` and the party is driven by the same heuristic as the enemy, so a whole fight
 plays out — or is recorded, with `--write-movie fight.avi` — without a click. That is how the
-animation layer was checked: a recording, and frames pulled out of it with ffmpeg.
+animation layer was checked: a recording, and frames pulled out of it with ffmpeg. An autoplayed
+run also prints the whole log to the console, so what the frames cannot show (who raged, which
+blow carried sneak attack, who failed the jump) can be read off afterwards; that is how the class
+features were checked in play.
 
 Renders frames to disk at the project's own 1920x1080 — **if** the window really is that shape.
 A tiling window manager will not leave it so: Hyprland tiled the game to 950x1049 and the
@@ -269,7 +289,9 @@ env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 1920x1080x24" \
     godot --display-driver x11 --rendering-driver opengl3 --path src/Ironbound.Game --resolution 1920x1080
 ```
 
-and take frames with `import -window root shot.png` from inside the same `xvfb-run`. Any window
+and take frames with `import -window root shot.png` from inside the same `xvfb-run`. Run one at
+a time: two `xvfb-run -a` started together can land on the same display, and both sets of frames
+then show whichever game drew last. Any window
 shape can be tested this way; that is how the half-width fit was checked. This is what
 caught the goblins importing with white skin: Blender cannot show you what Godot does with a
 material, and a tiled half-width window clips the far side of the board.

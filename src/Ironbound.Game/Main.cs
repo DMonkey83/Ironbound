@@ -216,7 +216,7 @@ public partial class Main : Node3D
 	{
 		foreach (var line in _battle.Log)
 		{
-			_log.AddText($"{line}\n");
+			LogText($"{line}\n");
 		}
 	}
 
@@ -419,7 +419,7 @@ public partial class Main : Node3D
 			return;
 		}
 
-		_log.AddText($"— {bearer.Name} takes the {item.Name} —\n");
+		LogText($"— {bearer.Name} takes the {item.Name} —\n");
 
 		// In her hand now, not at the start of the next chapter.
 		Rearm(bearer);
@@ -452,7 +452,7 @@ public partial class Main : Node3D
 		Begin(_campaign.Battle);
 		RebuildWorld();
 
-		_log.AddText($"\n— chapter {_campaign.Chapter}: {CurrentChapterName()} —\n");
+		LogText($"\n— chapter {_campaign.Chapter}: {CurrentChapterName()} —\n");
 		ReportOpening();
 		ReportInitiative();
 		StartNextTurn();
@@ -465,7 +465,7 @@ public partial class Main : Node3D
 			return;
 		}
 
-		_log.AddText("— the party rests: wounds closed, spells prepared again —\n");
+		LogText("— the party rests: wounds closed, spells prepared again —\n");
 		Prompt(Verdict());
 		RefreshFigures();
 		RefreshControls();
@@ -549,7 +549,7 @@ public partial class Main : Node3D
 		}
 
 		var now = actor.Stances.IsActive(stance) ? "takes up" : "drops";
-		_log.AddText($"— {actor.Name} {now} {Stances.Name(stance)} —\n");
+		LogText($"— {actor.Name} {now} {Stances.Name(stance)} —\n");
 
 		RefreshControls();
 		UpdateStatus();
@@ -750,7 +750,7 @@ public partial class Main : Node3D
 	private void Refuse(string why)
 	{
 		Prompt(why);
-		_log.AddText($"— {why} —\n");
+		LogText($"— {why} —\n");
 	}
 
 	/// <summary>
@@ -1090,7 +1090,7 @@ public partial class Main : Node3D
 		var json = _campaign.ToJson();
 		Write(json);
 
-		_log.AddText($"— saved {json.Length} characters —\n");
+		LogText($"— saved {json.Length} characters —\n");
 		_load.Disabled = false;
 	}
 
@@ -1112,7 +1112,7 @@ public partial class Main : Node3D
 			// Refusing it loudly is deliberate; taking the running fight down with it is not, so
 			// the current battle is left exactly as it was.
 			GD.PushError($"Could not load {SavePath}: {problem.Message}");
-			_log.AddText($"— could not load: {problem.Message} —\n");
+			LogText($"— could not load: {problem.Message} —\n");
 			return;
 		}
 
@@ -1130,7 +1130,7 @@ public partial class Main : Node3D
 		RebuildWorld();
 
 		_log.Clear();
-		_log.AddText("— loaded —\n");
+		LogText("— loaded —\n");
 		if (!Exploring)
 		{
 			ReportInitiative();
@@ -2098,6 +2098,15 @@ public partial class Main : Node3D
 			text.Append(taken.GoodSaves.Count > 0
 				? $", good {string.Join(" and ", taken.GoodSaves)}\n"
 				: "\n");
+
+			// What the class table hands out at the level being taken, so "is the next rogue
+			// level worth it?" can be answered before the button rather than after.
+			var reached = ClassFeatures.ClassLevel(creature, taken.Id) + 1;
+			var gains = taken.FeaturesGainedAt(reached).Select(row => FeatureIds.Title(row.Id)).Distinct().ToList();
+			if (gains.Count > 0)
+			{
+				text.Append($"Gains at {taken.Name.ToLowerInvariant()} {reached}: {string.Join(", ", gains)}\n");
+			}
 		}
 
 		text.Append(earnsFeat
@@ -2233,7 +2242,7 @@ public partial class Main : Node3D
 			learned.Add(talentName);
 		}
 
-		_log.AddText($"— {creature.Name} is now {creature.Description}"
+		LogText($"— {creature.Name} is now {creature.Description}"
 			+ (learned.Count == 0 ? string.Empty : $", and learns {string.Join(", ", learned)}") + " —\n");
 
 		_levelPanel.Visible = false;
@@ -2313,7 +2322,9 @@ public partial class Main : Node3D
 			}
 		}
 
-		foreach (var spell in book.Spontaneous.Where(spell => !book.Knows(spell)))
+		// Only the cures she has a slot of their level or higher to trade for: a 1st-level cleric
+		// is not offered cure critical wounds.
+		foreach (var spell in book.Spontaneous.Where(spell => !book.Knows(spell) && book.SlotLevels.Any(slot => slot >= spell.Level && book.SlotsMaximum(slot) > 0)))
 		{
 			yield return spell;
 		}
@@ -2381,27 +2392,25 @@ public partial class Main : Node3D
 	{
 		if (header is not null)
 		{
-			_log.AddText($"{header}\n");
+			LogText($"{header}\n");
 		}
 
 		foreach (var line in lines)
 		{
-			_log.AddText($"      {line}\n");
+			LogText($"      {line}\n");
 		}
+	}
+
+	/// <summary>Adds to the log panel.</summary>
+	private void LogText(string text)
+	{
+		_log.AddText(text);
 
 		// An autoplayed run is usually being recorded to check something, and a frame every few
 		// seconds shows the board but not the dice; the console gets the whole log.
 		if (_autoplay)
 		{
-			if (header is not null)
-			{
-				GD.Print(header);
-			}
-
-			foreach (var line in lines)
-			{
-				GD.Print($"      {line}");
-			}
+			GD.PrintRaw(text);
 		}
 	}
 
@@ -2421,13 +2430,13 @@ public partial class Main : Node3D
 
 	private void ReportInitiative()
 	{
-		_log.AddText("Initiative\n");
+		LogText("Initiative\n");
 		foreach (var combatant in _battle.Encounter.Order)
 		{
-			_log.AddText($"      {combatant.Initiative,3}  {combatant.Creature.Name}\n");
+			LogText($"      {combatant.Initiative,3}  {combatant.Creature.Name}\n");
 		}
 
-		_log.AddText("\n");
+		LogText("\n");
 	}
 
 	private void RefreshControls()
@@ -2522,7 +2531,7 @@ public partial class Main : Node3D
 		if (left.Count == 0)
 		{
 			Prompt($"{turn.Actor.Name} has nothing left — end the turn.");
-			_log.AddText("— nothing left to spend; end the turn —\n");
+			LogText("— nothing left to spend; end the turn —\n");
 			return;
 		}
 

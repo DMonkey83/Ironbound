@@ -536,7 +536,7 @@ public partial class Main
 		}
 
 		Begin(_campaign.Battle);
-		_log.AddText($"\n— {area.Name} —\n");
+		LogText($"\n— {area.Name} —\n");
 		ReportOpening();
 		RebuildFrames();
 		RefreshFigures();
@@ -618,7 +618,7 @@ public partial class Main
 		var result = _campaign.Use(feature.Id, who);
 		foreach (var line in result.Lines)
 		{
-			_log.AddText($"{line}\n");
+			LogText($"{line}\n");
 		}
 
 		if (result.Lines.Count > 0)

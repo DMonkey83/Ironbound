@@ -28,10 +28,14 @@ public static class Opportunities
     /// Resolves every opportunity provoked by <paramref name="mover"/> leaving
     /// <paramref name="leaving"/>. The mover is expected to still be standing there.
     /// </summary>
+    /// <param name="walking">True when it is the walk itself that provokes. Moving out of
+    /// several squares one enemy threatens is one opportunity for that enemy all turn, however
+    /// many attacks of opportunity it has to spend.</param>
     public static IReadOnlyList<StrikeResult> Provoke(
         Encounter encounter,
         Creature mover,
-        GridSquare leaving)
+        GridSquare leaving,
+        bool walking = false)
     {
         ArgumentNullException.ThrowIfNull(encounter);
         ArgumentNullException.ThrowIfNull(mover);
@@ -42,6 +46,9 @@ public static class Opportunities
         }
 
         var taken = new List<StrikeResult>();
+        var already = walking
+            ? encounter.Order.FirstOrDefault(entry => ReferenceEquals(entry.Creature, mover))?.WalkedAwayFrom
+            : null;
 
         // In initiative order, so a replay resolves them in the same sequence every time.
         foreach (var combatant in encounter.Order)
@@ -51,11 +58,13 @@ public static class Opportunities
             if (!threatener.IsEnemyOf(mover)
                 || !combatant.CanTakeOpportunity
                 || threatener.MeleeAttack is not { } weapon
-                || !field.Threatens(threatener, leaving))
+                || !field.Threatens(threatener, leaving)
+                || already?.Contains(threatener) == true)
             {
                 continue;
             }
 
+            already?.Add(threatener);
             combatant.OpportunitiesUsed++;
             taken.Add(Strike.Resolve(
                 threatener,

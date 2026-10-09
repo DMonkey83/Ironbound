@@ -275,16 +275,61 @@ public class OpportunityTests
     }
 
     [Fact]
-    public void CombatReflexesBuysMoreOfThem()
+    public void CombatReflexesDoesNotMakeOneWalkTwoOpportunities()
     {
         var (encounter, _, _, guard) = Watched(4, 1, 15, 3, 16, 2);
         guard.BaseAttacksOfOpportunity = 3;
         var turn = encounter.BeginNextTurn()!;
 
+        // The rulebook: moving out of more than one square the same opponent threatens is still
+        // one opportunity for that opponent. Combat Reflexes buys more opportunities, not more
+        // swings at each.
         var moved = Assert.IsType<MoveActionResult>(
             turn.Take(new MoveAction(Path((4, 1), (4, 2), (4, 3))))!);
 
-        Assert.Equal(2, moved.Opportunities.Count);
+        Assert.Single(moved.Opportunities);
+    }
+
+    [Fact]
+    public void CombatReflexesBuysMoreOfThem()
+    {
+        // Two people walking away from the same guard are two opportunities. With one attack of
+        // opportunity a round the second would go by untouched.
+        var field = new Battlefield(10, 5);
+        var first = Fighter("First", 1);
+        var second = Fighter("Second", 1);
+        var guard = Fighter("Guard", 2);
+        guard.BaseAttacksOfOpportunity = 3;
+        field.Place(first, 4, 2);
+        field.Place(second, 6, 2);
+        field.Place(guard, 5, 2);
+
+        var encounter = new Encounter(
+            [first, second, guard], new SequenceRandom(20, 19, 1, 15, 3, 15, 3), rules: null, battlefield: field);
+
+        var away = Assert.IsType<MoveActionResult>(
+            encounter.BeginNextTurn()!.Take(new MoveAction(Path((4, 2), (3, 2))))!);
+        var also = Assert.IsType<MoveActionResult>(
+            encounter.BeginNextTurn()!.Take(new MoveAction(Path((6, 2), (7, 2))))!);
+
+        Assert.Equal("Guard", Assert.Single(away.Opportunities).Attacker.Name);
+        Assert.Equal("Guard", Assert.Single(also.Opportunities).Attacker.Name);
+    }
+
+    [Fact]
+    public void AWalkAwayIsOneOpportunityForTheWholeTurn()
+    {
+        var (encounter, _, _, guard) = Watched(4, 2, 15, 3, 16, 2);
+        guard.BaseAttacksOfOpportunity = 3;
+        var turn = encounter.BeginNextTurn()!;
+
+        // Out of reach, back in, and out again on the second move action: the same round, the
+        // same guard, still the one opportunity.
+        var first = Assert.IsType<MoveActionResult>(turn.Take(new MoveAction(Path((4, 2), (3, 2))))!);
+        var second = Assert.IsType<MoveActionResult>(turn.Take(new MoveAction(Path((3, 2), (4, 3), (3, 4))))!);
+
+        Assert.Single(first.Opportunities);
+        Assert.Empty(second.Opportunities);
     }
 
     [Fact]

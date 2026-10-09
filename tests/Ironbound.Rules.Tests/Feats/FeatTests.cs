@@ -142,25 +142,31 @@ public class CombatReflexesTests
         guard.Feats.Add(TestContent.Library.GetFeat("combat-reflexes")!);
 
         var runner = FeatsFromFilesTests.Fighter("Runner");
+        var another = FeatsFromFilesTests.Fighter("Another");
 
-        // Beside the route rather than across it: you cannot walk through somebody.
+        // Beside the routes rather than across them: you cannot walk through somebody.
         field.Place(guard, 3, 1);
         field.Place(runner, 0, 0);
+        field.Place(another, 0, 2);
 
         var encounter = new Encounter(
-            [runner, guard],
-            new SequenceRandom(true, 20, 1, 5, 5, 5, 5, 5, 5),
+            [runner, another, guard],
+            new SequenceRandom(true, 20, 19, 1, 5, 5, 5, 5, 5, 5),
             rules: null,
             battlefield: field);
-        var turn = encounter.BeginNextTurn()!;
 
-        // Running the length of the guard's reach leaves three threatened squares behind, so
-        // three swings for anyone who can afford them and one for anyone who cannot.
-        var path = field.FindPath(new GridSquare(0, 0), new GridSquare(6, 0), runner);
-        var result = Assert.IsType<MoveActionResult>(turn.Take(new MoveAction(path)));
+        // Each runs the length of the guard's reach. Three threatened squares left behind is
+        // still one opportunity each — the rulebook is plain about that — but two runners are
+        // two, and only the feat pays for the second.
+        var first = encounter.BeginNextTurn()!;
+        var one = Assert.IsType<MoveActionResult>(first.Take(
+            new MoveAction(field.FindPath(new GridSquare(0, 0), new GridSquare(6, 0), runner))));
+        var second = encounter.BeginNextTurn()!;
+        var two = Assert.IsType<MoveActionResult>(second.Take(
+            new MoveAction(field.FindPath(new GridSquare(0, 2), new GridSquare(6, 2), another))));
 
-        Assert.True(result.Opportunities.Count > 1);
-        Assert.Equal(guard, result.Opportunities[0].Attacker);
+        Assert.Equal(guard, Assert.Single(one.Opportunities).Attacker);
+        Assert.Equal(guard, Assert.Single(two.Opportunities).Attacker);
     }
 }
 

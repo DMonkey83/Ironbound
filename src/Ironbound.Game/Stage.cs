@@ -176,7 +176,7 @@ public partial class Main
 
 	/// <summary>A line of the log, now — for the middle of a beat, where the queue cannot reach.</summary>
 	private void WriteLine(string line, bool indent) =>
-		_log.AddText(indent ? $"        {line}\n" : $"      {line}\n");
+		LogText(indent ? $"        {line}\n" : $"      {line}\n");
 
 	/// <summary>
 	/// Puts everybody where the rules now say they are, and in the posture they are now in.
@@ -463,6 +463,12 @@ public partial class Main
 	{
 		var caster = cast.Caster;
 		var results = cast.Targets.ToList();
+
+		// Worded now, shown when the spell lands. Each line ends with the target's hit points,
+		// read off the creature as it is turned into text; by the time the bolt arrives the
+		// rules are turns further on, and a mage armour cast at full health was being reported
+		// with the wound she took two rounds later.
+		var worded = results.Select(r => (Result: r, Line: r.ToString())).ToList();
 		var postures = results.ToDictionary(r => r.Target, r => PostureOf(r.Target));
 		var harmful = results.Any(r => r.Damage > 0 || r.Attack is not null);
 		var glow = harmful ? FireGlow : SpellGlow;
@@ -512,9 +518,9 @@ public partial class Main
 					Burst(burst, Mathf.Max(1.5f, reach + 0.6f), glow);
 				}
 
-				foreach (var result in results)
+				foreach (var (result, line) in worded)
 				{
-					WriteLine(result.ToString(), indent: true);
+					WriteLine(line, indent: true);
 
 					if (!_figures.TryGetValue(result.Target, out var figure))
 					{

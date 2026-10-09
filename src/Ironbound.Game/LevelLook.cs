@@ -549,7 +549,7 @@ public partial class Main
 		var awards = _campaign.TakeAwards();
 		foreach (var award in awards)
 		{
-			_log.AddText($"— {award.Why}: +{award.Amount} experience —\n");
+			LogText($"— {award.Why}: +{award.Amount} experience —\n");
 			Toast($"+{award.Amount} experience", award.Why);
 		}
 
