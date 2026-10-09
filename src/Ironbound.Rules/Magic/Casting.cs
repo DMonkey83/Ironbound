@@ -7,6 +7,7 @@ using Ironbound.Rules.Dice;
 using Ironbound.Rules.Effects;
 using Ironbound.Rules.Maps;
 using Ironbound.Rules.Saves;
+using Ironbound.Rules.Conditions;
 
 namespace Ironbound.Rules.Magic;
 
@@ -69,7 +70,7 @@ public sealed record SpellCast(
 
     public override string ToString()
     {
-        var name = Spell.Empowered ? $"empowered {Spell.Name}" : Spell.Name;
+        var name = $"{Spell.MetamagicWords}{Spell.Name}";
         var header = $"{Caster.Name} {Verb} {name} at {Aim}";
 
         // A difficulty class is only worth printing for something that can be saved against;
@@ -141,6 +142,24 @@ public static class Casting
     /// <summary>Half as much again, rounded down: Empower Spell, and Healer's Blessing on a cure.</summary>
     public static int Empowered(int rolled) => rolled + (rolled / 2);
 
+    /// <summary>
+    /// What a spell's dice come to with its metamagic: maximized, every die at its top; empowered,
+    /// half as much again; both, the maximum plus half of what was actually rolled, which is how
+    /// the book adds the two together. The dice are rolled either way, so the stream does not
+    /// care which feats were used.
+    /// </summary>
+    private static int Rolled(Spell spell, Dice.DiceExpression dice, IRandomSource random, bool empowered)
+    {
+        var rolled = dice.Roll(random).Total;
+
+        if (!spell.Metamagic.HasFlag(Metamagic.Maximize))
+        {
+            return empowered ? Empowered(rolled) : rolled;
+        }
+
+        return empowered ? dice.Maximum + (rolled / 2) : dice.Maximum;
+    }
+
     public static SpellCast Resolve(
         Creature caster,
         Spell spell,
@@ -165,7 +184,10 @@ public static class Casting
         // A ray rolls lazily instead, so a miss costs no damage dice at all.
         var shared = IsArea(spell) ? PreRoll(caster, spell, level, how, random) : null;
 
-        foreach (var target in Gather(caster, spell, aim, field).Except(how.Excluded))
+        // Anybody none of its effects is for — the living, to a channel that only burns the
+        // undead — is not touched by it at all, and is not in the log either.
+        foreach (var target in Gather(caster, spell, aim, field).Except(how.Excluded)
+            .Where(target => spell.Does.Count == 0 || spell.Does.Any(effect => effect.AppliesTo(target))))
         {
             results.Add(Affect(caster, spell, target, difficultyClass, level, how, shared, random, rules));
         }
@@ -176,8 +198,33 @@ public static class Casting
     private static bool IsArea(Spell spell) =>
         spell.Target is BurstTarget or SelfTarget { RadiusFeet: > 0 };
 
-    private static int[] PreRoll(Creature caster, Spell spell, int level, Invocation how, IRandomSource random) =>
-        [.. spell.Does.Select((effect, index) => Roll(caster, spell, effect, index, level, how, random))];
+    /// <remarks>
+    /// Effects meant for different creatures that roll the same dice share one roll: a channel
+    /// heals the living and burns the undead by the same number, as the book rolls it once.
+    /// </remarks>
+    private static int[] PreRoll(Creature caster, Spell spell, int level, Invocation how, IRandomSource random)
+    {
+        var rolls = new int[spell.Does.Count];
+
+        for (var i = 0; i < spell.Does.Count; i++)
+        {
+            var twin = spell.Does[i].Only is null ? -1 : Enumerable.Range(0, i).FirstOrDefault(
+                earlier => spell.Does[earlier].Only is not null && Dice(spell.Does[earlier]) is { } dice && dice == Dice(spell.Does[i]),
+                -1);
+
+            rolls[i] = twin >= 0 ? rolls[twin] : Roll(caster, spell, spell.Does[i], i, level, how, random);
+        }
+
+        return rolls;
+    }
+
+    private static SpellDice? Dice(SpellEffect effect) => effect switch
+    {
+        DealDamage hurt => hurt.Amount,
+        Restore mend => mend.Amount,
+        Bolster shore => shore.Amount,
+        _ => null,
+    };
 
     /// <summary>
     /// One effect's number, with everything that changes it: empowered, a blessed cure, and the
@@ -191,11 +238,7 @@ public static class Casting
         {
             case DealDamage hurt:
             {
-                var rolled = hurt.Amount.At(level).Roll(random).Total;
-                if (spell.Empowered)
-                {
-                    rolled = Empowered(rolled);
-                }
+                var rolled = Rolled(spell, hurt.Amount.At(level), random, spell.Empowered);
 
                 var first = spell.Does.Take(index).All(earlier => earlier is not DealDamage);
                 if (how.IsSpell && first && spell.School == SpellSchool.Evocation)
@@ -208,16 +251,12 @@ public static class Casting
 
             case Restore mend:
             {
-                var rolled = mend.Amount.At(level).Roll(random).Total;
                 var blessed = spell.Has("cure") && ClassPowers.HasDomainPower(caster, GrantedPowerEffect.HealersBlessing);
-                return spell.Empowered || blessed ? Empowered(rolled) : rolled;
+                return Rolled(spell, mend.Amount.At(level), random, spell.Empowered || blessed);
             }
 
             case Bolster shore:
-            {
-                var rolled = shore.Amount.At(level).Roll(random).Total;
-                return spell.Empowered ? Empowered(rolled) : rolled;
-            }
+                return Rolled(spell, shore.Amount.At(level), random, spell.Empowered);
 
             default:
                 return 0;
@@ -239,7 +278,7 @@ public static class Casting
             SelfTarget { RadiusFeet: > 0 } around => Around(caster, around.RadiusFeet, field),
             SelfTarget => [caster],
             PointTarget => [],
-            BurstTarget burst => InBurst(caster, aim, burst, field),
+            BurstTarget burst => InBurst(caster, aim, burst with { RadiusFeet = RadiusOf(spell, burst) }, field),
             _ => aim.Creature is { } one ? [one] : [],
         };
 
@@ -266,6 +305,14 @@ public static class Casting
 
         var centre = aim.Point ?? (aim.Creature is { } at ? field.SquareOf(at) : field.SquareOf(caster));
         return centre is { } middle ? field.CreaturesWithin(middle, burst.RadiusFeet) : [];
+    }
+
+    /// <summary>A burst's radius as cast: twice as far widened.</summary>
+    public static int RadiusOf(Spell spell, BurstTarget burst)
+    {
+        ArgumentNullException.ThrowIfNull(spell);
+        ArgumentNullException.ThrowIfNull(burst);
+        return spell.Metamagic.HasFlag(Metamagic.Widen) ? burst.RadiusFeet * 2 : burst.RadiusFeet;
     }
 
     private static bool Touches(Creature caster, SpellAffects affects, Creature target) => affects switch
@@ -304,11 +351,23 @@ public static class Casting
             }
         }
 
-        SavingThrowResult? save = null;
-        if (spell.Save is { } which)
+        // Spell resistance, against a spell and not a power, and only from a foe: a friend lets
+        // a cure through, as the book lets anybody lower it for a spell they want.
+        if (how.IsSpell && spell.AllowsResistance && target.SpellResistance > 0 && caster.IsEnemyOf(target)
+            && Resistance.Check(caster, target, level, random) is { Succeeded: false } resisted)
         {
-            save = target.Saves.Attempt(
-                which, difficultyClass, random, rules, ClassSaves.Against(target, spell, which));
+            return new SpellTargetResult(target, attack, null, 0, 0, [resisted.ToString()]);
+        }
+
+        SavingThrowResult? save = null;
+
+        // A save only against something worth saving against: a channel that heals this target
+        // and harms only others is accepted, not resisted.
+        if (spell.Save is { } which && spell.Does.Any(effect => effect.IsHarmful && effect.AppliesTo(target)))
+        {
+            save = SaveRerolls.Attempt(
+                target, which, difficultyClass, random, rules, ClassSaves.Against(target, spell, which),
+                serious: Serious(caster, spell, target, level, shared));
 
             if (save.Succeeded && spell.OnSave == SaveOutcome.Negates)
             {
@@ -322,6 +381,11 @@ public static class Casting
 
         for (var i = 0; i < spell.Does.Count; i++)
         {
+            if (!spell.Does[i].AppliesTo(target))
+            {
+                continue;
+            }
+
             switch (spell.Does[i])
             {
                 case DealDamage hurt:
@@ -338,8 +402,9 @@ public static class Casting
                         Bleeding.Healed(target);
                     }
 
-                    // Magical healing closes a bleeding wound as well as the hit points.
-                    if (restored > 0 && target.Effects.Remove(SneakAttack.BleedLabel) is not null)
+                    // Magical healing closes a bleeding wound as well as the hit points — any
+                    // of them: a rogue's, a critical's, a deadly stroke's.
+                    if (restored > 0 && Bleeds.Stop(target))
                     {
                         applied.Add("stops bleeding");
                     }
@@ -353,13 +418,52 @@ public static class Casting
                     break;
 
                 case Bestow bestow:
-                    target.Effects.Apply(bestow.Effect.Build(level));
+                    // Extend Spell: twice as long, for anything the spell hangs on somebody.
+                    target.Effects.Apply(bestow.Effect.Build(level, spell.Metamagic.HasFlag(Metamagic.Extend) ? 2 : 1));
                     applied.Add($"gains {bestow.Name}");
                     break;
             }
         }
 
         return new SpellTargetResult(target, attack, save, damage, healed, applied);
+    }
+
+    /// <summary>
+    /// Whether failing this save would put the target down or out of the fight — the failure
+    /// worth a once-a-day reroll. Damage that would take it to nought or below, or a condition
+    /// that takes its turns or its feet away.
+    /// </summary>
+    /// <remarks>
+    /// An area spell's damage is already rolled and is known; anything else is judged on its
+    /// average, since rolling it early would move the dice for everybody without the feat.
+    /// </remarks>
+    private static bool Serious(Creature caster, Spell spell, Creature target, int level, IReadOnlyList<int>? shared)
+    {
+        var damage = 0;
+
+        for (var i = 0; i < spell.Does.Count; i++)
+        {
+            var effect = spell.Does[i];
+            if (!effect.AppliesTo(target))
+            {
+                continue;
+            }
+
+            switch (effect)
+            {
+                case DealDamage hurt:
+                    damage += shared?[i] ?? (int)Math.Ceiling(hurt.Amount.At(level).Average);
+                    break;
+
+                case Bestow { Effect.Condition: { } condition }
+                    when ConditionInfo.Of(condition).DeniesActions
+                        || ConditionInfo.Of(condition).SingleAction
+                        || condition is Condition.Prone or Condition.Frightened or Condition.Blinded:
+                    return true;
+            }
+        }
+
+        return damage > 0 && damage >= target.HitPoints.Current;
     }
 
     /// <summary>

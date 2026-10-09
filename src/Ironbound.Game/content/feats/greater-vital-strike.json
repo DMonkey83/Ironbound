@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-vital-strike",
+  "name": "Greater Vital Strike",
+  "combat": true,
+  "description": "A vital strike rolls the weapon's damage dice four times.",
+  "effect": "GreaterVitalStrike",
+  "requires": {"feats": ["improved-vital-strike", "vital-strike"], "baseAttack": 16}
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "nimble-moves",
+  "name": "Nimble Moves",
+  "description": "Cross five feet of difficult ground a round as though it were clear, and take a five-foot step into it.",
+  "effect": "NimbleMoves",
+  "requires": {"dex": 13}
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "arcane-armor-mastery",
+  "name": "Arcane Armor Mastery",
+  "combat": true,
+  "description": "Less arcane spell failure in armour still, for a swift action.",
+  "unavailable": "needs arcane spell failure from armour, which is not in the game",
+  "requires": {"feats": ["arcane-armor-training"], "armour": ["medium"], "casterLevel": 7}
+}

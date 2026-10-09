@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "craft-magic-arms-and-armor",
+  "name": "Craft Magic Arms and Armor",
+  "itemCreation": true,
+  "description": "Make magic weapons, armour and shields.",
+  "unavailable": "needs item crafting, which is not in the game",
+  "requires": {"casterLevel": 5}
+}

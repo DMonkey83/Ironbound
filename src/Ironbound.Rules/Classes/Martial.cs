@@ -45,6 +45,9 @@ public static class Martial
     /// <summary>Shield Focus's one point.</summary>
     public const int ShieldFocusBonus = 1;
 
+    /// <summary>Mobility's dodge bonus against attacks of opportunity drawn by moving.</summary>
+    public const int MobilityBonus = 4;
+
     /// <summary>What a blocking weapon adds while its wielder fights defensively.</summary>
     public const int BlockingBonus = 1;
 
@@ -134,6 +137,12 @@ public static class Martial
             stack.Add(FocusBonus, BonusType.Untyped, "Weapon Focus");
         }
 
+        // Greater Weapon Focus is taken for the weapon Weapon Focus was, and adds to it.
+        if (HasFeatFor(creature, FeatEffect.GreaterWeaponFocus, weapon))
+        {
+            stack.Add(FocusBonus, BonusType.Untyped, "Greater Weapon Focus");
+        }
+
         if (IsPointBlank(creature, weapon, feet))
         {
             stack.Add(PointBlankBonus, BonusType.Untyped, "Point-Blank Shot");
@@ -142,7 +151,13 @@ public static class Martial
         return stack;
     }
 
-    /// <summary>The same for damage: weapon training and Point-Blank Shot.</summary>
+    /// <summary>Weapon Specialization's two, and Greater Weapon Specialization's two more.</summary>
+    public const int SpecializationBonus = 2;
+
+    /// <summary>
+    /// The same for damage: weapon training, Weapon Specialization in this weapon, Point-Blank
+    /// Shot, and an Arcane Strike still running.
+    /// </summary>
     public static ModifierStack DamageBonus(Creature creature, WeaponAttack weapon, int? feet)
     {
         var stack = new ModifierStack();
@@ -152,13 +167,64 @@ public static class Martial
             stack.Add(trained, BonusType.Untyped, "Weapon training");
         }
 
+        if (HasFeatFor(creature, FeatEffect.WeaponSpecialization, weapon))
+        {
+            stack.Add(SpecializationBonus, BonusType.Untyped, "Weapon Specialization");
+        }
+
+        if (HasFeatFor(creature, FeatEffect.GreaterWeaponSpecialization, weapon))
+        {
+            stack.Add(SpecializationBonus, BonusType.Untyped, "Greater Weapon Specialization");
+        }
+
         if (IsPointBlank(creature, weapon, feet))
         {
             stack.Add(PointBlankBonus, BonusType.Untyped, "Point-Blank Shot");
         }
 
+        if (Encounters.Actions.ArcaneStrikeAction.BonusOf(creature) is > 0 and var arcane)
+        {
+            stack.Add(arcane, BonusType.Untyped, Encounters.Actions.ArcaneStrikeAction.EffectName);
+        }
+
         return stack;
     }
+
+    /// <summary>What Critical Focus adds to the roll that confirms a critical.</summary>
+    public const int CriticalFocusBonus = 4;
+
+    /// <summary>What is added to a confirmation roll alone: Critical Focus, with any weapon.</summary>
+    public static int ConfirmationBonus(Creature creature) =>
+        creature.HasFeat(FeatEffect.CriticalFocus) ? CriticalFocusBonus : 0;
+
+    /// <summary>
+    /// The damage reduction a blow with this weapon ignores: five with Penetrating Strike and
+    /// ten with the greater feat, either only with a weapon its wielder has Weapon Focus in.
+    /// </summary>
+    public static int Penetration(Creature creature, WeaponAttack weapon)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        ArgumentNullException.ThrowIfNull(weapon);
+
+        if (!HasFeatFor(creature, FeatEffect.WeaponFocus, weapon))
+        {
+            return 0;
+        }
+
+        return creature.HasFeat(FeatEffect.GreaterPenetratingStrike) ? 10
+            : creature.HasFeat(FeatEffect.PenetratingStrike) ? 5
+            : 0;
+    }
+
+    /// <summary>
+    /// How many sets of the weapon's dice a vital strike adds: one for the feat, two with the
+    /// improved one, three with the greater — twice, three and four times the dice in all.
+    /// </summary>
+    public static int VitalStrikeSets(Creature creature) =>
+        creature.HasFeat(FeatEffect.GreaterVitalStrike) ? 3
+            : creature.HasFeat(FeatEffect.ImprovedVitalStrike) ? 2
+            : creature.HasFeat(FeatEffect.VitalStrike) ? 1
+            : 0;
 
     private static bool IsPointBlank(Creature creature, WeaponAttack weapon, int? feet) =>
         weapon.IsRanged && feet is <= PointBlankFeet && creature.HasFeat(FeatEffect.PointBlankShot);
@@ -236,6 +302,18 @@ public static class Martial
         if (!touch && creature.Equipment.ShieldInUse && creature.HasFeat(FeatEffect.ShieldFocus))
         {
             yield return new Modifier(ShieldFocusBonus, BonusType.Shield, "Shield Focus");
+
+            if (creature.HasFeat(FeatEffect.GreaterShieldFocus))
+            {
+                yield return new Modifier(ShieldFocusBonus, BonusType.Shield, "Greater Shield Focus");
+            }
+        }
+
+        // Mobility: four of dodge against the swing that walking past somebody draws — lost,
+        // as dodge is, with Dexterity.
+        if ((options & DefenseOptions.Moving) != 0 && !denied && creature.HasFeat(FeatEffect.Mobility))
+        {
+            yield return new Modifier(MobilityBonus, BonusType.Dodge, "Mobility");
         }
 
         // A blocking weapon earns its name only while its wielder fights defensively with it:

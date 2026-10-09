@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "stunning-fist",
+  "name": "Stunning Fist",
+  "combat": true,
+  "description": "An unarmed blow that can stun for a round.",
+  "unavailable": "needs unarmed strikes, which are not in the game yet",
+  "requires": {"dex": 13, "wis": 13, "feats": ["improved-unarmed-strike"], "baseAttack": 8}
+}

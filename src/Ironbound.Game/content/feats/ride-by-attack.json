@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "ride-by-attack",
+  "name": "Ride-By Attack",
+  "combat": true,
+  "description": "Charge on horseback and keep riding past.",
+  "unavailable": "needs mounts and mounted combat, which are not in the game",
+  "requires": {"feats": ["mounted-combat"], "ranks": {"Ride": 1}}
+}

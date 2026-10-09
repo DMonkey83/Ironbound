@@ -62,6 +62,9 @@ public sealed class FullAttackAction : GameAction
 
         if (actor.IsConscious)
         {
+            // Manyshot: the first arrow of a full attack with a bow is two.
+            var arrows = IsManyshot(actor, weapon) ? 2 : 1;
+
             foreach (var penalty in Penalties(actor, weapon))
             {
                 var strike = Strike.Resolve(
@@ -73,8 +76,11 @@ public sealed class FullAttackAction : GameAction
                     context.Rules,
                     context.Encounter.Battlefield,
                     penalty,
-                    context.Encounter.IsFlatFootedTo(Target, actor));
+                    context.Encounter.IsFlatFootedTo(Target, actor),
+                    arrows: arrows);
 
+                arrows = 1;
+                context.Encounter.AfterStrike(strike);
                 strikes.Add(strike);
 
                 if (strike.IsHit && !weapon.IsRanged)
@@ -94,6 +100,13 @@ public sealed class FullAttackAction : GameAction
 
         return new FullAttackResult(this, actor, weapon, strikes, opportunities) { FollowUps = followUps };
     }
+
+    /// <summary>Whether this full attack opens with two arrows: Manyshot, and a bow to shoot them from.</summary>
+    public static bool IsManyshot(Creature actor, WeaponAttack weapon) =>
+        weapon.IsRanged
+        && !weapon.IsThrownUse
+        && weapon.Groups.Contains("bows")
+        && actor.HasFeat(Feats.FeatEffect.Manyshot);
 
     /// <summary>Rapid Shot's penalty on every shot of a full attack, and the extra one it buys.</summary>
     public const int RapidShotPenalty = -2;
@@ -140,7 +153,7 @@ public sealed class FullAttackAction : GameAction
 
         if (!weapon.IsRanged)
         {
-            return field.IsWithinReach(context.Actor, Target, weapon);
+            return Movement.Reaches(context, context.Actor, Target, weapon);
         }
 
         return field.HasLineOfSight(context.Actor, Target)

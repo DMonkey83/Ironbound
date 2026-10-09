@@ -20,16 +20,27 @@ namespace Ironbound.Rules.Encounters.Actions;
 /// </remarks>
 public sealed class UsePowerAction : GameAction
 {
-    public UsePowerAction(Power power, SpellAim aim)
+    public UsePowerAction(Power power, SpellAim aim, bool defensively = false)
     {
         ArgumentNullException.ThrowIfNull(power);
         Power = power;
         Aim = aim;
+        Defensively = defensively;
     }
 
     public Power Power { get; }
 
     public SpellAim Aim { get; }
+
+    /// <summary>
+    /// Used without dropping one's guard, as a spell can be cast: a power that would draw a swing
+    /// — a spell-like one, a spell from the bonded object — draws none, for a concentration
+    /// check at fifteen plus twice its level. Means nothing for a power that never provokes.
+    /// </summary>
+    public bool Defensively { get; }
+
+    /// <summary>The same use, made defensively.</summary>
+    public UsePowerAction AsDefensive() => new(Power, Aim, defensively: true);
 
     public override string Name => Power.Name;
 
@@ -99,7 +110,8 @@ public sealed class UsePowerAction : GameAction
         var power = Current(actor)!;
         var field = context.Encounter.Battlefield;
 
-        var opportunities = power.Provokes && field?.SquareOf(actor) is { } standing
+        var defensive = Defensively && power.Provokes;
+        var opportunities = power.Provokes && !defensive && field?.SquareOf(actor) is { } standing
             ? Opportunities.Provoke(context.Encounter, actor, standing)
             : [];
 
@@ -115,10 +127,37 @@ public sealed class UsePowerAction : GameAction
 
         actor.DailyUses.Spend(power.Pool, spent);
 
+        // A power that is cast as a spell is — the ones that draw swings, spell-like abilities
+        // and the bonded object's spell — has to be held on to as a spell does. Supernatural
+        // ones such as channel energy never needed to be.
+        var checks = power.Provokes
+            ? Concentration.Hold(
+                actor,
+                power.Use == PowerUse.Spell ? actor.Spells.CasterLevel : power.CasterLevel,
+                power.Effect.EffectiveLevel,
+                defensive,
+                CastSpellAction.Wounds(opportunities),
+                context.Random)
+            : [];
+
+        // Only a real spell is spoken; a spell-like ability needs no words to fumble.
+        var fumbled = !Concentration.Lost(checks) && power.Use == PowerUse.Spell && CastSpellAction.Fumbles(actor, context.Random);
+
+        if (Concentration.Lost(checks) || fumbled)
+        {
+            return new CastSpellResult(
+                this, actor, CastSpellAction.Lost(actor, power.Effect, opportunities, checks), null, opportunities)
+            {
+                Concentration = checks,
+                Lost = true,
+            };
+        }
+
         var cast = power.Use switch
         {
             PowerUse.Teleport => Teleport(actor, power, field!),
             PowerUse.BorrowFeat => Borrow(actor, power),
+            PowerUse.Command => Command(actor, power, field, context),
             _ => Casting.Resolve(
                 actor,
                 power.Effect,
@@ -135,7 +174,12 @@ public sealed class UsePowerAction : GameAction
             description += $", provoking {opportunities.Count}";
         }
 
-        return new CastSpellResult(this, actor, description, cast, opportunities);
+        if (defensive)
+        {
+            description += ", used defensively";
+        }
+
+        return new CastSpellResult(this, actor, description, cast, opportunities) { Concentration = checks };
     }
 
     private Power? Current(Creature actor) =>
@@ -164,12 +208,15 @@ public sealed class UsePowerAction : GameAction
     /// </summary>
     private static IReadOnlyCollection<Creature> Excluded(Creature actor, Power power, Battlefield? field)
     {
-        if (power.Id != ClassPowers.ChannelPool || power.Effect.Target is not SelfTarget { RadiusFeet: > 0 } around)
+        // Every channel, the feats' as well as the plain one, draws on the channel pool.
+        if (power.Pool != ClassPowers.ChannelPool || power.Effect.Target is not SelfTarget { RadiusFeet: > 0 } around)
         {
             return [];
         }
 
-        var heals = power.Effect.Does.OfType<Restore>().Any();
+        // Whether it heals the living, which is what decides whose side is left out of it.
+        var heals = power.Effect.Does.OfType<Restore>().Any(mend => mend.Only is null or { Kind: SpellFilterKind.Living })
+            || power.Effect.Does.All(effect => effect is Restore);
         var excluded = heals ? new List<Creature>() : [actor];
 
         if (actor.HasFeat(FeatEffect.SelectiveChanneling) && field?.SquareOf(actor) is { } middle)
@@ -191,6 +238,50 @@ public sealed class UsePowerAction : GameAction
         field.Place(actor, to);
 
         return new SpellCast(actor, power.Effect, SpellAim.At(to), 0, []) { Verb = "uses" };
+    }
+
+    /// <summary>
+    /// Command Undead: each undead foe in the burst saves or changes sides, nearest first, for as
+    /// long as the cleric's level in hit dice will hold — counting any she commands already.
+    /// </summary>
+    /// <remarks>
+    /// The book has a controlled undead that is intelligent try again each day; the game's day
+    /// is a rest, which ends every effect anyway, and a side once changed stays changed here.
+    /// </remarks>
+    private static SpellCast Command(Creature actor, Power power, Battlefield? field, ActionContext context)
+    {
+        var results = new List<SpellTargetResult>();
+        var held = context.Encounter.Order
+            .Select(combatant => combatant.Creature)
+            .Where(other => other.IsAllyOf(actor) && CreatureTypes.IsUndead(other))
+            .Sum(other => other.HitPoints.HitDice);
+
+        var middle = field?.SquareOf(actor);
+        var candidates = Casting.Gather(actor, power.Effect, SpellAim.At(actor), field)
+            .Where(other => CreatureTypes.IsUndead(other) && actor.IsEnemyOf(other) && other.IsAlive)
+            .OrderBy(other => middle is { } centre && field!.SquareOf(other) is { } at ? Distance.Between(centre, at) : 0);
+
+        foreach (var undead in candidates)
+        {
+            if (held + undead.HitPoints.HitDice > power.CasterLevel)
+            {
+                results.Add(new SpellTargetResult(undead, null, null, 0, 0, ["too strong to hold as well"]));
+                continue;
+            }
+
+            var save = Saves.SaveRerolls.Attempt(undead, Saves.Save.Will, power.DifficultyClass, context.Random, context.Rules);
+            if (save.Succeeded)
+            {
+                results.Add(new SpellTargetResult(undead, null, save, 0, 0, []));
+                continue;
+            }
+
+            undead.Allegiance = actor.Allegiance;
+            held += undead.HitPoints.HitDice;
+            results.Add(new SpellTargetResult(undead, null, save, 0, 0, [$"now serves {actor.Name}"]));
+        }
+
+        return new SpellCast(actor, power.Effect, SpellAim.At(actor), power.DifficultyClass, results) { Verb = "uses" };
     }
 
     private static SpellCast Borrow(Creature actor, Power power)

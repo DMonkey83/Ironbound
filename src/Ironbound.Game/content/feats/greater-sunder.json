@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-sunder",
+  "name": "Greater Sunder",
+  "combat": true,
+  "description": "+2 more on sunders, and damage past the item carries on into its wielder.",
+  "unavailable": "waits for the manoeuvres batch: disarm, sunder, grapple, overrun and feint are not in the game yet",
+  "requires": {"str": 13, "feats": ["improved-sunder", "power-attack"], "baseAttack": 6}
+}

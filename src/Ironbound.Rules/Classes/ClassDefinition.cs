@@ -29,6 +29,18 @@ public enum CasterProgression
     Half,
 }
 
+/// <summary>Where a class's spells come from, which a handful of feats care about.</summary>
+public enum MagicTradition
+{
+    None,
+
+    /// <summary>Learned: a wizard's, a sorcerer's, a bard's. What Arcane Strike asks for.</summary>
+    Arcane,
+
+    /// <summary>Granted: a cleric's, a druid's, a paladin's.</summary>
+    Divine,
+}
+
 /// <summary>
 /// A class as written down: what it does to a character per level.
 /// </summary>
@@ -57,6 +69,21 @@ public sealed record ClassDefinition
 
     /// <summary>Which ability powers the spells, when the class has any.</summary>
     public Ability CastingAbility { get; init; } = Ability.Intelligence;
+
+    /// <summary>Whether its spells are arcane or divine, for a class that casts any.</summary>
+    public MagicTradition Tradition { get; init; } = MagicTradition.None;
+
+    /// <summary>
+    /// The ability the class leans on most: what a level's ability increase goes into when
+    /// nobody says otherwise. Strength for a fighter, Wisdom for a cleric.
+    /// </summary>
+    public Ability KeyAbility { get; init; } = Ability.Strength;
+
+    /// <summary>
+    /// An NPC class — the warrior, the adept, the commoner — rather than an adventurer's. The
+    /// Bestiary prices them lower: a warrior is worth two levels less than she has, a fighter one.
+    /// </summary>
+    public bool Npc { get; init; }
 
     /// <summary>
     /// What it trains its members to fight with: "simple", "martial", or a weapon by id — a

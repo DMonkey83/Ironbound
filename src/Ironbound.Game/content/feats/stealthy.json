@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "stealthy",
+  "name": "Stealthy",
+  "description": "+2 on Escape Artist and Stealth checks; +4 on either once it has 10 ranks.",
+  "effect": "SkillBonus",
+  "skills": ["EscapeArtist", "Stealth"]
+}

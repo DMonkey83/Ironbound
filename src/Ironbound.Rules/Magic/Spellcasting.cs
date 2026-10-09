@@ -252,12 +252,20 @@ public sealed class Spellcasting
     {
         // A raging barbarian does not cast, however many slots she has; a spell empowered by
         // somebody without the feat is not a spell anybody can cast.
-        if (Rage.IsRaging(_owner) || (spell.Empowered && !_owner.HasFeat(FeatEffect.EmpowerSpell)))
+        if (Rage.IsRaging(_owner) || !Metamagics.Knows(_owner, spell.Metamagic))
         {
             return null;
         }
 
         var level = spell.SlotLevel;
+
+        // The book's floor under every caster: a score of at least ten plus the spell's level in
+        // whatever she casts with. Measured against the slot it takes, since that is the level
+        // of spell she is reaching for.
+        if (!MeetsMinimum(level))
+        {
+            return null;
+        }
 
         if (Knows(spell))
         {
@@ -303,12 +311,28 @@ public sealed class Spellcasting
         }
     }
 
-    /// <summary>Ten, plus the spell's level, plus how clever or devout or forceful you are.</summary>
+    /// <summary>
+    /// Ten, plus the spell's level, plus how clever or devout or forceful you are — and one for
+    /// Spell Focus in its school, one more for Greater Spell Focus. A heightened spell counts at
+    /// the level it was heightened to.
+    /// </summary>
     public int SaveDC(Spell spell)
     {
         ArgumentNullException.ThrowIfNull(spell);
-        return 10 + spell.Level + _owner.Abilities[CastingAbility].Modifier;
+
+        var focus = _owner.Feats.Count(feat =>
+            feat.Effect is FeatEffect.SpellFocus or FeatEffect.GreaterSpellFocus
+            && FeatChoices.SchoolOf(feat) == spell.School);
+
+        return 10 + spell.EffectiveLevel + _owner.Abilities[CastingAbility].Modifier + focus;
     }
+
+    /// <summary>
+    /// Whether the casting score is high enough for spells of this level at all: ten plus the
+    /// level. Bonus spells need more, and are only ever of a level she can already cast.
+    /// </summary>
+    public bool MeetsMinimum(int spellLevel) =>
+        (_owner.Abilities[CastingAbility].Score ?? 0) >= 10 + spellLevel;
 
     public override string ToString()
     {

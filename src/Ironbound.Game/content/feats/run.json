@@ -1,0 +1,7 @@
+{
+  "kind": "feat",
+  "id": "run",
+  "name": "Run",
+  "description": "Run at five times your speed (four in heavy armour), and keep your Dexterity to armour class while doing it.",
+  "effect": "Run"
+}

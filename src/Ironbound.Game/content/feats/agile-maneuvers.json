@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "agile-maneuvers",
+  "name": "Agile Maneuvers",
+  "combat": true,
+  "description": "Dexterity rather than Strength on combat manoeuvre checks.",
+  "unavailable": "waits for the manoeuvres batch: disarm, sunder, grapple, overrun and feint are not in the game yet"
+}

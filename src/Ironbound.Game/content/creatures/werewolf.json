@@ -6,6 +6,9 @@
   "kind": "creature",
   "id": "werewolf",
   "name": "Werewolf",
+  // The Bestiary's werewolf is CR 2. By the class-level rule a warrior 5 would be 3; the
+  // book's rating for the creature stands, as the plan for this batch asks.
+  "cr": 2,
   "model": "res://art/werewolf.glb",
   "abilities": [19, 15, 17, 13, 12, 10],
   "classes": [ { "class": "warrior", "level": 5 } ],

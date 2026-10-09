@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "craft-wand",
+  "name": "Craft Wand",
+  "itemCreation": true,
+  "description": "Make wands of spells you know.",
+  "unavailable": "needs item crafting, which is not in the game",
+  "requires": {"casterLevel": 5}
+}

@@ -5,6 +5,8 @@
   "kind": "creature",
   "id": "pip",
   "name": "Pip",
+  // A first-level rogue: an adventurer's first level is CR 1/2.
+  "cr": "1/2",
   "model": "res://art/karn.glb",
   // A halfling: two more Dexterity, two less Strength.
   "abilities": [10, 17, 12, 13, 10, 12],

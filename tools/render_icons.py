@@ -18,7 +18,8 @@ sky that is bright above and dark below for steel to reflect — so a row of ico
 ICONS KEEP RELATIVE SIZE. Scaling every model to fill its slot made a dagger as big as a
 greatsword. The frame is set by the weapon's hands class instead (`weapon_families.hands`): a
 light weapon fills 60-70% of the slot's diagonal, a one-handed one 80-85%, two-handed weapons and
-polearms all of it, bows and crossbows 90%, shields as before. Within a class a longer weapon
+polearms all of it, bows and crossbows 85-95% (about 90%, a longbow above a shortbow), shields as
+before. A hand crossbow or a pistol is sized as the light or one-handed weapon it is. Within a class a longer weapon
 takes the larger share, so a short sword still stands over a dagger.
 
 A model exported with the shared named materials (`Steel`, `Wood`, `Wrap`...) and no textures
@@ -45,8 +46,8 @@ FILL = {
     "one": (0.80, 0.85, 1.9, 2.5),
     "two": (1.0, 1.0, 0, 1),
     "polearm": (1.0, 1.0, 0, 1),
-    "bow": (0.9, 0.9, 0, 1),
-    "crossbow": (0.9, 0.9, 0, 1),
+    "bow": (0.85, 0.95, 2.2, 4.2),
+    "crossbow": (0.85, 0.95, 1.6, 2.6),
     "shield": (1.0, 1.0, 0, 1),
 }
 
@@ -84,19 +85,35 @@ def pose(objects, name):
     lo, hi = bounds(objects)
     size = hi - lo
 
-    if "shield" in name:
+    family = wf.family(name)
+    if family == "named":
+        family = wf.family(wf.recipe(name)["base"])
+    if family == "shields" or wf.hands(name) == "shield":
         # Its face looks down -Y, which is where the camera is: a quarter turn off square, so
         # it reads as a thing with a rim and not a disc.
         turn = Matrix.Rotation(math.radians(-24), 4, "Z") @ Matrix.Rotation(math.radians(10), 4, "X")
+        if name in wf.RECIPES and (wf.recipe(name).get("boss") == "spike" or wf.recipe(name).get("spikes")):
+            # A spike pointing at the camera vanishes: turn a spiked shield further.
+            turn = Matrix.Rotation(math.radians(-48), 4, "Z") @ Matrix.Rotation(math.radians(18), 4, "X")
     else:
         # Everything is modelled grip at the origin and length up +Z, except what is pointed
-        # rather than swung (a crossbow), which runs down +Y. Stand that one up first.
-        upright = Matrix.Rotation(math.radians(90), 4, "X") if size.y > size.z else Matrix.Identity(4)
-        # Twist about the length so the flat of a blade catches the key light at an angle, then
-        # lean the whole thing over to the diagonal.
+        # rather than swung (crossbows, firearms), which runs down +Y. Stand that up first.
+        upright = Matrix.Rotation(math.radians(90), 4, "X") if wf.is_pointed(name) or (name not in wf.RECIPES and size.y > size.z) else Matrix.Identity(4)
+        if wf.is_worn(name):
+            # Worn on the hand: strike direction up, the back of the hand to the camera.
+            upright = wf.WORN.transposed().to_4x4()
+        # Twist about the length so the flat of a blade catches the key light at an angle.
+        twist = 22
+        if family == "bows":
+            # A bow's curve is in its depth: turn it to face the camera, string behind.
+            twist = 90 - 18
+        elif family == "firearms" and wf.is_pointed(name):
+            # A gun seen from above is a stick; from its lock side it is a gun. A little of the
+            # top shows too, so a duck's-foot pistol's splayed barrels do.
+            twist = -90 + 32
         turn = (
             Matrix.Rotation(math.radians(45), 4, "Y")
-            @ Matrix.Rotation(math.radians(22), 4, "Z")
+            @ Matrix.Rotation(math.radians(twist), 4, "Z")
             @ upright
         )
 
@@ -133,11 +150,12 @@ def light(scene):
     ramp.color_ramp.elements[1].color = (0.55, 0.52, 0.47, 1)
     bg.inputs["Strength"].default_value = 0.9
 
-    def lamp(name, location, energy, colour, size):
+    def lamp(name, location, energy, colour, size, specular=1.0):
         data = bpy.data.lights.new(name, "AREA")
         data.energy = energy
         data.color = colour
         data.size = size
+        data.specular_factor = specular
         obj = bpy.data.objects.new(name, data)
         scene.collection.objects.link(obj)
         obj.location = location

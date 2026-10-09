@@ -537,11 +537,17 @@ def _image(name, size, data=False):
     return img
 
 
-def finish(groups, samples=16, keep=None):
+def finish(groups, samples=16, keep=None, emission=None):
     """Bake every group to its own atlas and leave the objects wearing the result.
 
     `keep` is a directory to save the atlases into as PNGs for looking at; they are packed
     into the .blend regardless, which is how they reach the GLB.
+
+    `emission`, when given, is the strength of a fourth atlas: whatever the materials emit
+    (their Emission Color at strength 1, so a vein's brightness is in its colour) is baked
+    too, and the baked material glows with it at that strength. The glTF exporter writes it as
+    an emissive texture with KHR_materials_emissive_strength. Off by default: nothing that
+    was baked before glows.
     """
     if os.environ.get("IRONBOUND_FAST"):
         # For iterating on shape: the bake is nearly all of a build's two minutes.
@@ -588,6 +594,10 @@ def finish(groups, samples=16, keep=None):
             a = _pixels(ao)[:, 0:1]
             c[:, :3] *= 0.35 + 0.65 * a ** 1.5
             bpy.data.images.remove(ao)
+        glow = None
+        if emission:
+            glow = _image(f"{name}_emission", size)
+            _bake(objects, materials, glow, "EMIT", 1)
         orm = _image(f"{name}_orm", size, data=True)
         packed = np.ones_like(c)
         packed[:, 1] = r[:, 0]
@@ -602,13 +612,13 @@ def finish(groups, samples=16, keep=None):
             if node:
                 m.node_tree.nodes.remove(node)
 
-        baked = _baked_material(name, colour, orm, normal)
+        baked = _baked_material(name, colour, orm, normal, glow, emission or 0.0)
         for o in objects:
             o.data.materials.clear()
             o.data.materials.append(baked)
 
         folder = keep or tempfile.mkdtemp(prefix="ironbound_atlas_")
-        for img in (colour, orm, normal):
+        for img in (colour, orm, normal) + ((glow,) if glow else ()):
             img.filepath_raw = os.path.join(folder, f"{img.name}.png")
             img.file_format = "PNG"
             img.save()
@@ -618,9 +628,10 @@ def finish(groups, samples=16, keep=None):
     scene.render.engine = engine
 
 
-def _baked_material(name, colour, orm, normal):
-    """One Principled material reading the three atlases, in the shape the glTF exporter
-    recognises: colour, a roughness/metallic image through Separate Color, a normal map."""
+def _baked_material(name, colour, orm, normal, glow=None, strength=0.0):
+    """One Principled material reading the atlases, in the shape the glTF exporter
+    recognises: colour, a roughness/metallic image through Separate Color, a normal map, and
+    an emission image at a strength if there is one."""
     m, nt, bsdf = _tree(f"Baked_{name}")
 
     def tex(img):
@@ -637,4 +648,7 @@ def _baked_material(name, colour, orm, normal):
     nm = nt.nodes.new("ShaderNodeNormalMap")
     nt.links.new(tex(normal).outputs[0], nm.inputs[1])
     nt.links.new(nm.outputs[0], bsdf.inputs["Normal"])
+    if glow is not None:
+        nt.links.new(tex(glow).outputs[0], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = strength
     return m

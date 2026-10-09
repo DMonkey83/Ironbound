@@ -7,10 +7,11 @@ namespace Ironbound.Rules.Classes;
 /// How much experience each level costs, and what gaining one does to somebody.
 /// </summary>
 /// <remarks>
-/// The medium track, which is the default pace. The numbers matter less than the shape: each
-/// level costs roughly half again what the last one did, so a party that skips a fight does not
-/// merely fall behind, it falls behind at an accelerating rate. That is the arithmetic behind
-/// "come back when you are stronger" being a real answer rather than a rude one.
+/// The medium track, which is the default pace, as the Core Rulebook's Table 3–1 has it all the
+/// way to twentieth. The numbers matter less than the shape: each level costs roughly half again
+/// what the last one did, so a party that skips a fight does not merely fall behind, it falls
+/// behind at an accelerating rate. That is the arithmetic behind "come back when you are
+/// stronger" being a real answer rather than a rude one.
 /// </remarks>
 public static class Levelling
 {
@@ -27,16 +28,16 @@ public static class Levelling
         51_000,
         75_000,
         105_000,
-        145_000,
-        200_000,
-        275_000,
-        375_000,
-        515_000,
-        710_000,
-        970_000,
-        1_329_000,
+        155_000,
+        220_000,
+        315_000,
+        445_000,
+        635_000,
+        890_000,
+        1_300_000,
         1_800_000,
-        2_400_000,
+        2_550_000,
+        3_600_000,
     ];
 
     public static int Maximum => Thresholds.Length;
@@ -78,19 +79,41 @@ public static class Levelling
     }
 
     /// <summary>
-    /// What defeating something is worth. Derived from its level rather than written down,
-    /// because a number in every creature file is one more thing to get wrong.
+    /// What defeating something is worth, in total, before it is shared out: the Bestiary's
+    /// experience for its challenge rating.
     /// </summary>
+    /// <remarks>
+    /// A goblin is CR 1/3 and worth 135 whether it is the first goblin of a level or the
+    /// fiftieth, and an ogre is worth six of them. The rating comes from the creature's file, or
+    /// from its class levels by the Bestiary's rule, so the award is a fact about the foe rather
+    /// than a formula about it.
+    /// </remarks>
     public static int Award(Creature defeated)
     {
         ArgumentNullException.ThrowIfNull(defeated);
-
-        // Roughly the published award for a creature of that level, without the table: it
-        // doubles every two levels, which is what keeps early fights from being worth nothing
-        // and late ones from being worth everything.
-        var level = Math.Max(1, defeated.Level);
-        return 100 * level * level;
+        return defeated.Challenge.Experience;
     }
+
+    /// <summary>
+    /// One character's share of an award: the total split evenly among everyone in the party,
+    /// rounded down, as the book divides it.
+    /// </summary>
+    /// <remarks>
+    /// The campaign keeps one experience number for the whole party rather than one each, and
+    /// that number is a single character's. So a fight worth 405 to a party of four moves it by
+    /// 101 — what each of the four earned, not what they earned between them.
+    /// </remarks>
+    public static int Share(int total, int partySize)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(total);
+        return partySize <= 0 ? total : total / partySize;
+    }
+
+    /// <summary>
+    /// Whether reaching this character level raises an ability score by one: fourth, eighth,
+    /// twelfth, sixteenth and twentieth.
+    /// </summary>
+    public static bool GrantsAbilityIncreaseAt(int level) => level > 0 && level % 4 == 0;
 
     /// <summary>
     /// Adds a level of a class to somebody who already exists.

@@ -44,8 +44,14 @@ public static class Rage
         var modifier = constitution.HasScore ? AbilityScore.ModifierFor(constitution.Base) : 0;
         var level = ClassFeatures.LevelOf(creature, FeatureIds.Rage);
 
-        return Math.Max(0, 4 + modifier + (2 * (level - 1)));
+        // Extra Rage is six rounds a time it is taken, and it may be taken more than once.
+        var extra = ExtraRoundsPerFeat * creature.Feats.Count(feat => feat.Effect == Feats.FeatEffect.ExtraRage);
+
+        return Math.Max(0, 4 + modifier + (2 * (level - 1)) + extra);
     }
+
+    /// <summary>What each Extra Rage adds to a day's rounds.</summary>
+    public const int ExtraRoundsPerFeat = 6;
 
     /// <summary>What is left of today's rounds, counting the one a running rage is in.</summary>
     public static int RoundsLeft(Creature creature)

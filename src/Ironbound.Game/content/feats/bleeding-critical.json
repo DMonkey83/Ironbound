@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "bleeding-critical",
+  "name": "Bleeding Critical",
+  "combat": true,
+  "critical": true,
+  "description": "A critical hit with a slashing or piercing weapon also bleeds 2d6 a round until healed. It stacks.",
+  "effect": "BleedingCritical",
+  "requires": {"feats": ["critical-focus"], "baseAttack": 11}
+}

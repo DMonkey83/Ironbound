@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "channel-smite",
+  "name": "Channel Smite",
+  "combat": true,
+  "description": "As a swift action, spend a channel on your next melee blow: it deals the channel's damage too to whatever the energy harms (Will half).",
+  "effect": "ChannelSmite",
+  "requires": {"features": ["channel-energy"]}
+}

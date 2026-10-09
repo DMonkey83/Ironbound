@@ -97,8 +97,27 @@ public class MoveAction : GameAction
             }
         }
 
-        return field.PathCost(Path) <= Allowance(context.Actor);
+        // Stopped dead by a Stand Still: the rest of the turn is spent standing there.
+        if (context.Combatant.IsHeld)
+        {
+            return false;
+        }
+
+        return GroundCost(field, context, out _) <= Allowance(context.Actor) - Owed(context.Combatant);
     }
+
+    /// <summary>
+    /// What the path costs this creature: what it costs anybody, less what Nimble Moves or
+    /// Acrobatic Steps make of the difficult ground on it.
+    /// </summary>
+    private int GroundCost(Battlefield field, ActionContext context, out int easyUsed) =>
+        field.PathCost(
+            Path,
+            Math.Max(0, Movement.EasyGroundFeet(context.Actor) - context.Combatant.EasyGroundUsed),
+            out easyUsed);
+
+    /// <summary>Five feet off the walk for a Step Up taken before the turn began.</summary>
+    protected virtual int Owed(Combatant combatant) => combatant.OwesStep ? Distance.FeetPerSquare : 0;
 
     public override ActionResult Perform(ActionContext context)
     {
@@ -107,6 +126,9 @@ public class MoveAction : GameAction
 
         var travelled = new List<GridSquare> { Path[0] };
         var opportunities = new List<StrikeResult>();
+        var stopped = new List<ManeuverResult>();
+        GroundCost(field, context, out var easy);
+        context.Combatant.EasyGroundUsed += easy;
 
         // Where it could actually come to rest. Squares squeezed past an ally are walked over
         // but never stood on, so they are not candidates.
@@ -118,11 +140,19 @@ public class MoveAction : GameAction
         {
             if (ProvokesLeaving(i - 1))
             {
-                opportunities.AddRange(Opportunities.Provoke(context.Encounter, actor, Path[i - 1], walking: true));
+                opportunities.AddRange(Opportunities.Provoke(
+                    context.Encounter, actor, Path[i - 1], walking: true, who: Provokes(context), stopped: stopped));
 
-                // Cut down before getting out of the square. It goes no further.
+                // Cut down before getting out of the square, or stopped dead in it by a Stand
+                // Still. Either way it goes no further.
                 if (!actor.IsConscious)
                 {
+                    break;
+                }
+
+                if (stopped.Any(check => check.Succeeded))
+                {
+                    context.Combatant.IsHeld = true;
                     break;
                 }
             }
@@ -146,13 +176,24 @@ public class MoveAction : GameAction
             description += $", provoking {opportunities.Count}";
         }
 
-        if (travelled.Count < Path.Count)
+        foreach (var check in stopped)
         {
-            description += " — stopped short";
+            description += $"; {check}";
         }
 
-        return new MoveActionResult(this, actor, description, travelled, opportunities);
+        if (travelled.Count < Path.Count)
+        {
+            description += context.Combatant.IsHeld ? " — held where it stands" : " — stopped short";
+        }
+
+        return new MoveActionResult(this, actor, description, travelled, opportunities) { Held = stopped };
     }
+
+    /// <summary>
+    /// Who may swing at the walker for leaving a square: everybody, unless a kind of movement
+    /// says otherwise — Spring Attack keeps the one it struck from swinging back.
+    /// </summary>
+    protected virtual Func<Creature, bool>? Provokes(ActionContext context) => null;
 }
 
 /// <summary>A move, with the ground actually covered and any swings it drew on the way.</summary>
@@ -164,6 +205,9 @@ public sealed record MoveActionResult(
     IReadOnlyList<StrikeResult> Opportunities)
     : ActionResult(Action, Actor, Description)
 {
+    /// <summary>Stand Still checks made against the walk, the one that held it last.</summary>
+    public IReadOnlyList<ManeuverResult> Held { get; init; } = [];
+
     /// <summary>True when an attack of opportunity stopped the move before its destination.</summary>
-    public bool WasInterrupted => !Actor.IsConscious;
+    public bool WasInterrupted => !Actor.IsConscious || Held.Any(check => check.Succeeded);
 }

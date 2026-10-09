@@ -77,6 +77,7 @@
  "areas": [
   {
    "id": "cave-mouth",
+   "xp": 13,
    "name": "The Cave Mouth",
    "x": 0,
    "y": 34,
@@ -101,6 +102,7 @@
   },
   {
    "id": "junction",
+   "xp": 13,
    "name": "The Junction",
    "x": 4,
    "y": 24,
@@ -110,6 +112,7 @@
   },
   {
    "id": "crevice",
+   "xp": 13,
    "name": "The Crevice",
    "x": 13,
    "y": 17,
@@ -119,6 +122,7 @@
   },
   {
    "id": "orc-lair",
+   "xp": 13,
    "name": "The Orcs' Lair",
    "x": 19,
    "y": 5,
@@ -149,6 +153,7 @@
   },
   {
    "id": "storeroom",
+   "xp": 13,
    "name": "The Storeroom",
    "x": 23,
    "y": 1,
@@ -158,6 +163,7 @@
   },
   {
    "id": "guard-post",
+   "xp": 13,
    "name": "The Guard Post",
    "x": 2,
    "y": 14,
@@ -180,6 +186,7 @@
   },
   {
    "id": "ogre-den",
+   "xp": 13,
    "name": "Gorrum's Den",
    "x": 1,
    "y": 1,
@@ -207,6 +214,7 @@
  "features": [
   {
    "id": "rope-bridge",
+   "xp": 26,
    "kind": "bridge",
    "name": "the cut rope bridge",
    "squares": [
@@ -226,6 +234,7 @@
   },
   {
    "id": "storeroom-door",
+   "xp": 13,
    "kind": "door",
    "name": "the storeroom door",
    "squares": [
@@ -243,6 +252,7 @@
   },
   {
    "id": "den-door",
+   "xp": 13,
    "kind": "door",
    "name": "the iron-bound door",
    "squares": [
@@ -260,6 +270,7 @@
   },
   {
    "id": "tobins-cart",
+   "xp": 6,
    "kind": "cache",
    "name": "Tobin's cart",
    "squares": [
@@ -275,6 +286,7 @@
   },
   {
    "id": "storeroom-crates",
+   "xp": 6,
    "kind": "cache",
    "name": "the crates",
    "squares": [

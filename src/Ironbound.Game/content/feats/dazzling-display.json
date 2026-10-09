@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "dazzling-display",
+  "name": "Dazzling Display",
+  "combat": true,
+  "description": "As a full round, show off the weapon you have Weapon Focus in: one Intimidate check to demoralise every foe within 30 feet who can see you.",
+  "effect": "DazzlingDisplay",
+  "requires": {"feats": ["weapon-focus"]}
+}

@@ -39,6 +39,8 @@ public sealed class Attack
     /// it knows both the wielder and the weapon, and their modifiers have to meet the stacking
     /// rules together rather than as two totals added up.
     /// </summary>
+    /// <param name="confirmation">What is added to the roll that confirms a critical and to
+    /// nothing else: Critical Focus.</param>
     /// <param name="cover">What the ground is worth to the defender, added to their armour
     /// class. Positional, so it cannot live in the defender's own modifier stack: the same
     /// pillar that shields them from the archer shields them from nobody standing beside it.</param>
@@ -50,7 +52,8 @@ public sealed class Attack
         RuleOptions? rules = null,
         int cover = 0,
         int prone = 0,
-        CriticalProfile? critical = null)
+        CriticalProfile? critical = null,
+        int confirmation = 0)
     {
         ArgumentNullException.ThrowIfNull(defense);
         ArgumentNullException.ThrowIfNull(random);
@@ -86,9 +89,11 @@ public sealed class Attack
         }
         else if (threatened)
         {
+            // Critical Focus's four belong to this roll alone: the attack that threatened did
+            // not have them.
             var roll = random.NextDie(DieSides);
             confirmationNatural = roll;
-            confirmationTotal = roll + bonus.Total;
+            confirmationTotal = roll + bonus.Total + confirmation;
             confirmed = Lands(roll, confirmationTotal.Value, armorClass, rules);
         }
 
@@ -103,8 +108,8 @@ public sealed class Attack
             Total = total,
             TargetArmorClass = armorClass,
 
-            // Melee is a question for the armour class, not something the log has a word for.
-            Options = options & ~DefenseOptions.Melee,
+            // Melee and moving are questions for the armour class, not words the log has.
+            Options = options & ~(DefenseOptions.Melee | DefenseOptions.Moving),
             Cover = cover,
             Prone = prone,
             Outcome = outcome,

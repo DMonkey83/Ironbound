@@ -3,6 +3,8 @@
   "kind": "creature",
   "id": "hale",
   "name": "Hale",
+  // A first-level cleric: an adventurer's first level is CR 1/2.
+  "cr": "1/2",
   "model": "res://art/valeria.glb",
   "abilities": [14, 10, 14, 10, 15, 12],
   "classes": [ { "class": "cleric", "level": 1 } ],
@@ -13,7 +15,10 @@
     { "skill": "Spellcraft", "ranks": 2 }
   ],
   "speed": 30,
-  "feats": ["dodge", "great-fortitude"],
+  // Combat Casting rather than the Dodge she once had: Dodge wants Dexterity 13, and she has
+  // ten. A cleric who means to stand in the second rank and cast wants the four on
+  // concentration more than the point of armour class anyway.
+  "feats": ["combat-casting", "great-fortitude"],
 
   // Cihua Couatl, the feathered serpent: neutral good, so Hale channels positive energy and
   // casts cures in place of anything prepared. Healing and War are both hers to grant.

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "mobility",
+  "name": "Mobility",
+  "combat": true,
+  "description": "+4 dodge bonus to armour class against the attacks of opportunity that walking draws.",
+  "effect": "Mobility",
+  "requires": {"dex": 13, "feats": ["dodge"]}
+}

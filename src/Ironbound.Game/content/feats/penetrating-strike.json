@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "penetrating-strike",
+  "name": "Penetrating Strike",
+  "combat": true,
+  "description": "Blows with a weapon you have Weapon Focus in ignore 5 points of damage reduction, unless nothing bypasses it.",
+  "effect": "PenetratingStrike",
+  "requires": {"feats": ["weapon-focus"], "baseAttack": 1, "classLevels": {"fighter": 12}}
+}

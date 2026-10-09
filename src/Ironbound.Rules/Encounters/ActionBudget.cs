@@ -158,6 +158,9 @@ public sealed class ActionBudget
         IsSingleAction = false;
     }
 
+    /// <summary>Gives up the swift action alone, as an immediate action taken before the turn does.</summary>
+    public void SpendSwift() => HasSwift = false;
+
     /// <summary>Cuts the turn down to one action, as being disabled does.</summary>
     public void RestrictToSingleAction() => IsSingleAction = true;
 

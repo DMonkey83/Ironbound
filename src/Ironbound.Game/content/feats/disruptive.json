@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "disruptive",
+  "name": "Disruptive",
+  "combat": true,
+  "description": "Casting defensively anywhere you threaten is 4 harder.",
+  "unavailable": "left out of this batch by the plan, though casting defensively, which it would harden, now exists",
+  "requires": {"classLevels": {"fighter": 6}}
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "improved-lightning-reflexes",
+  "name": "Improved Lightning Reflexes",
+  "description": "Once a day, a failed Reflex save is rolled again. Spent on a failure that would put you down or out of the fight.",
+  "effect": "ImprovedLightningReflexes",
+  "requires": {"feats": ["lightning-reflexes"]}
+}

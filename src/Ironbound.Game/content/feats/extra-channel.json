@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "extra-channel",
+  "name": "Extra Channel",
+  "repeatable": true,
+  "description": "Two more uses of channel energy a day. Taken again, two more.",
+  "effect": "ExtraChannel",
+  "requires": {"features": ["channel-energy"]}
+}

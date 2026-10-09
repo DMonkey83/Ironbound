@@ -31,14 +31,17 @@ public abstract class ManeuverAction : GameAction
     public override bool CanPerform(ActionContext context) =>
         Target.IsAlive
         && !ReferenceEquals(Target, context.Actor)
-        && (context.Encounter.Battlefield is not { } field || Reaches(field, context.Actor));
+        && (context.Encounter.Battlefield is not { } field || Reaches(context, field, context.Actor));
 
     /// <summary>
     /// Whether the target is close enough. A trip is made with the weapon in hand and goes as far
-    /// as it does, a polearm's ten feet included; anything made with the body needs the body there.
+    /// as it does, a polearm's ten feet included — and a lunge's five more, since a trip is made
+    /// in place of a melee attack; anything made with the body needs the body there.
     /// </summary>
-    protected virtual bool Reaches(Battlefield field, Creature actor) =>
-        Kind == ManeuverKind.Trip ? field.IsWithinReach(actor, Target) : field.IsWithinTouch(actor, Target);
+    protected virtual bool Reaches(ActionContext context, Battlefield field, Creature actor) =>
+        Kind == ManeuverKind.Trip
+            ? Movement.Reaches(context, actor, Target, actor.MeleeAttack)
+            : field.IsWithinTouch(actor, Target);
 
     public override ActionResult Perform(ActionContext context)
     {
@@ -50,14 +53,21 @@ public abstract class ManeuverAction : GameAction
             return new ManeuverActionResult(this, actor, null, opportunities, string.Empty);
         }
 
+        Provoked.Clear();
         var check = Maneuvers.Attempt(actor, Target, context.Random, Kind);
         var consequence = Apply(context, check);
 
-        return new ManeuverActionResult(this, actor, check, opportunities, consequence);
+        return new ManeuverActionResult(this, actor, check, opportunities, consequence) { Drawn = [.. Provoked] };
     }
 
     /// <summary>What happens once the check is known. Returns a phrase for the log, or empty.</summary>
     protected abstract string Apply(ActionContext context, ManeuverResult check);
+
+    /// <summary>
+    /// Swings the target drew by what the manoeuvre did to it — going down under Greater Trip,
+    /// being driven back under Greater Bull Rush. Handed back with the result.
+    /// </summary>
+    protected List<StrikeResult> Provoked { get; } = [];
 
     /// <summary>
     /// The free swing reaching in costs you — unless you have practised this particular
@@ -102,6 +112,21 @@ public sealed class TripAction(Creature target) : ManeuverAction(target)
         if (check.Succeeded)
         {
             Target.Effects.Apply(ConditionInfo.Effect(Condition.Prone, Duration.Permanent));
+
+            // Greater Trip: going down draws a swing from everyone standing over it, the one who
+            // tripped it included.
+            if (context.Actor.HasFeat(Feats.FeatEffect.GreaterTrip)
+                && context.Encounter.Battlefield?.SquareOf(Target) is { } fallen)
+            {
+                var swings = Opportunities.Provoke(context.Encounter, Target, fallen);
+                Provoked.AddRange(swings);
+
+                if (swings.Count > 0)
+                {
+                    return $"{Target.Name} is knocked prone, provoking {swings.Count} as it falls";
+                }
+            }
+
             return $"{Target.Name} is knocked prone";
         }
 
@@ -162,9 +187,26 @@ public class BullRushAction(Creature target) : ManeuverAction(target)
 
         var pushed = Push(field, from, standing, 1 + check.ExtraIncrements);
 
-        return pushed == standing
-            ? $"{Target.Name} holds its ground"
-            : $"{Target.Name} is driven back to {pushed}";
+        if (pushed == standing)
+        {
+            return $"{Target.Name} holds its ground";
+        }
+
+        // Greater Bull Rush: being driven back draws a swing from every friend of the shover
+        // whose reach it is driven out of — and not from the shover.
+        if (context.Actor.HasFeat(Feats.FeatEffect.GreaterBullRush))
+        {
+            var actor = context.Actor;
+            var swings = Opportunities.Provoke(context.Encounter, Target, standing, who: other => !ReferenceEquals(other, actor));
+            Provoked.AddRange(swings);
+
+            if (swings.Count > 0)
+            {
+                return $"{Target.Name} is driven back to {pushed}, provoking {swings.Count}";
+            }
+        }
+
+        return $"{Target.Name} is driven back to {pushed}";
     }
 
     /// <summary>
@@ -215,6 +257,9 @@ public sealed record ManeuverActionResult(
     string Consequence)
     : ActionResult(Action, Actor, Describe(Actor, Action, Check, Opportunities, Consequence))
 {
+    /// <summary>Swings the target drew by what was done to it: Greater Trip, Greater Bull Rush.</summary>
+    public IReadOnlyList<StrikeResult> Drawn { get; init; } = [];
+
     private static string Describe(
         Creature actor,
         GameAction action,

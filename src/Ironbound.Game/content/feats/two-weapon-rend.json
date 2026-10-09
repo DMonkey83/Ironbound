@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "two-weapon-rend",
+  "name": "Two-Weapon Rend",
+  "combat": true,
+  "description": "Hitting with both weapons in a round tears for extra damage.",
+  "unavailable": "needs two-weapon fighting: off-hand attacks and their penalties are not in the game yet",
+  "requires": {"dex": 17, "feats": ["double-slice", "improved-two-weapon-fighting", "two-weapon-fighting"], "baseAttack": 11}
+}

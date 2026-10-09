@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-spell-focus",
+  "name": "Greater Spell Focus",
+  "takes": "School",
+  "description": "+1 more on the difficulty class of the school you have Spell Focus in.",
+  "effect": "GreaterSpellFocus",
+  "requires": {"feats": ["spell-focus"], "sameChoice": true}
+}

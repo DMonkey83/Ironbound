@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "alignment-channel",
+  "name": "Alignment Channel",
+  "takes": "Alignment",
+  "description": "Spend a channel to heal or harm outsiders of one alignment, and nobody else. Taken again, another alignment.",
+  "effect": "AlignmentChannel",
+  "requires": {"features": ["channel-energy"]}
+}

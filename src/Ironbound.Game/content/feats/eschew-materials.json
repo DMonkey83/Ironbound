@@ -1,0 +1,7 @@
+{
+  "kind": "feat",
+  "id": "eschew-materials",
+  "name": "Eschew Materials",
+  "description": "Cast spells without their cheap material components.",
+  "unavailable": "spell components are not modelled, so it would change nothing"
+}

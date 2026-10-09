@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-feint",
+  "name": "Greater Feint",
+  "combat": true,
+  "description": "A feinted foe loses its Dexterity for a whole round.",
+  "unavailable": "waits for the manoeuvres batch: disarm, sunder, grapple, overrun and feint are not in the game yet",
+  "requires": {"int": 13, "feats": ["combat-expertise", "improved-feint"], "baseAttack": 6}
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "snatch-arrows",
+  "name": "Snatch Arrows",
+  "combat": true,
+  "description": "Catch the arrow you deflect, and throw it back.",
+  "unavailable": "needs unarmed strikes, which are not in the game yet",
+  "requires": {"dex": 15, "feats": ["deflect-arrows", "improved-unarmed-strike"]}
+}

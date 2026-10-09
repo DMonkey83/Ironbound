@@ -406,16 +406,33 @@ public sealed class Battlefield
     /// on how many diagonals the path has already spent, which is why the count is carried along
     /// rather than recomputed.
     /// </summary>
-    public int PathCost(IReadOnlyList<GridSquare> path)
+    public int PathCost(IReadOnlyList<GridSquare> path) => PathCost(path, 0, out _);
+
+    /// <summary>
+    /// The same, with so many feet of difficult ground walked as though it were clear — Nimble
+    /// Moves' five, Acrobatic Steps' twenty — and how many of those feet it used.
+    /// </summary>
+    public int PathCost(IReadOnlyList<GridSquare> path, int easyFeet, out int easyUsed)
     {
         ArgumentNullException.ThrowIfNull(path);
 
         var total = 0;
         var diagonals = 0;
+        easyUsed = 0;
 
         for (var i = 1; i < path.Count; i++)
         {
-            total += StepCost(path[i - 1], path[i], ref diagonals);
+            var cost = StepCost(path[i - 1], path[i], ref diagonals);
+
+            // A difficult square costs double; walked easily, it costs what it would on clear
+            // ground, and five feet of the allowance go on it.
+            if (IsDifficult(path[i]) && easyFeet - easyUsed >= Distance.FeetPerSquare)
+            {
+                cost /= 2;
+                easyUsed += Distance.FeetPerSquare;
+            }
+
+            total += cost;
         }
 
         return total;

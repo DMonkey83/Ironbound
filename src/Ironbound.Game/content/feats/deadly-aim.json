@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "deadly-aim",
+  "name": "Deadly Aim",
+  "combat": true,
+  "description": "Trade ranged accuracy for damage: -1 to hit, +2 damage, steepening every four points of base attack.",
+  "effect": "DeadlyAim",
+  "requires": {"dex": 13, "baseAttack": 1}
+}

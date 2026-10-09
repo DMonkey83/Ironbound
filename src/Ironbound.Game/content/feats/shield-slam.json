@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "shield-slam",
+  "name": "Shield Slam",
+  "combat": true,
+  "description": "A shield bash that hits also shoves the foe back.",
+  "unavailable": "needs two-weapon fighting: off-hand attacks and their penalties are not in the game yet",
+  "requires": {"feats": ["improved-shield-bash", "two-weapon-fighting"], "armour": ["shields"], "baseAttack": 6}
+}

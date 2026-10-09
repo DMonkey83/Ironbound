@@ -50,6 +50,8 @@ public static class ClassPowers
             powers.Add(channel);
         }
 
+        powers.AddRange(ChannelFeats(creature));
+
         foreach (var domain in creature.Choices.Domains)
         {
             foreach (var granted in domain.Powers)
@@ -99,7 +101,9 @@ public static class ClassPowers
 
         return pool switch
         {
-            ChannelPool => ClassFeatures.Has(creature, FeatureIds.ChannelEnergy) ? Plus3(Ability.Charisma) : 0,
+            ChannelPool => ClassFeatures.Has(creature, FeatureIds.ChannelEnergy)
+                ? Plus3(Ability.Charisma) + (ExtraChannels * creature.Feats.Count(feat => feat.Effect == FeatEffect.ExtraChannel))
+                : 0,
             "rebuke-death" or "battle-rage" => Plus3(Ability.Wisdom),
             "weapon-master" => ClassFeatures.LevelOf(creature, FeatureIds.Domains),
             "force-missile" or "acid-dart" => Plus3(Ability.Intelligence),
@@ -107,6 +111,7 @@ public static class ClassPowers
             ArcaneBondPool => creature.Choices.BondedObject && ClassFeatures.Has(creature, FeatureIds.ArcaneBond) ? 1 : 0,
             "renewed-vigor" or ResiliencyPool or DefensiveRollPool => 1,
             Rage.Pool => Rage.RoundsPerDay(creature),
+            _ when SaveRerolls.IsPool(pool) => SaveRerolls.PerDay(creature, pool),
             _ => 0,
         };
     }
@@ -152,10 +157,17 @@ public static class ClassPowers
     /// <summary>One d6 at first level and another every odd level: a die per row of the table.</summary>
     public static int ChannelDice(Creature creature) => ClassFeatures.Rank(creature, FeatureIds.ChannelEnergy);
 
-    /// <summary>Ten, half the cleric's level, and Charisma.</summary>
+    /// <summary>What each Extra Channel adds to a day's channels.</summary>
+    public const int ExtraChannels = 2;
+
+    /// <summary>What Improved Channel adds to the difficulty class.</summary>
+    public const int ImprovedChannelBonus = 2;
+
+    /// <summary>Ten, half the cleric's level, and Charisma — and two more with Improved Channel.</summary>
     public static int ChannelDifficulty(Creature creature) =>
         10 + (ClassFeatures.LevelOf(creature, FeatureIds.ChannelEnergy) / 2)
-        + creature.Abilities[Ability.Charisma].Modifier;
+        + creature.Abilities[Ability.Charisma].Modifier
+        + (creature.HasFeat(FeatEffect.ImprovedChannel) ? ImprovedChannelBonus : 0);
 
     private static Power? Channel(Creature creature)
     {
@@ -168,19 +180,29 @@ public static class ClassPowers
         var positive = kind == ChannelKind.Positive;
         var name = positive ? "Channel Positive Energy" : "Channel Negative Energy";
         var level = ClassFeatures.LevelOf(creature, FeatureIds.ChannelEnergy);
+        var energy = positive ? DamageType.Positive : DamageType.Negative;
 
         // Everyone in the burst, foe and friend alike: that is the rule, and Selective
-        // Channeling is the feat that buys a way round it.
+        // Channeling is the feat that buys a way round it. Positive energy heals the living and
+        // burns the undead, negative the other way about, and only the burned get a save.
         var effect = new Spell(ChannelPool, name, 0, SpellSchool.Conjuration)
         {
             Range = SpellRange.Personal,
             Target = new SelfTarget { RadiusFeet = ChannelRadius },
             Affects = SpellAffects.Everyone,
-            Save = positive ? null : Save.Will,
+            Save = Save.Will,
             OnSave = SaveOutcome.Half,
             Does = positive
-                ? [new Restore(SpellDice.Fixed(dice))]
-                : [new DealDamage(SpellDice.Fixed(dice), DamageType.Negative)],
+                ?
+                [
+                    new Restore(SpellDice.Fixed(dice)) { Only = SpellFilter.Living },
+                    new DealDamage(SpellDice.Fixed(dice), energy) { Only = SpellFilter.Undead },
+                ]
+                :
+                [
+                    new DealDamage(SpellDice.Fixed(dice), energy) { Only = SpellFilter.Living },
+                    new Restore(SpellDice.Fixed(dice)) { Only = SpellFilter.Undead },
+                ],
         };
 
         return new Power(ChannelPool, name, effect, ActionCost.Standard)
@@ -188,10 +210,115 @@ public static class ClassPowers
             DifficultyClass = ChannelDifficulty(creature),
             CasterLevel = level,
             Description = positive
-                ? $"Heals {dice} to every living creature within {ChannelRadius} ft, foes included."
-                : $"Deals {dice} negative energy to every living creature within {ChannelRadius} ft (Will half).",
+                ? $"Heals {dice} to every living creature within {ChannelRadius} ft, foes included; burns the undead (Will half)."
+                : $"Deals {dice} negative energy to every living creature within {ChannelRadius} ft (Will half); heals the undead.",
         };
     }
+
+    /// <summary>
+    /// The channels the feats add, each drawing on the same daily pool: turning or commanding the
+    /// undead, and healing or harming outsiders of one alignment or one element and nobody else.
+    /// </summary>
+    private static IEnumerable<Power> ChannelFeats(Creature creature)
+    {
+        if (ChannelKindOf(creature) is not { } kind)
+        {
+            yield break;
+        }
+
+        var dice = $"{ChannelDice(creature)}d6";
+        var level = ClassFeatures.LevelOf(creature, FeatureIds.ChannelEnergy);
+        var difficulty = ChannelDifficulty(creature);
+        var energy = kind == ChannelKind.Positive ? DamageType.Positive : DamageType.Negative;
+
+        if (creature.HasFeat(FeatEffect.TurnUndead) && kind == ChannelKind.Positive)
+        {
+            // Fleeing as if panicked, for a minute. Panicked is waiting for the monster rules;
+            // frightened is the nearest condition the engine has, and it does run.
+            yield return new Power(TurnUndeadId, "Turn Undead", new Spell(TurnUndeadId, "Turn Undead", 0, SpellSchool.Conjuration)
+            {
+                Range = SpellRange.Personal,
+                Target = new SelfTarget { RadiusFeet = ChannelRadius },
+                Affects = SpellAffects.Enemies,
+                Save = Save.Will,
+                OnSave = SaveOutcome.Negates,
+                Does =
+                [
+                    new Bestow(new EffectDefinition
+                    {
+                        Name = "Turned",
+                        Condition = Conditions.Condition.Frightened,
+                        DurationTicks = TurnedRounds * Duration.TicksPerRound,
+                    }) { Only = SpellFilter.Undead },
+                ],
+            }, ActionCost.Standard)
+            {
+                Pool = ChannelPool,
+                DifficultyClass = difficulty,
+                CasterLevel = level,
+                Description = $"A channel spent making every undead foe within {ChannelRadius} ft flee for a minute (Will negates).",
+            };
+        }
+
+        if (creature.HasFeat(FeatEffect.CommandUndead) && kind == ChannelKind.Negative)
+        {
+            yield return new Power(CommandUndeadId, "Command Undead", new Spell(CommandUndeadId, "Command Undead", 0, SpellSchool.Necromancy)
+            {
+                Range = SpellRange.Personal,
+                Target = new SelfTarget { RadiusFeet = ChannelRadius },
+                Affects = SpellAffects.Enemies,
+                Save = Save.Will,
+                OnSave = SaveOutcome.Negates,
+            }, ActionCost.Standard)
+            {
+                Pool = ChannelPool,
+                Use = PowerUse.Command,
+                DifficultyClass = difficulty,
+                CasterLevel = level,
+                Description = $"A channel spent taking undead foes within {ChannelRadius} ft into service, up to {level} hit dice of them (Will negates).",
+            };
+        }
+
+        foreach (var feat in creature.Feats.Where(feat =>
+            feat.Effect is FeatEffect.AlignmentChannel or FeatEffect.ElementalChannel && feat.Choice is not null))
+        {
+            var subtype = feat.Choice!;
+            var only = SpellFilter.Outsiders(subtype);
+
+            foreach (var heals in new[] { true, false })
+            {
+                var id = $"{(heals ? "heal" : "harm")}-{subtype}-outsiders";
+                var name = $"Channel: {(heals ? "heal" : "harm")} {subtype} outsiders";
+
+                yield return new Power(id, name, new Spell(id, name, 0, SpellSchool.Conjuration)
+                {
+                    Range = SpellRange.Personal,
+                    Target = new SelfTarget { RadiusFeet = ChannelRadius },
+                    Affects = SpellAffects.Everyone,
+                    Save = heals ? null : Save.Will,
+                    OnSave = SaveOutcome.Half,
+                    Does = heals
+                        ? [new Restore(SpellDice.Fixed(dice)) { Only = only }]
+                        : [new DealDamage(SpellDice.Fixed(dice), energy) { Only = only }],
+                }, ActionCost.Standard)
+                {
+                    Pool = ChannelPool,
+                    DifficultyClass = difficulty,
+                    CasterLevel = level,
+                    Description = heals
+                        ? $"A channel that heals {dice} to {subtype} outsiders within {ChannelRadius} ft, and nobody else."
+                        : $"A channel that deals {dice} to {subtype} outsiders within {ChannelRadius} ft (Will half), and nobody else.",
+                };
+            }
+        }
+    }
+
+    public const string TurnUndeadId = "turn-undead";
+
+    public const string CommandUndeadId = "command-undead";
+
+    /// <summary>How long a turned undead flees: a minute.</summary>
+    public const int TurnedRounds = 10;
 
     private static Power? Granted(Creature creature, GrantedPowerEffect effect)
     {

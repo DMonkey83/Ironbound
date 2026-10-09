@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "shot-on-the-run",
+  "name": "Shot on the Run",
+  "combat": true,
+  "description": "As a full round, move up to your speed and shoot once at any point along the way.",
+  "effect": "ShotOnTheRun",
+  "requires": {"dex": 13, "feats": ["dodge", "mobility", "point-blank-shot"], "baseAttack": 4}
+}

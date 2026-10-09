@@ -106,6 +106,25 @@ public static class Proficiency
     /// Whether a creature has been trained to wear this armour or carry this shield. Anything
     /// that is neither needs no training.
     /// </summary>
+    /// <summary>
+    /// Whether a creature is proficient with a kind of weapon it carries, by the weapon's id —
+    /// what Weapon Focus and Improved Critical ask of the weapon they are taken for.
+    /// </summary>
+    /// <remarks>
+    /// Answered from the weapons in its hands, because a kind is only a word until there is a
+    /// weapon to look up its category. A kind it carries nothing of is let through: feats are
+    /// taken for what the creature carries, and the one who picks a weapon off the floor later
+    /// is asked again when she swings it.
+    /// </remarks>
+    public static bool IsProficientWithKind(Creature creature, string kind)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        ArgumentNullException.ThrowIfNull(kind);
+
+        var carried = creature.Attacks.FirstOrDefault(weapon => string.Equals(weapon.Kind, kind, StringComparison.Ordinal));
+        return carried is null || IsProficient(creature, carried);
+    }
+
     public static bool IsProficient(Creature creature, ItemDefinition armourOrShield)
     {
         ArgumentNullException.ThrowIfNull(creature);

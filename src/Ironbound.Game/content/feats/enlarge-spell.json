@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "enlarge-spell",
+  "name": "Enlarge Spell",
+  "metamagic": true,
+  "description": "Twice the range for a close, medium or long spell; it takes a slot one level higher.",
+  "effect": "EnlargeSpell"
+}

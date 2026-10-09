@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "defensive-combat-training",
+  "name": "Defensive Combat Training",
+  "combat": true,
+  "description": "Your hit dice count as your base attack bonus in your combat manoeuvre defence.",
+  "effect": "DefensiveCombatTraining"
+}

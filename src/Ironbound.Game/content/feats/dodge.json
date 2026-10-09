@@ -5,6 +5,9 @@
   "name": "Dodge",
   "combat": true,
   "description": "+1 dodge bonus to armour class.",
+
+  // Quick feet first: the book asks Dexterity 13 of anybody who would take it.
+  "requires": { "dex": 13 },
   "grants": [
     // Dodge bonuses are the ones that stack with each other, which is why the type matters.
     { "target": "armourClass", "value": 1, "type": "Dodge" }

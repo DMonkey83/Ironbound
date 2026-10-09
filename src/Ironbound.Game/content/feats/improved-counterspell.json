@@ -1,0 +1,7 @@
+{
+  "kind": "feat",
+  "id": "improved-counterspell",
+  "name": "Improved Counterspell",
+  "description": "Counter a spell with any spell of the same school one or more levels higher.",
+  "unavailable": "counterspelling is not in the game"
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-bull-rush",
+  "name": "Greater Bull Rush",
+  "combat": true,
+  "description": "+2 more on bull rushes, and a foe you drive back draws attacks of opportunity from your allies.",
+  "effect": "GreaterBullRush",
+  "requires": {"str": 13, "feats": ["improved-bull-rush", "power-attack"], "baseAttack": 6}
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "improved-feint",
+  "name": "Improved Feint",
+  "combat": true,
+  "description": "Feint as a move action.",
+  "unavailable": "waits for the manoeuvres batch: disarm, sunder, grapple, overrun and feint are not in the game yet",
+  "requires": {"int": 13, "feats": ["combat-expertise"]}
+}

@@ -477,15 +477,17 @@ public class LevellingChoiceTests
             .Read(Path.Combine(AppContext.BaseDirectory, "content"))
             .ToList();
 
+        // Dexterity 13, which Dodge asks for.
         files.Add(("test-hero.json", """
             { "kind": "creature", "id": "test-hero", "name": "Tester",
-              "abilities": [16, 12, 14, 10, 12, 10],
+              "abilities": [16, 13, 14, 10, 12, 10],
               "classes": [ { "class": "warrior", "level": 4 } ] }
             """));
 
-        // Level eight, and therefore worth 6,400 — enough on its own to buy the fifth level.
+        // Rated CR 9, and therefore worth 6,400 — enough on its own to buy the fifth level. A
+        // warrior 8 is only CR 6 by the Bestiary's rule, so the rating is written.
         files.Add(("test-foe.json", """
-            { "kind": "creature", "id": "test-foe", "name": "Something Large",
+            { "kind": "creature", "id": "test-foe", "name": "Something Large", "cr": 9,
               "abilities": [16, 12, 14, 10, 12, 10],
               "classes": [ { "class": "warrior", "level": 8 } ] }
             """));

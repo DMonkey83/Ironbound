@@ -31,6 +31,15 @@ public enum Stance
     /// Spent by the next combat manoeuvre, and left alone by ordinary swings.
     /// </summary>
     StrengthSurge,
+
+    /// <summary>Shoot carefully less often and harder: Power Attack for a bow. Ranged only.</summary>
+    DeadlyAim,
+
+    /// <summary>
+    /// A channel spent through the next melee blow: Channel Smite. Declared with a swift action
+    /// that spends the channel, and spent by the next melee attack roll, hit or miss.
+    /// </summary>
+    ChannelSmite,
 }
 
 /// <summary>
@@ -74,7 +83,11 @@ public sealed class Stances(Creature owner)
     {
         Stance.PowerAttack => _owner.HasFeat(FeatEffect.PowerAttack),
         Stance.CombatExpertise => _owner.HasFeat(FeatEffect.CombatExpertise),
-        _ when IsOneShot(stance) => Rage.IsRaging(_owner)
+        Stance.DeadlyAim => _owner.HasFeat(FeatEffect.DeadlyAim),
+
+        // The channel it costs is spent by the action that declares it, not here.
+        Stance.ChannelSmite => _owner.HasFeat(FeatEffect.ChannelSmite),
+        _ when IsRagePower(stance) => Rage.IsRaging(_owner)
             && _owner.Choices.HasTalent(PowerFor(stance))
             && !_spent.Contains(stance),
         _ => true,
@@ -84,7 +97,10 @@ public sealed class Stances(Creature owner)
     /// The stances that are a declaration about the next blow rather than a way of fighting:
     /// taken up, used once, and gone.
     /// </summary>
-    public static bool IsOneShot(Stance stance) =>
+    public static bool IsOneShot(Stance stance) => IsRagePower(stance) || stance == Stance.ChannelSmite;
+
+    /// <summary>The one-shot declarations that are rage powers, once a rage and gone when it ends.</summary>
+    public static bool IsRagePower(Stance stance) =>
         stance is Stance.PowerfulBlow or Stance.SurpriseAccuracy or Stance.StrengthSurge;
 
     /// <summary>The rage power each one-shot stance is.</summary>
@@ -135,6 +151,11 @@ public sealed class Stances(Creature owner)
             penalty -= Severity(Stance.PowerAttack);
         }
 
+        if (!melee && IsActive(Stance.DeadlyAim))
+        {
+            penalty -= Severity(Stance.DeadlyAim);
+        }
+
         if (IsActive(Stance.CombatExpertise))
         {
             penalty -= Severity(Stance.CombatExpertise);
@@ -158,7 +179,14 @@ public sealed class Stances(Creature owner)
     /// </summary>
     public int DamageBonus(bool melee, bool twoHanded)
     {
-        if (!melee || !IsActive(Stance.PowerAttack))
+        // Deadly Aim is the same trade for a bow, without the two-handed half again: the book
+        // gives that to Power Attack alone.
+        if (!melee)
+        {
+            return IsActive(Stance.DeadlyAim) ? Severity(Stance.DeadlyAim) * 2 : 0;
+        }
+
+        if (!IsActive(Stance.PowerAttack))
         {
             return 0;
         }
@@ -178,7 +206,13 @@ public sealed class Stances(Creature owner)
             return false;
         }
 
-        _spent.Add(stance);
+        // Only the rage powers are once a rage; a channel smite can be declared again as long
+        // as there are channels left to declare it with.
+        if (IsRagePower(stance))
+        {
+            _spent.Add(stance);
+        }
+
         return true;
     }
 
@@ -204,7 +238,7 @@ public sealed class Stances(Creature owner)
 
     private void DropOneShots()
     {
-        foreach (var stance in _active.Where(IsOneShot).ToList())
+        foreach (var stance in _active.Where(IsRagePower).ToList())
         {
             Drop(stance);
         }
@@ -261,6 +295,8 @@ public sealed class Stances(Creature owner)
         Stance.PowerfulBlow => "Powerful Blow",
         Stance.SurpriseAccuracy => "Surprise Accuracy",
         Stance.StrengthSurge => "Strength Surge",
+        Stance.DeadlyAim => "Deadly Aim",
+        Stance.ChannelSmite => "Channel Smite",
         _ => "Fighting Defensively",
     };
 

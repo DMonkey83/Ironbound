@@ -8,6 +8,8 @@
   "attack": "ThreeQuarters",
   "goodSaves": ["Fortitude", "Will"],
   "classSkills": ["Diplomacy", "Heal", "Knowledge", "Spellcraft"],
+  "keyAbility": "Wisdom",
+  "magic": "divine",
 
   // Simple weapons and her god's own, whichever god that is.
   "weaponProficiencies": ["simple", "deity"],

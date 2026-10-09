@@ -2,6 +2,8 @@
   "kind": "creature",
   "id": "merrin",
   "name": "Merrin",
+  // Wizard 5, rated one level down.
+  "cr": 4,
   "model": "res://art/merrin.glb",
   "abilities": [8, 14, 12, 18, 13, 10],
 

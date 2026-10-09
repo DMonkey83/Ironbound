@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "craft-staff",
+  "name": "Craft Staff",
+  "itemCreation": true,
+  "description": "Make magic staves.",
+  "unavailable": "needs item crafting, which is not in the game",
+  "requires": {"casterLevel": 11}
+}

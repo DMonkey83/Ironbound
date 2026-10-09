@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "quicken-spell",
+  "name": "Quicken Spell",
+  "metamagic": true,
+  "description": "Cast a spell as a swift action, drawing no attacks of opportunity; it takes a slot four levels higher.",
+  "effect": "QuickenSpell"
+}

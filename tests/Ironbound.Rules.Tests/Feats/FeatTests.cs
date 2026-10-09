@@ -261,7 +261,11 @@ public class ShippedFeatTests
         // the weapon feats, which are written against one weapon or one kind of attack and so
         // cannot be a stack entry, and tipped the balance. What still holds — and is the point
         // of the design — is that a feat with no effect of its own is entirely its numbers.
-        var feats = TestContent.Library.FeatIds.Select(id => TestContent.Library.GetFeat(id)!).ToList();
+        // Feats the game cannot do yet are kept for their names and prerequisites, and do nothing:
+        // they are neither, and say why instead.
+        var feats = TestContent.Library.FeatIds.Select(id => TestContent.Library.GetFeat(id)!)
+            .Where(feat => feat.IsAvailable)
+            .ToList();
 
         Assert.All(feats.Where(feat => feat.Effect == FeatEffect.None), feat => Assert.NotEmpty(feat.Grants));
         Assert.All(feats.Where(feat => feat.Grants.Count == 0), feat => Assert.NotEqual(FeatEffect.None, feat.Effect));
@@ -274,8 +278,15 @@ public class ShippedFeatTests
 
         Assert.Equal(20, valeria.ArmorClass.Total);              // Dodge, and Shield Focus
         Assert.Equal(3, valeria.AttacksOfOpportunityPerRound);   // Combat Reflexes, Dex 14
-        Assert.Equal(2, valeria.DamageModifiers.Total);          // Weapon Specialization
         Assert.True(valeria.HasFeat(FeatEffect.ImprovedTrip));
+        Assert.True(valeria.HasFeat(FeatEffect.GreaterTrip));
+
+        // Weapon Specialization is in the longsword, so it is on the sword's damage and not on
+        // everything she swings.
+        Assert.Equal(0, valeria.DamageModifiers.Total);
+        Assert.Contains(
+            Strike.DamageBonus(valeria, valeria.MeleeAttack!).Entries,
+            entry => entry.Modifier.Source == "Weapon Specialization" && entry.Modifier.Value == 2);
     }
 
     [Fact]

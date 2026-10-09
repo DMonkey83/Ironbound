@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "craft-rod",
+  "name": "Craft Rod",
+  "itemCreation": true,
+  "description": "Make magic rods.",
+  "unavailable": "needs item crafting, which is not in the game",
+  "requires": {"casterLevel": 9}
+}

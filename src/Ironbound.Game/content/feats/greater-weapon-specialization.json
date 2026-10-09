@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "greater-weapon-specialization",
+  "name": "Greater Weapon Specialization",
+  "combat": true,
+  "takes": "Weapon",
+  "description": "+2 more on damage rolls with the weapon you have Weapon Specialization in.",
+  "effect": "GreaterWeaponSpecialization",
+  "requires": {"feats": ["weapon-focus", "greater-weapon-focus", "weapon-specialization"], "sameChoice": true, "proficient": true, "classLevels": {"fighter": 12}}
+}

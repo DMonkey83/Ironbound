@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "wind-stance",
+  "name": "Wind Stance",
+  "combat": true,
+  "description": "Moving more than five feet in a turn gives you concealment until your next turn.",
+  "unavailable": "needs concealment and miss chances, which are not in the game yet",
+  "requires": {"dex": 15, "feats": ["dodge"], "baseAttack": 6}
+}

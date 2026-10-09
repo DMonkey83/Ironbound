@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "pinpoint-targeting",
+  "name": "Pinpoint Targeting",
+  "combat": true,
+  "description": "As a standard action, one shot that ignores the target's armour, shield and natural armour. Not after you have moved.",
+  "effect": "PinpointTargeting",
+  "requires": {"dex": 19, "feats": ["improved-precise-shot", "point-blank-shot", "precise-shot"], "baseAttack": 16}
+}

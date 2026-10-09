@@ -1,0 +1,7 @@
+{
+  "kind": "feat",
+  "id": "master-craftsman",
+  "name": "Master Craftsman",
+  "description": "Make magic items with a Craft or Profession skill in place of spells.",
+  "unavailable": "needs item crafting, which is not in the game; nor are the Craft and Profession skills"
+}

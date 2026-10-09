@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "throw-anything",
+  "name": "Throw Anything",
+  "combat": true,
+  "description": "No penalty with improvised thrown weapons.",
+  "unavailable": "needs improvised weapons, which are not in the game yet"
+}

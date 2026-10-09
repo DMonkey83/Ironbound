@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "lightning-stance",
+  "name": "Lightning Stance",
+  "combat": true,
+  "description": "Moving twice, or withdrawing, gives you total concealment until your next turn.",
+  "unavailable": "needs concealment and miss chances, which are not in the game yet",
+  "requires": {"dex": 17, "feats": ["dodge", "wind-stance"], "baseAttack": 11}
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-two-weapon-fighting",
+  "name": "Greater Two-Weapon Fighting",
+  "combat": true,
+  "description": "A third attack with the off-hand weapon.",
+  "unavailable": "needs two-weapon fighting: off-hand attacks and their penalties are not in the game yet",
+  "requires": {"dex": 19, "feats": ["improved-two-weapon-fighting", "two-weapon-fighting"], "baseAttack": 11}
+}

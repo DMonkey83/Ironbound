@@ -372,7 +372,14 @@ public partial class Main : Node3D
 			_stash.Clear();
 			foreach (var item in loot)
 			{
-				_stash.AddItem(item.Name);
+				if (ItemIcon(item) is { } icon)
+				{
+					_stash.AddIconItem(icon, item.Name);
+				}
+				else
+				{
+					_stash.AddItem(item.Name);
+				}
 			}
 
 			if (loot.Count > 0)

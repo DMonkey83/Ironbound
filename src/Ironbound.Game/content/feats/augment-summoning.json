@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "augment-summoning",
+  "name": "Augment Summoning",
+  "description": "Summoned creatures gain +4 Strength and Constitution.",
+  "unavailable": "needs summoning, which is not in the game",
+  "requires": {"feats": ["spell-focus"]}
+}

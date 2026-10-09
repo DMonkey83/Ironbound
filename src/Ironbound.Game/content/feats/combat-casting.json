@@ -1,0 +1,7 @@
+{
+  "kind": "feat",
+  "id": "combat-casting",
+  "name": "Combat Casting",
+  "description": "+4 on concentration checks to cast defensively.",
+  "effect": "CombatCasting"
+}

@@ -203,6 +203,18 @@ public sealed partial class Campaign
     }
 
     /// <summary>
+    /// What one fight was worth to each of the party: every foe put down, at the Bestiary's
+    /// experience for its challenge rating, shared out evenly among everybody in the party.
+    /// </summary>
+    /// <remarks>
+    /// Shared among the whole party, the fallen included. The book gives a share to whoever took
+    /// part, and the campaign keeps one number for all of them, so there is nobody to leave out.
+    /// </remarks>
+    private static int Earned(Battle battle) => Levelling.Share(
+        battle.Foes.Where(foe => !foe.IsConscious).Sum(Levelling.Award),
+        battle.Party.Count);
+
+    /// <summary>
     /// Strips the fallen of everything they were carrying, and searches the room if the fight
     /// was won. Idempotent: a chapter is looted once, however many times anybody asks.
     /// </summary>
@@ -235,9 +247,7 @@ public sealed partial class Campaign
 
         // Experience comes off the same moment: the chapter is over, and this is taking stock
         // of it. Awarded for anyone put down, whether or not they were carrying anything.
-        Award($"Chapter {Chapter} won", Battle.Foes
-            .Where(foe => !foe.IsConscious)
-            .Sum(Levelling.Award));
+        Award($"Chapter {Chapter} won", Earned(Battle));
 
         // Anyone who cannot stop you, not only the outright dead. A hobgoblin bleeding out at
         // -12 is in no position to object, and leaving his sword on him because the rules call
@@ -475,6 +485,27 @@ public sealed partial class Campaign
             .OfType<FeatDefinition>()
             .Where(feat => feat.AvailableTo(creature))
             .OrderBy(feat => feat.Name, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Every feat this creature cannot take, and in words why not: what the game has yet to
+    /// build for it, or the prerequisites it is short of. What a level-up screen lists under
+    /// "not available", in name order. Feats it already holds are left out.
+    /// </summary>
+    public IEnumerable<(FeatDefinition Feat, string Why)> WithheldFeats(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+
+        return _library.FeatIds
+            .Select(_library.GetFeat)
+            .OfType<FeatDefinition>()
+            .Where(feat => feat.Repeatable || feat.Takes != FeatChoice.None || !creature.HasFeat(feat.Id))
+            .Select(feat => (Feat: feat, Why: feat.WhyNot(creature)))
+            .Where(entry => entry.Why.Count > 0 && !(entry.Why.Count == 1 && entry.Why[0] == "already taken"))
+            .OrderBy(entry => entry.Feat.Name, StringComparer.Ordinal)
+            .Select(entry => (entry.Feat, entry.Feat.IsAvailable
+                ? $"needs {string.Join(", ", entry.Why)}"
+                : entry.Why[0]));
     }
 
     /// <summary>Whether the next level somebody takes will come with a feat.</summary>

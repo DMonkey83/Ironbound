@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-shield-focus",
+  "name": "Greater Shield Focus",
+  "combat": true,
+  "description": "One more point of armour class from a shield in use, on top of Shield Focus.",
+  "effect": "GreaterShieldFocus",
+  "requires": {"feats": ["shield-focus"], "baseAttack": 1, "armour": ["shields"], "classLevels": {"fighter": 8}}
+}

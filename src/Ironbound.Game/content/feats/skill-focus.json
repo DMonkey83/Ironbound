@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "skill-focus",
+  "name": "Skill Focus",
+  "takes": "Skill",
+  "description": "+3 on checks with one skill, +6 once it has 10 ranks. Taken again, it is another skill.",
+  "effect": "SkillFocus"
+}

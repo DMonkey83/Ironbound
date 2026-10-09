@@ -62,8 +62,9 @@ public sealed class BleedingOutEffect : Effect
 
         // The check gets harder the further under you are, which is why somebody at minus one
         // usually pulls through and somebody at minus eight usually does not.
+        // A Constitution check, and so whatever reaches every ability check reaches it too.
         var roll = context.Random.NextDie(20);
-        var constitution = target.Abilities[Ability.Constitution].Modifier;
+        var constitution = target.AbilityCheck(Ability.Constitution).Total;
         var total = roll + constitution + target.HitPoints.Current;
 
         if (total >= StabiliseDC)
@@ -113,7 +114,15 @@ public static class Bleeding
 
         if (bleeding is null)
         {
-            creature.Effects.Apply(new BleedingOutEffect());
+            bleeding = new BleedingOutEffect();
+            creature.Effects.Apply(bleeding);
+        }
+
+        // Diehard: stable the moment the hit points go under, with no check to make. A fresh
+        // wound does not reopen it either; only death ends it.
+        if (creature.HasFeat(Feats.FeatEffect.Diehard))
+        {
+            bleeding.Stabilise();
         }
     }
 

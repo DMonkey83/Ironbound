@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "shatter-defenses",
+  "name": "Shatter Defenses",
+  "combat": true,
+  "description": "A shaken or frightened foe you hit is flat-footed to you until the end of your next turn.",
+  "effect": "ShatterDefenses",
+  "requires": {"feats": ["weapon-focus", "dazzling-display"], "baseAttack": 6}
+}

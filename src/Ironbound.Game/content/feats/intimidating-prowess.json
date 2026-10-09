@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "intimidating-prowess",
+  "name": "Intimidating Prowess",
+  "combat": true,
+  "description": "Add your Strength bonus to Intimidate checks as well as your Charisma.",
+  "effect": "IntimidatingProwess"
+}

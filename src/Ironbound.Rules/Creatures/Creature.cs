@@ -54,6 +54,7 @@ public sealed class Creature
             // Resiliency is the only thing that answers yet; asked only as a blow is about to
             // take somebody below nought.
             Dropping = () => RogueDefences.Resiliency(this),
+            FightsOn = () => HasFeat(FeatEffect.Diehard),
         };
 
         // Both read live, so a level gained or a shield taken up changes them on the spot.
@@ -224,6 +225,50 @@ public sealed class Creature
 
     /// <summary>Total character level, or its hit dice when it has no classes at all.</summary>
     public int Level => Levels.Count > 0 ? Progression.TotalLevel(Levels) : HitPoints.HitDice;
+
+    /// <summary>What kind of thing it is: humanoid, undead, outsider.</summary>
+    public CreatureType Type { get; set; } = CreatureType.Humanoid;
+
+    /// <summary>
+    /// Its subtypes, in the Bestiary's lower-case words: "evil", "fire", "goblinoid". What the
+    /// alignment and elemental channel feats pick their targets by.
+    /// </summary>
+    public ISet<string> Subtypes { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Spell resistance: a spell that allows it fails unless the caster's level check beats
+    /// this. Nought for almost everything.
+    /// </summary>
+    public int SpellResistance { get; set; }
+
+    /// <summary>
+    /// How dangerous it is, as the Bestiary rates it, and so what beating it is worth. Null for
+    /// a creature nothing has rated, which is rated by its levels when asked.
+    /// </summary>
+    /// <remarks>
+    /// Set from its file when it is built, and read from the file again when a save is loaded:
+    /// it is a fact about the goblin, not about this fight.
+    /// </remarks>
+    public ChallengeRating? WrittenChallenge { get; set; }
+
+    /// <summary>
+    /// Its challenge rating: the one its file gives, or the Bestiary's rule for its class levels.
+    /// A creature with neither — only ever one built by hand — counts its hit dice as NPC levels,
+    /// which is a placeholder rather than a rule; a content file without classes has to say.
+    /// </summary>
+    public ChallengeRating Challenge => WrittenChallenge
+        ?? (Levels.Count > 0
+            ? ChallengeRating.ForClassLevels(Levels)
+            : ChallengeRating.FromSteps(HitPoints.HitDice - 2));
+
+    /// <summary>
+    /// The class it is favoured in, by id: a point of hit points or a skill rank for every level
+    /// it gains there. Null means its first class, which is the book's usual case.
+    /// </summary>
+    public string? FavouredClassId { get; set; }
+
+    /// <summary>The class it is actually favoured in: the one written, else the first it took.</summary>
+    public string? FavouredClass => FavouredClassId ?? (Levels.Count > 0 ? Levels[0].Class.Id : null);
 
     /// <summary>What it has learnt to do, as a sheet would print it: "Fighter 6".</summary>
     public string Description => Levels.Count > 0
@@ -398,6 +443,26 @@ public sealed class Creature
 
     /// <summary>Improved Initiative and anything else that decides who moves first.</summary>
     public ModifierStack InitiativeModifiers { get; } = new();
+
+    /// <summary>
+    /// What reaches every ability check: a Strength check against a stuck door, the Constitution
+    /// check to stop bleeding. Being shaken costs two here as it does on a skill.
+    /// </summary>
+    public ModifierStack AbilityCheckModifiers { get; } = new();
+
+    /// <summary>The bonus on an ability check: the ability's modifier and everything on every check.</summary>
+    public ModifierBreakdown AbilityCheck(Ability ability)
+    {
+        var innate = new ModifierStack();
+        var modifier = Abilities[ability].Modifier;
+
+        if (modifier != 0)
+        {
+            innate.Add(modifier, BonusType.Untyped, AbilityInfo.Abbreviate(ability));
+        }
+
+        return ModifierStack.Combine(innate, AbilityCheckModifiers);
+    }
 
     /// <summary>Buffs, conditions and anything else running on a clock.</summary>
     public EffectCollection Effects { get; }

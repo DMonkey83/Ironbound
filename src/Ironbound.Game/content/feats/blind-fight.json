@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "blind-fight",
+  "name": "Blind-Fight",
+  "combat": true,
+  "description": "Roll a missed concealment chance again, and lose less to what you cannot see.",
+  "unavailable": "needs concealment and miss chances, which are not in the game yet"
+}

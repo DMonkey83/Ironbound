@@ -75,6 +75,15 @@ public sealed class SkillSet(Creature owner)
         return this;
     }
 
+    /// <summary>
+    /// What reaches every skill check at once: the −2 of being shaken, frightened or sickened.
+    /// </summary>
+    /// <remarks>
+    /// One stack beside the per-skill ones, met with them in the same stacking pass, so a
+    /// penalty on every check and a bonus on one never have to be added up by hand.
+    /// </remarks>
+    public ModifierStack Checks { get; } = new();
+
     /// <summary>Circumstance bonuses, gear, spells — anything that is not a rank.</summary>
     public ModifierStack Modifiers(Skill skill)
     {
@@ -126,8 +135,15 @@ public sealed class SkillSet(Creature owner)
         }
 
         // Armour's check penalty and trapfinding are worked out live from what is worn and
-        // what levels are held, so taking the scale mail off helps the very next climb.
-        return ModifierStack.Combine(innate, Modifiers(skill), Classes.ClassFeatures.SkillModifiers(_owner, skill));
+        // what levels are held, so taking the scale mail off helps the very next climb. The
+        // skill feats are live for the same reason: Alertness is worth four, not two, from the
+        // tenth rank on, and nothing should have to remember to bump it.
+        return ModifierStack.Combine(
+            innate,
+            Modifiers(skill),
+            Checks,
+            Classes.ClassFeatures.SkillModifiers(_owner, skill),
+            SkillFeats.Modifiers(_owner, skill));
     }
 
     public int Total(Skill skill) => Explain(skill).Total;

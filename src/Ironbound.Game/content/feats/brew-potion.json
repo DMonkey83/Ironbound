@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "brew-potion",
+  "name": "Brew Potion",
+  "itemCreation": true,
+  "description": "Brew potions of spells you know.",
+  "unavailable": "needs item crafting, which is not in the game",
+  "requires": {"casterLevel": 3}
+}

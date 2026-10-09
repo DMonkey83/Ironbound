@@ -204,6 +204,9 @@ public class GameSaveTests
     {
         var encounter = Fight(out _, out var hero, out _);
         hero.Spells.CastingAbility = Ability.Intelligence;
+
+        // Thirteen at least, or a third-level spell is beyond her whatever her slots say.
+        hero.Abilities[Ability.Intelligence].Base = 14;
         hero.Spells.CasterLevel = 5;
         hero.Spells.SetSlots(1, 3).SetSlots(3, 2).Prepare(Spells.Fireball).Prepare(Spells.MagicMissile);
         hero.Spells.Spend(Spells.Fireball);

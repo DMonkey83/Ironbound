@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "alertness",
+  "name": "Alertness",
+  "description": "+2 on Perception and Sense Motive checks; +4 on either once it has 10 ranks.",
+  "effect": "SkillBonus",
+  "skills": ["Perception", "SenseMotive"]
+}

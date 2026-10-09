@@ -385,6 +385,12 @@ public sealed partial class ContentLibrary
 
             ValidateChoices(creature);
 
+            if (creature.FavouredClass is { } favoured && !creature.Classes.Any(taken => taken.ClassId == favoured))
+            {
+                _problems.Add(new ContentProblem(
+                    $"creature '{creature.Id}'", "favouredClass", $"'{favoured}' is not one of its classes."));
+            }
+
             foreach (var spell in creature.Spells.Where(id => !_spells.ContainsKey(id)))
             {
                 _problems.Add(new ContentProblem(
@@ -397,11 +403,7 @@ public sealed partial class ContentLibrary
         // all in a library that happened to contain no creatures.
         foreach (var feat in _feats.Values)
         {
-            foreach (var wanted in feat.Requires.Feats.Where(id => !_feats.ContainsKey(id)))
-            {
-                _problems.Add(new ContentProblem(
-                    $"feat '{feat.Id}'", "requires", $"no feat called '{wanted}'."));
-            }
+            ValidateFeat(feat);
         }
 
         foreach (var taken in _classes.Values)
@@ -559,6 +561,45 @@ public sealed partial class ContentLibrary
         }
     }
 
+    /// <summary>
+    /// A feat's prerequisites name things that exist, and a feat the game can do has what it
+    /// needs to do it: a skill feat its skills, an effect its rules.
+    /// </summary>
+    private void ValidateFeat(FeatDefinition feat)
+    {
+        var source = $"feat '{feat.Id}'";
+
+        foreach (var wanted in feat.Requires.Feats.Concat(feat.Requires.AnyOf).Where(id => !_feats.ContainsKey(id)))
+        {
+            _problems.Add(new ContentProblem(source, "requires", $"no feat called '{wanted}'."));
+        }
+
+        foreach (var classId in feat.Requires.ClassLevels.Keys.Where(id => !_classes.ContainsKey(id)))
+        {
+            _problems.Add(new ContentProblem(source, "requires.classLevels", $"no class called '{classId}'."));
+        }
+
+        // A feat nobody can take yet may wait on a class feature no class here has — ki, lay on
+        // hands — and saying what it waits on is the point of keeping it.
+        if (feat.IsAvailable)
+        {
+            foreach (var feature in feat.Requires.Features.Where(id => !FeatureIds.Known.ContainsKey(id)))
+            {
+                _problems.Add(new ContentProblem(source, "requires.features", $"'{feature}' is not a class feature this game has."));
+            }
+        }
+
+        if (feat.Effect == FeatEffect.SkillBonus && feat.Skills.Count == 0)
+        {
+            _problems.Add(new ContentProblem(source, "skills", "a skill feat needs the skills it helps with."));
+        }
+
+        if (feat.Unavailable is { Length: 0 })
+        {
+            _problems.Add(new ContentProblem(source, "unavailable", "needs a reason."));
+        }
+    }
+
     /// <summary>"weapon-focus" or "weapon-focus:longsword": the feat exists, and so does what it was taken for.</summary>
     private void ValidateFeatKey(string source, string field, string key)
     {
@@ -586,6 +627,11 @@ public sealed partial class ContentLibrary
         else if (split >= 0 && feat.Takes == FeatChoice.None)
         {
             _problems.Add(new ContentProblem(source, field, $"{feat.Name} is not taken for anything in particular."));
+        }
+        else if (split >= 0 && !FeatChoices.IsValid(feat.Takes, key[(split + 1)..]))
+        {
+            _problems.Add(new ContentProblem(
+                source, field, $"'{key[(split + 1)..]}' is not one of {string.Join(", ", FeatChoices.Options(feat.Takes))} for {feat.Name}."));
         }
     }
 
@@ -904,8 +950,16 @@ public sealed partial class ContentLibrary
             return ModifierTarget.Save(save);
         }
 
+        if (target.StartsWith("skill.", StringComparison.OrdinalIgnoreCase)
+            && System.Enum.TryParse<Skill>(target[6..], true, out var skill))
+        {
+            return ModifierTarget.Skill(skill);
+        }
+
         return target.ToLowerInvariant() switch
         {
+            "skills" => ModifierTarget.AllSkills,
+            "abilitychecks" => ModifierTarget.AbilityChecks,
             "armorclass" or "armourclass" or "ac" => ModifierTarget.ArmorClass,
             "damage" => ModifierTarget.Damage,
             "speed" => ModifierTarget.Speed,
@@ -988,6 +1042,16 @@ public sealed partial class ContentLibrary
             GoodSaves = good,
             Casting = reader.Enum("casting", CasterProgression.None),
             CastingAbility = reader.Enum("castingAbility", Ability.Intelligence),
+            Tradition = reader.Enum("magic", MagicTradition.None),
+
+            // A caster leans on what she casts with when the file does not say; anybody else
+            // on Strength, which is what most of the classes that do not cast are for.
+            KeyAbility = reader.Enum(
+                "keyAbility",
+                reader.Enum("casting", CasterProgression.None) == CasterProgression.None
+                    ? Ability.Strength
+                    : reader.Enum("castingAbility", Ability.Intelligence)),
+            Npc = reader.Bool("npc"),
             ClassSkills = classSkills,
             SpellSlots = slots,
             WeaponProficiencies = [.. reader.Array("weaponProficiencies").Select(e => e.GetString() ?? string.Empty)],
@@ -1023,6 +1087,40 @@ public sealed partial class ContentLibrary
             }
         }
 
+        // "classLevels": { "fighter": 8 } — read as written; whether the classes exist is the
+        // validator's question, once every file is in.
+        var classLevels = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var (name, value) in wants.Members("classLevels"))
+        {
+            classLevels[name] = value.TryGetInt32(out var level) ? level : 0;
+        }
+
+        var ranks = new Dictionary<Skill, int>();
+        foreach (var (name, value) in wants.Members("ranks"))
+        {
+            if (System.Enum.TryParse<Skill>(name, true, out var skill))
+            {
+                ranks[skill] = value.TryGetInt32(out var count) ? count : 0;
+            }
+            else
+            {
+                wants.Problem("ranks", $"'{name}' is not a skill.");
+            }
+        }
+
+        var skills = new List<Skill>();
+        foreach (var entry in reader.Array("skills"))
+        {
+            if (System.Enum.TryParse<Skill>(entry.GetString(), true, out var skill))
+            {
+                skills.Add(skill);
+            }
+            else
+            {
+                reader.Problem("skills", $"'{entry.GetString()}' is not a skill.");
+            }
+        }
+
         return new FeatDefinition
         {
             Id = id,
@@ -1030,8 +1128,17 @@ public sealed partial class ContentLibrary
             {
                 Abilities = minimums,
                 Feats = [.. wants.Array("feats").Select(e => e.GetString() ?? string.Empty)],
+                AnyOf = [.. wants.Array("anyOf").Select(e => e.GetString() ?? string.Empty)],
+                SameChoice = wants.Bool("sameChoice"),
                 BaseAttack = wants.Int("baseAttack"),
                 Level = wants.Int("level"),
+                ClassLevels = classLevels,
+                CasterLevel = wants.Int("casterLevel"),
+                Arcane = wants.Bool("arcane"),
+                Ranks = ranks,
+                Proficient = wants.Bool("proficient"),
+                CriticalFeats = wants.Int("criticalFeats"),
+                Channel = wants.Has("channel") ? wants.Enum("channel", ChannelKind.Positive) : null,
                 Features = [.. wants.Array("features").Select(e => e.GetString() ?? string.Empty)],
                 Armour = [.. wants.Array("armour").Select(e => e.GetString() ?? string.Empty)],
             },
@@ -1042,6 +1149,10 @@ public sealed partial class ContentLibrary
             Combat = reader.Bool("combat"),
             Metamagic = reader.Bool("metamagic"),
             ItemCreation = reader.Bool("itemCreation"),
+            Critical = reader.Bool("critical"),
+            Repeatable = reader.Bool("repeatable"),
+            Skills = skills,
+            Unavailable = reader.Has("unavailable") ? reader.StringOr("unavailable", "not in the game yet") : null,
             Takes = reader.Enum("takes", FeatChoice.None),
         };
     }
@@ -1371,6 +1482,11 @@ public sealed partial class ContentLibrary
                 .OfType<SpellSchool>()],
             ArcaneBond = reader.Has("arcaneBond") ? reader.StringOr("arcaneBond", "object") : null,
             WeaponMaster = reader.Has("weaponMaster") ? reader.StringOr("weaponMaster", string.Empty) : null,
+            ChallengeRating = reader.Challenge("cr"),
+            Type = reader.Enum("type", CreatureType.Humanoid),
+            Subtypes = [.. reader.Array("subtypes").Select(e => (e.GetString() ?? string.Empty).ToLowerInvariant())],
+            SpellResistance = reader.Int("spellResistance"),
+            FavouredClass = reader.Has("favouredClass") ? reader.StringOr("favouredClass", string.Empty) : null,
         };
     }
 
@@ -2007,6 +2123,40 @@ public sealed partial class ContentLibrary
         public JsonElement[] Array(string name) =>
             Has(name) && element.GetProperty(name).ValueKind == JsonValueKind.Array
                 ? [.. element.GetProperty(name).EnumerateArray()]
+                : [];
+
+        /// <summary>
+        /// A challenge rating, written as a number or as "1/3". Null when the field is absent;
+        /// a problem and null when it is there and is neither.
+        /// </summary>
+        public ChallengeRating? Challenge(string name)
+        {
+            if (!Has(name))
+            {
+                return null;
+            }
+
+            var value = element.GetProperty(name);
+            var text = value.ValueKind switch
+            {
+                JsonValueKind.Number => value.GetRawText(),
+                JsonValueKind.String => value.GetString(),
+                _ => null,
+            };
+
+            if (ChallengeRating.TryParse(text, out var rating))
+            {
+                return rating;
+            }
+
+            Problem(name, $"'{text ?? value.GetRawText()}' is not a challenge rating: a whole number, or 1/2, 1/3, 1/4, 1/6 or 1/8.");
+            return null;
+        }
+
+        /// <summary>The members of an object field, as name and value, in the order written.</summary>
+        public IEnumerable<(string Name, JsonElement Value)> Members(string name) =>
+            Has(name) && element.GetProperty(name).ValueKind == JsonValueKind.Object
+                ? [.. element.GetProperty(name).EnumerateObject().Select(member => (member.Name, member.Value))]
                 : [];
 
         public Reader Object(string name) => Has(name)

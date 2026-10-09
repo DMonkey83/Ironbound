@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "gorgons-fist",
+  "name": "Gorgon's Fist",
+  "combat": true,
+  "description": "An unarmed blow that staggers a slowed foe.",
+  "unavailable": "needs unarmed strikes, which are not in the game yet",
+  "requires": {"feats": ["improved-unarmed-strike", "scorpion-style"], "baseAttack": 6}
+}

@@ -57,6 +57,27 @@ public enum Condition
     /// words, but nothing should ever have to wonder whether a position moved.
     /// </remarks>
     Fatigued,
+
+    /// <summary>
+    /// A move or a standard action a round and never both, nor anything that takes the whole
+    /// round. What a staggering critical does, and what Diehard leaves somebody below nought.
+    /// </summary>
+    Staggered,
+
+    /// <summary>Half blinded by light: -1 on attacks and on looking for things.</summary>
+    Dazzled,
+
+    /// <summary>
+    /// Cannot hear: -4 on initiative and on Perception, and one spell in five fumbled, since
+    /// nearly every spell is spoken.
+    /// </summary>
+    Deafened,
+
+    /// <summary>
+    /// Worn out past fatigue: -6 Strength and Dexterity, and half speed. Fatigue on top of
+    /// fatigue is this.
+    /// </summary>
+    Exhausted,
 }
 
 /// <summary>
@@ -82,6 +103,9 @@ public sealed record ConditionRules
 
     /// <summary>What is left of its speed, as a percentage. A hundred is untouched.</summary>
     public int SpeedPercent { get; init; } = 100;
+
+    /// <summary>Down to one move or standard action a round, as staggered is.</summary>
+    public bool SingleAction { get; init; }
 }
 
 /// <summary>The rulebook entry for each condition, transcribed once.</summary>
@@ -94,9 +118,16 @@ public static class ConditionInfo
     public static ConditionRules Of(Condition condition) => Table[condition];
 
     /// <summary>A fresh effect that imposes a condition for as long as it lasts.</summary>
-    public static ModifierEffect Effect(Condition condition, Duration duration)
+    public static ModifierEffect Effect(Condition condition, Duration duration) =>
+        Effect(condition, duration, condition.ToString());
+
+    /// <summary>
+    /// The same, filed under a name of its own: a stun from a critical is "Stunning Critical",
+    /// so that it lengthens itself rather than replacing a stun that came from somewhere else.
+    /// </summary>
+    public static ModifierEffect Effect(Condition condition, Duration duration, string name)
     {
-        var effect = new ModifierEffect(condition.ToString(), duration) { Condition = condition };
+        var effect = new ModifierEffect(name, duration) { Condition = condition };
 
         foreach (var grant in Of(condition).Grants)
         {
@@ -112,10 +143,12 @@ public static class ConditionInfo
         // once is -4 to hit, not -2 twice over with the larger winning.
         var table = new Dictionary<Condition, ConditionRules>();
 
+        // The fear conditions and sickness reach skill checks and ability checks as well as
+        // attacks and saves: a shaken rogue is worse at the lock as well as at the stab.
         table[Condition.Shaken] = new ConditionRules
         {
             Condition = Condition.Shaken,
-            Grants = [.. Penalty(-2, attack: true, saves: true)],
+            Grants = [.. Penalty(-2, attack: true, saves: true, checks: true)],
         };
 
         table[Condition.Frightened] = new ConditionRules
@@ -123,13 +156,13 @@ public static class ConditionInfo
             // Mechanically shaken. The part where it runs away is a decision, and decisions
             // belong to whatever is driving the creature rather than to the rules.
             Condition = Condition.Frightened,
-            Grants = [.. Penalty(-2, attack: true, saves: true)],
+            Grants = [.. Penalty(-2, attack: true, saves: true, checks: true)],
         };
 
         table[Condition.Sickened] = new ConditionRules
         {
             Condition = Condition.Sickened,
-            Grants = [.. Penalty(-2, attack: true, saves: true, damage: true)],
+            Grants = [.. Penalty(-2, attack: true, saves: true, damage: true, checks: true)],
         };
 
         table[Condition.Prone] = new ConditionRules
@@ -167,8 +200,17 @@ public static class ConditionInfo
 
         table[Condition.Blinded] = new ConditionRules
         {
+            // The -4 on the skills that run on Strength and Dexterity is the book's. Its other
+            // half — total concealment against everybody, a miss chance on every swing it makes —
+            // waits for concealment.
             Condition = Condition.Blinded,
-            Grants = [new ModifierGrant(ModifierTarget.ArmorClass, -2, BonusType.Untyped)],
+            Grants =
+            [
+                new ModifierGrant(ModifierTarget.ArmorClass, -2, BonusType.Untyped),
+                .. Skills.SkillInfo.All
+                    .Where(skill => Skills.SkillInfo.AbilityFor(skill) is Abilities.Ability.Strength or Abilities.Ability.Dexterity)
+                    .Select(skill => new ModifierGrant(ModifierTarget.Skill(skill), -4, BonusType.Untyped)),
+            ],
             DeniesDexterity = true,
             SpeedPercent = 50,
         };
@@ -196,12 +238,62 @@ public static class ConditionInfo
             ],
         };
 
+        table[Condition.Staggered] = new ConditionRules
+        {
+            Condition = Condition.Staggered,
+            SingleAction = true,
+        };
+
+        table[Condition.Dazzled] = new ConditionRules
+        {
+            // The book's -1 is on sight-based Perception. Nearly all of it is, and the game has
+            // no other kind, so it is all of Perception here.
+            Condition = Condition.Dazzled,
+            Grants =
+            [
+                new ModifierGrant(ModifierTarget.Attack, -1, BonusType.Untyped),
+                new ModifierGrant(ModifierTarget.Skill(Skills.Skill.Perception), -1, BonusType.Untyped),
+            ],
+        };
+
+        table[Condition.Deafened] = new ConditionRules
+        {
+            // The book fails outright any Perception check made by sound and takes four off the
+            // opposed ones. Nothing here tells one from the other, so it is four off them all.
+            // The fumbled spells are Casting's business.
+            Condition = Condition.Deafened,
+            Grants =
+            [
+                new ModifierGrant(ModifierTarget.Initiative, -4, BonusType.Untyped),
+                new ModifierGrant(ModifierTarget.Skill(Skills.Skill.Perception), -4, BonusType.Untyped),
+            ],
+        };
+
+        table[Condition.Exhausted] = new ConditionRules
+        {
+            // Running and charging are barred as fatigue bars them; neither exists to bar yet,
+            // except the run, which asks.
+            Condition = Condition.Exhausted,
+            Grants =
+            [
+                new ModifierGrant(ModifierTarget.Ability(Abilities.Ability.Strength), -6, BonusType.Untyped),
+                new ModifierGrant(ModifierTarget.Ability(Abilities.Ability.Dexterity), -6, BonusType.Untyped),
+            ],
+            SpeedPercent = 50,
+        };
+
         return table;
     }
 
     private static IEnumerable<ModifierGrant> Penalty(
-        int value, bool attack = false, bool saves = false, bool damage = false)
+        int value, bool attack = false, bool saves = false, bool damage = false, bool checks = false)
     {
+        if (checks)
+        {
+            yield return new ModifierGrant(ModifierTarget.AllSkills, value, BonusType.Untyped);
+            yield return new ModifierGrant(ModifierTarget.AbilityChecks, value, BonusType.Untyped);
+        }
+
         if (attack)
         {
             yield return new ModifierGrant(ModifierTarget.Attack, value, BonusType.Untyped);

@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "critical-mastery",
+  "name": "Critical Mastery",
+  "combat": true,
+  "description": "Two critical feats' effects on one critical hit instead of one.",
+  "effect": "CriticalMastery",
+  "unavailable": "needs 14th-level fighter, and the game stops at 10th",
+  "requires": {"criticalFeats": 2, "classLevels": {"fighter": 14}}
+}

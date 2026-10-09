@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "improvised-weapon-mastery",
+  "name": "Improvised Weapon Mastery",
+  "combat": true,
+  "description": "Improvised weapons hit harder and threaten criticals more often.",
+  "unavailable": "needs improvised weapons, which are not in the game yet",
+  "requires": {"anyOf": ["catch-off-guard", "throw-anything"], "baseAttack": 8}
+}

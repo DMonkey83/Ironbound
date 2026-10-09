@@ -8,5 +8,6 @@
   "takes": "Weapon",
   "description": "+1 on attack rolls with one kind of weapon.",
   "effect": "WeaponFocus",
-  "requires": { "baseAttack": 1 }
+  // Proficiency with the weapon chosen: nobody focuses on a blade they were never taught.
+  "requires": { "baseAttack": 1, "proficient": true }
 }

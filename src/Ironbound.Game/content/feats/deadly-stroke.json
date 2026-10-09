@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "deadly-stroke",
+  "name": "Deadly Stroke",
+  "combat": true,
+  "description": "One blow against a stunned or flat-footed foe with your focused weapon: double damage, and it bleeds a point of Constitution a round.",
+  "effect": "DeadlyStroke",
+  "requires": {"feats": ["weapon-focus", "dazzling-display", "greater-weapon-focus", "shatter-defenses"], "baseAttack": 11}
+}

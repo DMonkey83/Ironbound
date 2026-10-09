@@ -22,12 +22,17 @@ with them, so it is modelled at the size of the hand that holds it. One unit is 
 Shapes are lofted from cross-sections rather than assembled from primitives, because a blade is
 a thing with a fuller and a taper in two directions at once, and a cone is not.
 
-FAMILIES. The swords, and the catalogue after them, are built by `weapon_families.py` from one
-recipe table: an id names its family (straight blade, curved blade...) and that family's parts
-and sizes. The first swords were one function at four lengths and the owner could not tell a
-longsword from a greatsword; a family builds the parts that make each weapon what it is — the
-zweihander's ricasso and lugs, the gladius's parallel edges — so they cannot come out alike.
-The builders below are the models from before the families, kept until their family exists.
+FAMILIES. Every weapon in the catalogue is a row in `weapon_recipes.py`, built by
+`weapon_families.py` out of the parts in `weapon_parts.py`: an id names its family and its
+builder and that family's parts and sizes. The first swords were one function at four lengths
+and the owner could not tell a longsword from a greatsword; a family builds the parts that make
+each weapon what it is — the zweihander's ricasso and lugs, the gladius's parallel edges — so
+they cannot come out alike. The builders below are the nine models from before the families,
+kept as they were accepted.
+
+EFFECTS. Each export gets two empty nodes, FX_Start and FX_End, along its striking edge or head,
+written into the .glb's JSON after export (`add_fx_nodes`), so `--fx-only` can add them to a
+model already built without touching its mesh or its baked textures.
 
 TWO WAYS OUT. What characters hold today (BAKED) is baked by `surface.py` — grain, rust, brushed
 steel into colour, ORM and normal atlases — so the sword in Valeria's hand matches the textured
@@ -46,6 +51,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import generate_goblin as gg  # noqa: E402
 import surface  # noqa: E402
 import weapon_families as wf  # noqa: E402
+import named_weapons  # noqa: E402,F401  (registers the "named" builder)
 
 STEEL = gg.mat("Sword_Steel", (0.58, 0.59, 0.62), 0.45, 0.40)
 # Cold iron was a steel 6% darker, and its icon read as plain steel. It is the shared
@@ -298,8 +304,9 @@ WEAPONS = {
     "heavy-shield": lambda: shield(0.80, heavy=True),
     "light-shield": lambda: shield(0.60, heavy=False),
 }
-# Everything the families build: the swords, and in time the catalogue.
-WEAPONS.update({weapon: (lambda w: lambda: wf.build(w)[0])(weapon) for weapon in wf.RECIPES})
+LEGACY = set(WEAPONS)
+# Everything the families build: the swords, and the catalogue.
+WEAPONS.update({weapon: (lambda w: lambda: wf.build(w))(weapon) for weapon in wf.RECIPES})
 
 # What characters hold today keeps the baked textures it was accepted with, so it matches the
 # models it stands next to. Everything else exports with the shared named materials and no
@@ -312,18 +319,85 @@ BAKED = {
 
 POINTED = {"light-crossbow"}
 
+# Where the legacy models' effects run, in the frame they are built in (before a crossbow is
+# laid forward): the head of an axe or a mace bottom to top, a spear's blade, a staff's length,
+# a bow from nock to nock, a crossbow's bolt. Shields have none.
+LEGACY_FX = {
+    "greataxe": ((0, 0, 1.52), (0, 0, 2.86)),
+    "cold-iron-greataxe": ((0, 0, 1.52), (0, 0, 2.86)),
+    "light-mace": ((0, 0, 0.86), (0, 0, 1.29)),
+    "shortspear": ((0, 0, 1.98), (0, 0, 2.60)),
+    "quarterstaff": ((0, 0, -1.61), (0, 0, 2.31)),
+    "shortbow": ((0, 0.512, -1.25), (0, 0.512, 1.25)),
+    "light-crossbow": ((0, -0.10, 0.30), (0, -0.10, 1.50)),
+}
+
 # Modelled at human size, about 0.45 m to the unit against the goblins' 0.6, so the surface
 # noise is told to run a third coarser to keep the same grain per hand.
 surface.SCALE = 1.33
 
 
+def laid_forward(p):
+    """Standing up to lying forward: length to +Y, top to +Z."""
+    return Vector((p[0], p[2], -p[1]))
+
+
+def add_fx_nodes(path, start, end):
+    """Two empty nodes, FX_Start and FX_End, children of the weapon's mesh node, written straight
+    into the .glb's JSON so the geometry and textures are untouched. Run again, it moves them."""
+    import json
+    import struct
+
+    with open(path, "rb") as f:
+        data = f.read()
+    magic, version, _ = struct.unpack("<4sII", data[:12])
+    jlen, jtype = struct.unpack("<I4s", data[12:20])
+    doc = json.loads(data[20:20 + jlen])
+    rest = data[20 + jlen:]
+    nodes = doc["nodes"]
+    names = {n.get("name"): i for i, n in enumerate(nodes)}
+    roots = doc["scenes"][doc.get("scene", 0)]["nodes"]
+    holder = next(i for i in roots if "mesh" in nodes[i])
+    for name, p in (("FX_Start", start), ("FX_End", end)):
+        t = [round(float(p[0]), 5), round(float(p[2]), 5), round(-float(p[1]), 5)]     # Blender Z-up to glTF Y-up
+        if name in names:
+            nodes[names[name]]["translation"] = t
+        else:
+            nodes.append({"name": name, "translation": t})
+            nodes[holder].setdefault("children", []).append(len(nodes) - 1)
+    text = json.dumps(doc, separators=(",", ":")).encode()
+    text += b" " * ((4 - len(text) % 4) % 4)
+    with open(path, "wb") as f:
+        f.write(struct.pack("<4sII", magic, version, 20 + len(text) + len(rest)) + struct.pack("<I4s", len(text), jtype) + text + rest)
+
+
+def effects_line(name):
+    """The effects line of a model as built, in the frame it is exported in."""
+    if name in LEGACY:
+        fx = LEGACY_FX.get(name)
+        pointed = name in POINTED
+    else:
+        gg.clear_scene()
+        _, info = wf.build(name)
+        fx, pointed = info.get("fx"), info.get("pointed")
+    if not fx:
+        return None
+    a, b = Vector(fx[0]), Vector(fx[1])
+    return (laid_forward(a), laid_forward(b)) if pointed else (a, b)
+
+
 def build(name, directory, keep=None):
     gg.clear_scene()
-    parts = WEAPONS[name]()
+    made = WEAPONS[name]()
+    parts, info = made if isinstance(made, tuple) else (made, {"fx": LEGACY_FX.get(name), "pointed": name in POINTED})
     bpy.context.view_layer.update()
 
-    if name in BAKED:
-        # A rune's glow is not a colour and does not survive a bake: it keeps its own material.
+    if wf.family(name) == "named":
+        # Named weapons are few and seen close: a 2048 bake of everything, glow included, into
+        # an emission atlas the exporter writes with its strength.
+        surface.finish([(name, parts, 2048, True)], keep=keep, emission=wf.recipe(name).get("glow", 2.0))
+    elif name in BAKED:
+        # A glow is not a colour and does not survive a bake: it keeps its own material.
         surface.finish([(name, [p for p in parts if not wf.is_unbaked(p)], 1024, True)], keep=keep)
 
     # One mesh: a sword is one thing, and should be one draw call.
@@ -336,10 +410,14 @@ def build(name, directory, keep=None):
     whole.name = name
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
-    if name in POINTED:
+    fx = info.get("fx")
+    if info.get("pointed"):
         # Built standing up like everything else, then laid forward: length to +Y, top to +Z.
         for v in whole.data.vertices:
-            v.co = Vector((v.co.x, v.co.z, -v.co.y))
+            v.co = laid_forward(v.co)
+        whole.data.update()
+        if fx:
+            fx = (laid_forward(fx[0]), laid_forward(fx[1]))
 
     lo = Vector((min(v.co[i] for v in whole.data.vertices) for i in range(3)))
     hi = Vector((max(v.co[i] for v in whole.data.vertices) for i in range(3)))
@@ -347,13 +425,27 @@ def build(name, directory, keep=None):
 
     path = os.path.join(directory, f"{name}.glb")
     gg.export_glb(path)
-    print(f"WEAPON {name:20} {tris:5} tris   z[{lo.z:+.2f},{hi.z:+.2f}]  x[{lo.x:+.2f},{hi.x:+.2f}]  y[{lo.y:+.2f},{hi.y:+.2f}]")
+    if fx:
+        add_fx_nodes(path, fx[0], fx[1])
+    print(f"WEAPON {name:28} {tris:5} tris   z[{lo.z:+.2f},{hi.z:+.2f}]  x[{lo.x:+.2f},{hi.x:+.2f}]  y[{lo.y:+.2f},{hi.y:+.2f}]  "
+          f"{os.path.getsize(path) / 1024:6.0f} KB  fx {'yes' if fx else 'no'}")
 
 
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     if not args:
-        raise RuntimeError("Usage: blender -b --factory-startup --python generate_weapons.py -- OUTPUT_DIRECTORY")
+        raise RuntimeError("Usage: blender -b --factory-startup --python generate_weapons.py -- OUTPUT_DIRECTORY [--fx-only] [id ...]")
+    fx_only = "--fx-only" in args
+    args = [a for a in args if a != "--fx-only"]
     os.makedirs(args[0], exist_ok=True)
     for weapon in (args[1:] or WEAPONS):
+        if fx_only:
+            # Put the effects nodes into models already built, without rebuilding them: the
+            # baked ones would come out of a fresh bake a little different for nothing.
+            line = effects_line(weapon)
+            path = os.path.join(args[0], f"{weapon}.glb")
+            if line and os.path.exists(path):
+                add_fx_nodes(path, line[0], line[1])
+                print(f"FX {weapon:28} {tuple(round(c, 3) for c in line[0])} -> {tuple(round(c, 3) for c in line[1])}")
+            continue
         build(weapon, args[0])

@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "exhausting-critical",
+  "name": "Exhausting Critical",
+  "combat": true,
+  "critical": true,
+  "description": "A critical hit leaves the foe exhausted.",
+  "effect": "ExhaustingCritical",
+  "requires": {"feats": ["critical-focus", "tiring-critical"], "baseAttack": 15}
+}

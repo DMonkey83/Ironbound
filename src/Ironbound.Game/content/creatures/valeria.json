@@ -2,6 +2,8 @@
   "kind": "creature",
   "id": "valeria",
   "name": "Valeria",
+  // Fighter 6, rated one level down.
+  "cr": 5,
   "model": "res://art/valeria.glb",
   // Intelligence 13 is not decoration: it is what Combat Expertise costs, and what Improved
   // Trip costs on top of that. A fighter who wants to trip people pays for it here.
@@ -19,12 +21,13 @@
   "speed": 30,
   // A fighter's feats: quick on her feet, punishes anyone who walks past her, and knows
   // how to put somebody on the floor without opening her guard. A human fighter 6 has eight —
-  // three for her levels, one for being human, four fighter bonus feats — and the last two
-  // here filled the gap with the combat feats the longsword-and-board fighter wants. That is
-  // seven: one bonus feat is still unspent, and left for whoever plays her to choose.
+  // three for her levels, one for being human, four fighter bonus feats. The eighth is Greater
+  // Trip, which her base attack of six has just opened: two more on every trip, and whoever
+  // she puts down draws a swing from everyone standing over it on the way to the floor.
+  // Weapon Specialization is in the longsword, as the feat is always in one weapon.
   "feats": [
-    "dodge", "combat-reflexes", "improved-trip", "weapon-specialization", "combat-expertise",
-    "weapon-focus:longsword", "shield-focus"
+    "dodge", "combat-reflexes", "improved-trip", "weapon-specialization:longsword", "combat-expertise",
+    "weapon-focus:longsword", "shield-focus", "greater-trip"
   ],
 
   // Weapon training at fifth level, in the group her longsword is in.

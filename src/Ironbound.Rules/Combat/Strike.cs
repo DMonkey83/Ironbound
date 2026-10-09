@@ -43,7 +43,14 @@ public static class Strike
     /// immobilised. Position-dependent conditions will be derived here once a map exists.</param>
     /// <param name="rules">Defaults to the attacker's own options.</param>
     /// <param name="vital">A Vital Strike: the weapon's dice rolled twice, the second set not
-    /// multiplied on a critical. Only an attack action may ask for it.</param>
+    /// multiplied on a critical — three or four times with the improved and greater feats. Only
+    /// an attack action may ask for it.</param>
+    /// <param name="doubled">Deadly Stroke's double damage: one more multiple on whatever a
+    /// critical would multiply, so that doubled again by a critical it is triple, as the book
+    /// multiplies multiples.</param>
+    /// <param name="arrows">Two for the first shot of a Manyshot full attack: one roll, and if it
+    /// hits, both arrows do. The second deals its damage without the critical and without any
+    /// precision damage, and the target's defences meet each arrow separately.</param>
     public static StrikeResult Resolve(
         Creature attacker,
         WeaponAttack weapon,
@@ -54,7 +61,9 @@ public static class Strike
         Battlefield? field = null,
         int iterativePenalty = 0,
         bool flatFooted = false,
-        bool vital = false)
+        bool vital = false,
+        int arrows = 1,
+        bool doubled = false)
     {
         ArgumentNullException.ThrowIfNull(attacker);
         ArgumentNullException.ThrowIfNull(weapon);
@@ -91,15 +100,20 @@ public static class Strike
 
         var broken = attacker.Equipment.IsBroken(weapon);
 
+        // A channel smite is declared before the roll, so the roll spends it whether it hits
+        // or not; it rides on melee attacks alone.
+        var smiting = !weapon.IsRanged && attacker.Stances.Spend(Combat.Stance.ChannelSmite);
+
         var attack = weapon.Attack.Resolve(
             target.ArmorClass,
             random,
             AttackBonus(attacker, weapon, target, field, iterativePenalty),
             asked,
             rules,
-            CoverFor(attacker, target, field),
+            CoverFor(attacker, target, field, weapon),
             ProneFor(weapon, target),
-            CriticalFor(attacker, weapon));
+            CriticalFor(attacker, weapon),
+            Martial.ConfirmationBonus(attacker));
 
         // A misfire is a miss whatever the total came to, and it costs the gun.
         var misfired = Firearms.Misfires(weapon, attack.NaturalRoll, broken);
@@ -141,7 +155,7 @@ public static class Strike
         {
             var denied = (attack.Options & DefenseOptions.DexterityDenied) != 0;
             var type = DamageTypeAgainst(weapon, target);
-            var packet = DamageFor(attacker, weapon, feet, powerful, vital, type);
+            var packet = DamageFor(attacker, weapon, feet, powerful, vital ? Martial.VitalStrikeSets(attacker) : 0, type);
 
             if (SneakAttack.Applies(attacker, weapon, denied, flanking, feet))
             {
@@ -151,8 +165,8 @@ public static class Strike
 
             // Damage dice are only rolled on a hit, so a miss leaves the random stream
             // exactly where a replay expects to find it.
-            damage = packet.Roll(random, attack.CriticalMultiplier);
-            taken = target.Defenses.Apply(damage, QualitiesOf(weapon), rules);
+            damage = packet.Roll(random, attack.CriticalMultiplier + (doubled ? 1 : 0));
+            taken = target.Defenses.Apply(damage, QualitiesOf(attacker, weapon), rules, Martial.Penetration(attacker, weapon));
 
             var (dealt, rolled) = RogueDefences.DefensiveRoll(target, taken.Total, denied, random, rules);
             if (rolled is not null)
@@ -169,6 +183,31 @@ public static class Strike
             {
                 notes.AddRange(SneakAttack.Riders(attacker, target));
             }
+
+            // Manyshot's second arrow: the same hit, its own damage, its own trip through the
+            // target's damage reduction, and neither the critical nor the sneak attack again.
+            for (var arrow = 1; arrow < arrows && target.IsAlive; arrow++)
+            {
+                var second = DamageFor(attacker, weapon, feet, 0, 0, type).Roll(random);
+                var landed = target.Defenses.Apply(second, QualitiesOf(attacker, weapon), rules, Martial.Penetration(attacker, weapon));
+                target.HitPoints.Take(landed.Total);
+                notes.Add($"a second arrow: {landed.Total}");
+            }
+
+            if (smiting)
+            {
+                notes.Add(Smite(attacker, target, random, rules));
+            }
+
+            // The critical feats ride on a confirmed critical, after its damage has landed.
+            if (attack.IsCritical)
+            {
+                notes.AddRange(CriticalFeats.Apply(attacker, target, weapon, random, rules));
+            }
+        }
+        else if (smiting)
+        {
+            notes.Add("the channel smite is spent on a miss");
         }
 
         if (powerful > 0)
@@ -208,10 +247,49 @@ public static class Strike
         return attacker.Equipment.IsBroken(weapon) ? CriticalProfile.Standard : Martial.Critical(attacker, weapon);
     }
 
-    /// <summary>What the weapon's damage types let it past: every one of them, for "B and P".</summary>
-    private static DamageBypass QualitiesOf(WeaponAttack weapon)
+    /// <summary>
+    /// A channel smite landing: the cleric's channel dice as positive energy into an undead
+    /// thing, or negative into a living one, Will for half. Wasted on anything else, as the
+    /// book has it — the channel was spent when it was declared.
+    /// </summary>
+    private static string Smite(Creature attacker, Creature target, IRandomSource random, RuleOptions rules)
+    {
+        if (ClassPowers.ChannelKindOf(attacker) is not { } kind)
+        {
+            return "the channel smite finds nothing to channel";
+        }
+
+        var positive = kind == ChannelKind.Positive;
+        if (positive ? !CreatureTypes.IsUndead(target) : !CreatureTypes.IsLiving(target))
+        {
+            return $"the channel smite does nothing to {target.Name}";
+        }
+
+        var rolled = DiceExpression.Parse($"{ClassPowers.ChannelDice(attacker)}d6").Roll(random).Total;
+        var save = Saves.SaveRerolls.Attempt(
+            target, Saves.Save.Will, ClassPowers.ChannelDifficulty(attacker), random, rules,
+            serious: rolled >= target.HitPoints.Current);
+        var amount = save.Succeeded ? rolled / 2 : rolled;
+
+        var energy = DamagePacket.Weapon(amount.ToString(), positive ? DamageType.Positive : DamageType.Negative).Roll(random);
+        var landed = target.Defenses.Apply(energy, DamageBypass.None, rules);
+        target.HitPoints.Take(landed.Total);
+
+        return $"channel smite: {landed.Total} {(positive ? "positive" : "negative")} energy ({save})";
+    }
+
+    /// <summary>
+    /// What the weapon's damage types let it past: every one of them, for "B and P" — and magic,
+    /// for a wielder whose Arcane Strike is running.
+    /// </summary>
+    private static DamageBypass QualitiesOf(Creature attacker, WeaponAttack weapon)
     {
         var qualities = weapon.Qualities;
+
+        if (Encounters.Actions.ArcaneStrikeAction.IsActive(attacker))
+        {
+            qualities |= DamageBypass.Magic;
+        }
 
         if (weapon.DamageRule == DamageRule.Both)
         {
@@ -418,6 +496,20 @@ public static class Strike
         field?.HasCover(attacker, target) == true ? CoverBonus : 0;
 
     /// <summary>
+    /// The same, for a particular weapon: Improved Precise Shot puts an arrow past anything
+    /// short of total cover, and the engine has no total cover to stop it.
+    /// </summary>
+    public static int CoverFor(Creature attacker, Creature target, Battlefield? field, WeaponAttack weapon)
+    {
+        ArgumentNullException.ThrowIfNull(attacker);
+        ArgumentNullException.ThrowIfNull(weapon);
+
+        return weapon.IsRanged && attacker.HasFeat(Feats.FeatEffect.ImprovedPreciseShot)
+            ? 0
+            : CoverFor(attacker, target, field);
+    }
+
+    /// <summary>
     /// The two things that make a shot harder than a swing: distance, and your own side being in
     /// the way. Both are penalties, so both always apply — there is no "highest penalty wins".
     /// </summary>
@@ -431,10 +523,14 @@ public static class Strike
             return stack;
         }
 
+        // Far Shot halves it: one a range increment rather than two.
         if (field.DistanceInFeet(attacker, target) is { } feet
             && weapon.RangePenalty(feet) is var penalty and < 0)
         {
-            stack.Add(penalty, BonusType.Untyped, $"Range ({feet} ft)");
+            stack.Add(
+                attacker.HasFeat(Feats.FeatEffect.FarShot) ? penalty / 2 : penalty,
+                BonusType.Untyped,
+                $"Range ({feet} ft)");
         }
 
         // Precise Shot is the feat that buys the angle a bowman would otherwise walk for.
@@ -514,7 +610,8 @@ public static class Strike
 
         if (bonus != 0)
         {
-            stance.Add(bonus, BonusType.Untyped, Combat.Stances.Name(Combat.Stance.PowerAttack));
+            stance.Add(bonus, BonusType.Untyped, Combat.Stances.Name(
+                weapon.IsRanged ? Combat.Stance.DeadlyAim : Combat.Stance.PowerAttack));
         }
 
         if (attacker.Stances.IsActive(Combat.Stance.PowerfulBlow))
@@ -567,14 +664,15 @@ public static class Strike
     /// </remarks>
     /// <param name="type">What a "P or S" weapon is being swung as, or null to keep its own.</param>
     private static DamagePacket DamageFor(
-        Creature attacker, WeaponAttack weapon, int? feet, int powerful, bool vital, DamageType? type = null)
+        Creature attacker, WeaponAttack weapon, int? feet, int powerful, int vitalSets, DamageType? type = null)
     {
         var bonus = DamageBonus(attacker, weapon, feet).Total + powerful;
         var packet = Fold(weapon, bonus, type);
 
         // Vital Strike rolls the weapon's dice again — dice only, and not multiplied on a
-        // critical, which is the same shape as precision damage.
-        if (vital)
+        // critical, which is the same shape as precision damage. Once for the feat, twice for
+        // the improved one, three times for the greater.
+        for (var set = 0; set < vitalSets; set++)
         {
             foreach (var component in weapon.Damage.Components.Where(c => c.MultipliedOnCritical))
             {

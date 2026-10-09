@@ -275,8 +275,8 @@ public static partial class ClassFeatures
     }
 
     /// <summary>
-    /// What class features add to land speed before armour has its say: a barbarian's fast
-    /// movement out of heavy armour, and swift foot while raging.
+    /// What class features and feats add to land speed before armour has its say: a barbarian's
+    /// fast movement out of heavy armour, swift foot while raging, and Fleet.
     /// </summary>
     public static int SpeedBonus(Creature creature)
     {
@@ -292,6 +292,12 @@ public static partial class ClassFeatures
         if (Rage.IsRaging(creature) && creature.Choices.HasTalent(TalentEffect.SwiftFoot))
         {
             bonus += SwiftFootFeet;
+        }
+
+        // Fleet is five feet each time it is taken, and nothing at all in medium or heavy armour.
+        if (creature.Equipment.ArmourWorn is not (ArmourCategory.Medium or ArmourCategory.Heavy))
+        {
+            bonus += Encounters.Movement.FleetFeet * creature.Feats.Count(feat => feat.Effect == FeatEffect.Fleet);
         }
 
         return bonus;

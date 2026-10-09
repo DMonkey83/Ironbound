@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "arcane-armor-training",
+  "name": "Arcane Armor Training",
+  "combat": true,
+  "description": "Less arcane spell failure in armour, for a swift action.",
+  "unavailable": "needs arcane spell failure from armour, which is not in the game",
+  "requires": {"armour": ["light"], "casterLevel": 3}
+}

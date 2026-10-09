@@ -6,7 +6,9 @@
   "hitDie": 6,
   "attack": "Half",
   "goodSaves": ["Will"],
-  "classSkills": ["Knowledge", "Spellcraft", "SenseMotive"],
+  "classSkills": ["Knowledge", "Spellcraft", "SenseMotive", "Fly"],
+  "keyAbility": "Intelligence",
+  "magic": "arcane",
 
   // Five weapons by name and no armour at all.
   "weaponProficiencies": ["club", "dagger", "heavy-crossbow", "light-crossbow", "quarterstaff"],

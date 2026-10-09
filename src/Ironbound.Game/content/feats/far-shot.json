@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "far-shot",
+  "name": "Far Shot",
+  "combat": true,
+  "description": "-1 per range increment instead of -2.",
+  "effect": "FarShot",
+  "requires": {"feats": ["point-blank-shot"]}
+}

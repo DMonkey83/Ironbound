@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "turn-undead",
+  "name": "Turn Undead",
+  "description": "Spend a channel to make undead foes within 30 feet flee for a minute (Will negates).",
+  "effect": "TurnUndead",
+  "requires": {"features": ["channel-energy"], "channel": "Positive"}
+}

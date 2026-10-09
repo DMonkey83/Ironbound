@@ -31,7 +31,7 @@ public sealed record SavedGame(
     SavedCombatant[] Order,
     SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 14;
+    public const int CurrentVersion = 15;
 
     /// <summary>
     /// The oldest version still read. Twelve only added a field that eleven did without, so an
@@ -39,7 +39,9 @@ public sealed record SavedGame(
     /// Thirteen added class features; an older file is given what its creatures' own content
     /// files choose, with every daily pool full and nobody raging. Fourteen added the weapon
     /// catalogue and races: an older file has nothing broken, everything in hand, and the race
-    /// its creatures' files give them.
+    /// its creatures' files give them. Fifteen added the stacks every skill check and every
+    /// ability check share, and what the movement feats leave on a combatant between turns: an
+    /// older file has nothing on either, which is what it had.
     /// </summary>
     public const int OldestReadable = 11;
 }
@@ -101,7 +103,13 @@ public sealed record SavedCombatant(
     bool HasMove,
     bool HasSwift,
     bool WasSurprised = false,
-    bool HasUsedOpportunist = false);
+    bool HasUsedOpportunist = false,
+    bool IsRunning = false,
+    bool SteppedUp = false,
+    bool OwesStep = false,
+    bool IsLunging = false,
+    bool IsHeld = false,
+    int EasyGroundUsed = 0);
 
 public sealed record SavedHitPoints(
     int Base,
@@ -245,4 +253,6 @@ public sealed record SavedCreature(
     SavedEffect[] Effects,
     SavedSquare? Square,
     SavedFeatures? Features = null,
-    string? Race = null);
+    string? Race = null,
+    SavedModifier[]? SkillChecks = null,
+    SavedModifier[]? AbilityChecks = null);

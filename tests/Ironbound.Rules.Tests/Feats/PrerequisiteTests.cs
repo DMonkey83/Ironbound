@@ -71,14 +71,15 @@ public class PrerequisiteTests
     [Fact]
     public void AFeatAlreadyHeldIsNotOnOffer()
     {
+        // Improved Initiative rather than Dodge: Dodge wants Dexterity 13, which this hero has not.
         var hero = Hero();
-        var dodge = TestContent.Library.GetFeat("dodge")!;
+        var quick = TestContent.Library.GetFeat("improved-initiative")!;
 
-        Assert.True(dodge.AvailableTo(hero));
+        Assert.True(quick.AvailableTo(hero));
 
-        hero.Feats.Add(dodge);
+        hero.Feats.Add(quick);
 
-        Assert.False(dodge.AvailableTo(hero));
+        Assert.False(quick.AvailableTo(hero));
     }
 
     [Fact]
@@ -87,7 +88,8 @@ public class PrerequisiteTests
         Assert.Equal("Str 13, base attack +1", Feat("power-attack").Requires.ToString());
         Assert.Equal("Int 13", Feat("combat-expertise").Requires.ToString());
         Assert.Equal("Int 13, combat-expertise", Feat("improved-trip").Requires.ToString());
-        Assert.Equal("none", Feat("dodge").Requires.ToString());
+        Assert.Equal("Dex 13", Feat("dodge").Requires.ToString());
+        Assert.Equal("none", Feat("improved-initiative").Requires.ToString());
     }
 
     [Fact]

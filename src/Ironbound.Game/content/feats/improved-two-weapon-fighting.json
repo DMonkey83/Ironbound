@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "improved-two-weapon-fighting",
+  "name": "Improved Two-Weapon Fighting",
+  "combat": true,
+  "description": "A second attack with the off-hand weapon.",
+  "unavailable": "needs two-weapon fighting: off-hand attacks and their penalties are not in the game yet",
+  "requires": {"dex": 17, "feats": ["two-weapon-fighting"], "baseAttack": 6}
+}

@@ -40,6 +40,14 @@ public static class Maneuvers
         _ => FeatEffect.None,
     };
 
+    /// <summary>The greater feat that adds another two on top of the improved one, if any does.</summary>
+    public static FeatEffect GreaterBy(ManeuverKind kind) => kind switch
+    {
+        ManeuverKind.Trip => FeatEffect.GreaterTrip,
+        ManeuverKind.BullRush => FeatEffect.GreaterBullRush,
+        _ => FeatEffect.None,
+    };
+
     /// <summary>
     /// The bonus to a maneuver check: skill at arms, strength, and how much of you there is.
     /// </summary>
@@ -64,6 +72,12 @@ public static class Maneuvers
         if (kind is { } attempting && creature.HasFeat(ImprovedBy(attempting)) )
         {
             innate.Add(ImprovedBonus, BonusType.Untyped, $"Improved {attempting}");
+        }
+
+        // The greater feats stack with the improved ones, as the book says in so many words.
+        if (kind is { } greater && creature.HasFeat(GreaterBy(greater)))
+        {
+            innate.Add(ImprovedBonus, BonusType.Untyped, $"Greater {greater}");
         }
 
         if (creature.BaseAttackBonus != 0)
@@ -114,7 +128,13 @@ public static class Maneuvers
     /// Note that Dexterity counts here, and is lost for the same reasons it is lost from armour
     /// class — someone stunned or caught flat-footed is far easier to put on the floor.
     /// </remarks>
-    public static ModifierBreakdown DefenseBonus(Creature creature)
+    public static ModifierBreakdown DefenseBonus(Creature creature) => DefenseBonus(creature, null);
+
+    /// <summary>
+    /// The defence against one manoeuvre in particular: two better against the one the
+    /// creature has the improved feat for, because knowing how to trip is knowing how not to be.
+    /// </summary>
+    public static ModifierBreakdown DefenseBonus(Creature creature, ManeuverKind? kind)
     {
         ArgumentNullException.ThrowIfNull(creature);
 
@@ -125,9 +145,23 @@ public static class Maneuvers
         // distrust both.
         innate.Add(Base, BonusType.Untyped, "Base");
 
-        if (creature.BaseAttackBonus != 0)
+        // Defensive Combat Training counts every hit die as a point of base attack here, which
+        // is what lets a wizard stand up to a shove from somebody her own level.
+        var skill = creature.HasFeat(FeatEffect.DefensiveCombatTraining)
+            ? Math.Max(creature.BaseAttackBonus, creature.Level)
+            : creature.BaseAttackBonus;
+
+        if (skill != 0)
         {
-            innate.Add(creature.BaseAttackBonus, BonusType.Untyped, "Base Attack Bonus");
+            innate.Add(
+                skill,
+                BonusType.Untyped,
+                skill == creature.BaseAttackBonus ? "Base Attack Bonus" : "Defensive Combat Training");
+        }
+
+        if (kind is { } against && creature.HasFeat(ImprovedBy(against)))
+        {
+            innate.Add(ImprovedBonus, BonusType.Untyped, $"Improved {against}");
         }
 
         Contribute(innate, creature, Ability.Strength);
@@ -161,6 +195,9 @@ public static class Maneuvers
     /// <summary>Base ten plus the bonuses. The single number a maneuver is rolled against.</summary>
     public static int Defense(Creature creature) => DefenseBonus(creature).Total;
 
+    /// <summary>The same, against one manoeuvre in particular.</summary>
+    public static int Defense(Creature creature, ManeuverKind kind) => DefenseBonus(creature, kind).Total;
+
     /// <summary>
     /// Rolls one maneuver. No natural-twenty floor: a maneuver check is not an attack roll, so
     /// the mercy that keeps a high-armour boss reachable does not extend to shoving it over.
@@ -173,7 +210,7 @@ public static class Maneuvers
         ArgumentNullException.ThrowIfNull(random);
 
         var bonus = Bonus(attacker, kind);
-        var defense = Defense(target);
+        var defense = Defense(target, kind);
         var natural = random.NextDie(Attack.DieSides);
 
         // Whatever was declared for this check is used by it, success or not.
@@ -209,6 +246,13 @@ public enum ManeuverKind
 {
     Trip,
     BullRush,
+
+    /// <summary>
+    /// Stand Still's check: an attack of opportunity spent on stopping somebody walking past.
+    /// A combat manoeuvre against the walker's defence, as the feat says, with nothing but the
+    /// ordinary bonus behind it.
+    /// </summary>
+    StandStill,
 }
 
 /// <summary>One maneuver check, with everything needed to explain it.</summary>
@@ -251,6 +295,7 @@ public sealed record ManeuverResult
     private static string Describe(ManeuverKind kind) => kind switch
     {
         ManeuverKind.BullRush => "bull rush",
+        ManeuverKind.StandStill => "stop",
         _ => "trip",
     };
 }

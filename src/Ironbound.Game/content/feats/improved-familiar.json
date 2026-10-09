@@ -1,0 +1,7 @@
+{
+  "kind": "feat",
+  "id": "improved-familiar",
+  "name": "Improved Familiar",
+  "description": "A stronger familiar than the usual animal.",
+  "unavailable": "needs familiars, which are not in the game"
+}

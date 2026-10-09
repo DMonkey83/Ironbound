@@ -149,6 +149,35 @@ public partial class Main
 	/// What the creature has in its hand to fight with: the first of its weapons it still holds,
 	/// and never the throwing half of one, which is the same dagger.
 	/// </summary>
+	private static readonly Dictionary<string, Texture2D> Icons = [];
+
+	/// <summary>
+	/// The inventory picture of an item, or null for one nobody has drawn yet.
+	/// </summary>
+	/// <remarks>
+	/// Icons are rendered from the same models the figures hold (tools/render_icons.py), one per
+	/// model and named after it, so the silvered longsword's icon is the silvered longsword and not
+	/// a generic sword. An item with no model of its own falls back to its weapon's. Armour,
+	/// potions and the like have none yet, and show as words.
+	/// </remarks>
+	private static Texture2D ItemIcon(ItemDefinition item)
+	{
+		var name = item.Model.Length > 0 ? System.IO.Path.GetFileNameWithoutExtension(item.Model) : item.Weapon;
+		if (string.IsNullOrEmpty(name))
+		{
+			return null;
+		}
+
+		if (!Icons.TryGetValue(name, out var icon))
+		{
+			var path = $"res://art/icons/weapons/{name}.png";
+			icon = ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
+			Icons[name] = icon;
+		}
+
+		return icon;
+	}
+
 	private static WeaponAttack InHand(Creature creature) =>
 		creature.Attacks.FirstOrDefault(attack => !attack.IsThrownUse && !IsOutOfHand(creature, attack));
 

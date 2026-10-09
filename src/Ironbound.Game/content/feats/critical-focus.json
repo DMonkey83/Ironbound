@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "critical-focus",
+  "name": "Critical Focus",
+  "combat": true,
+  "description": "+4 on the roll that confirms a critical hit.",
+  "effect": "CriticalFocus",
+  "requires": {"baseAttack": 9}
+}

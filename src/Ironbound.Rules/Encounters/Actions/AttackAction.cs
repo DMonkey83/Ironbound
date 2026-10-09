@@ -23,6 +23,12 @@ public sealed class AttackAction : GameAction
 
     public DefenseOptions DefenderState { get; }
 
+    /// <summary>
+    /// Whether this is the attack action itself, which Vital Strike rides on. A special attack
+    /// that happens to be one shot — Pinpoint Targeting — is not.
+    /// </summary>
+    internal bool AllowsVitalStrike { get; init; } = true;
+
     public override string Name => Weapon.Name;
 
     public override ActionCost Cost => ActionCost.Standard;
@@ -56,7 +62,9 @@ public sealed class AttackAction : GameAction
             context.Rules,
             context.Encounter.Battlefield,
             flatFooted: context.Encounter.IsFlatFootedTo(Target, context.Actor),
-            vital: context.Actor.HasFeat(Feats.FeatEffect.VitalStrike));
+            vital: AllowsVitalStrike && context.Actor.HasFeat(Feats.FeatEffect.VitalStrike));
+
+        context.Encounter.AfterStrike(strike);
 
         var followUps = strike.IsHit && !Weapon.IsRanged
             ? Opportunities.Opportunist(context.Encounter, context.Actor, Target)
@@ -78,7 +86,7 @@ public sealed class AttackAction : GameAction
 
         if (!Weapon.IsRanged)
         {
-            return field.IsWithinReach(context.Actor, Target, Weapon);
+            return Movement.Reaches(context, context.Actor, Target, Weapon);
         }
 
         return field.HasLineOfSight(context.Actor, Target)

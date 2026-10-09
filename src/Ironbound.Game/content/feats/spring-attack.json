@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "spring-attack",
+  "name": "Spring Attack",
+  "combat": true,
+  "description": "As a full round, move, make one melee attack, and move on. The foe you attack gets no swing at you for the walk.",
+  "effect": "SpringAttack",
+  "requires": {"dex": 13, "feats": ["dodge", "mobility"], "baseAttack": 4}
+}

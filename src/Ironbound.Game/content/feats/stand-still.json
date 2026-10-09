@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "stand-still",
+  "name": "Stand Still",
+  "combat": true,
+  "description": "Spend an attack of opportunity on a foe walking past you on a combat manoeuvre; if it works, it stops there.",
+  "effect": "StandStill",
+  "requires": {"feats": ["combat-reflexes"]}
+}

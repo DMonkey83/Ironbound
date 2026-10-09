@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "extra-ki",
+  "name": "Extra Ki",
+  "description": "Two more points of ki.",
+  "unavailable": "needs a ki pool, and monks are not in the game",
+  "requires": {"features": ["ki-pool"]}
+}

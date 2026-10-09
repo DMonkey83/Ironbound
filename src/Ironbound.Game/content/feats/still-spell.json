@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "still-spell",
+  "name": "Still Spell",
+  "metamagic": true,
+  "description": "Cast a spell without gestures; it takes a slot one level higher.",
+  "unavailable": "spell components are not modelled, so it would change nothing"
+}

@@ -78,10 +78,14 @@ public sealed class DamageDefenses
     /// <param name="qualities">What the attack carries — silver, magic, alignment. The physical
     /// damage types present are added automatically, so a mace need not declare itself blunt.</param>
     /// <param name="rules">Defaults to <see cref="RuleOptions.Pathfinder"/>.</param>
+    /// <param name="penetration">Points of damage reduction the blow ignores: Penetrating
+    /// Strike's five. Never any against reduction that nothing bypasses, DR 10/—, which the feat
+    /// says it does not touch.</param>
     public DamageTaken Apply(
         DamageRoll roll,
         DamageBypass qualities = DamageBypass.None,
-        RuleOptions? rules = null)
+        RuleOptions? rules = null,
+        int penetration = 0)
     {
         ArgumentNullException.ThrowIfNull(roll);
         rules ??= RuleOptions.Pathfinder;
@@ -93,6 +97,11 @@ public sealed class DamageDefenses
         }
 
         var (best, pool) = BestReduction(effective);
+
+        if (penetration > 0 && best is { BypassedBy: not DamageBypass.None })
+        {
+            pool = Math.Max(0, pool - penetration);
+        }
 
         // First pass: immunity, vulnerability and resistance, all of which are per type.
         var adjusted = new List<Adjusted>(roll.Types.Count);

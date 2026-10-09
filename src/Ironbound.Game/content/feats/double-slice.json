@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "double-slice",
+  "name": "Double Slice",
+  "combat": true,
+  "description": "Full Strength bonus on damage with the off-hand weapon.",
+  "unavailable": "needs two-weapon fighting: off-hand attacks and their penalties are not in the game yet",
+  "requires": {"dex": 15, "feats": ["two-weapon-fighting"]}
+}

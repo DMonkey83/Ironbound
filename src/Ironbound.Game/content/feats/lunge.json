@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "lunge",
+  "name": "Lunge",
+  "combat": true,
+  "description": "Before attacking, reach five feet further this turn for -2 armour class until your next turn.",
+  "effect": "Lunge",
+  "requires": {"baseAttack": 6}
+}

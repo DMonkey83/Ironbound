@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "improved-unarmed-strike",
+  "name": "Improved Unarmed Strike",
+  "combat": true,
+  "description": "Your fists are weapons: no attack of opportunity for striking unarmed, and lethal damage if you like.",
+  "unavailable": "needs unarmed strikes, which are not in the game yet"
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "extra-rage",
+  "name": "Extra Rage",
+  "repeatable": true,
+  "description": "Six more rounds of rage a day. Taken again, six more.",
+  "effect": "ExtraRage",
+  "requires": {"features": ["rage"]}
+}

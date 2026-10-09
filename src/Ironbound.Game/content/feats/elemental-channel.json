@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "elemental-channel",
+  "name": "Elemental Channel",
+  "takes": "Element",
+  "description": "Spend a channel to heal or harm outsiders of one element, and nobody else. Taken again, another element.",
+  "effect": "ElementalChannel",
+  "requires": {"features": ["channel-energy"]}
+}

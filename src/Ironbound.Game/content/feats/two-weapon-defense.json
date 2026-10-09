@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "two-weapon-defense",
+  "name": "Two-Weapon Defense",
+  "combat": true,
+  "description": "+1 shield bonus to armour class while fighting with a weapon in each hand.",
+  "unavailable": "needs two-weapon fighting: off-hand attacks and their penalties are not in the game yet",
+  "requires": {"dex": 15, "feats": ["two-weapon-fighting"]}
+}

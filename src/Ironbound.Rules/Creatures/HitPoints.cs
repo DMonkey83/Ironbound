@@ -154,9 +154,25 @@ public sealed class HitPoints
 
     public bool IsAlive => State != HitPointState.Dead;
 
-    /// <summary>Upright and able to act. Disabled still counts; dying does not.</summary>
+    /// <summary>
+    /// Upright and able to act. Disabled still counts; dying does not — unless the creature has
+    /// the grit to fight on below nought, which Diehard is.
+    /// </summary>
     public bool IsConscious =>
-        State is HitPointState.Healthy or HitPointState.Disabled && !IsUnconsciousFromNonlethal;
+        (State is HitPointState.Healthy or HitPointState.Disabled || IsFightingOn) && !IsUnconsciousFromNonlethal;
+
+    /// <summary>
+    /// Below nought and still on its feet: Diehard's choice to act as though disabled rather
+    /// than fall. One action a round, and anything strenuous costs a hit point.
+    /// </summary>
+    /// <remarks>
+    /// The book makes it a choice, taken the moment the hit points go below nought. It is always
+    /// taken here: falling is the other option, and nobody who took the feat took it to fall.
+    /// </remarks>
+    public bool IsFightingOn => State == HitPointState.Dying && FightsOn?.Invoke() == true;
+
+    /// <summary>Asked whether a creature below nought stays on its feet: Diehard answers.</summary>
+    internal Func<bool>? FightsOn { get; init; }
 
     /// <summary>Nonlethal damage exactly equal to current hit points: still up, but staggered.</summary>
     public bool IsStaggeredByNonlethal => Current > 0 && Nonlethal == Current;

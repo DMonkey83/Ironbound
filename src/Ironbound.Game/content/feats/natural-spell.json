@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "natural-spell",
+  "name": "Natural Spell",
+  "description": "Cast spells while in wild shape.",
+  "unavailable": "needs wild shape, and druids are not in the game",
+  "requires": {"wis": 13}
+}

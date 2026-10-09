@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "unseat",
+  "name": "Unseat",
+  "combat": true,
+  "description": "Knock a rider out of the saddle with a lance.",
+  "unavailable": "needs mounts and mounted combat, which are not in the game",
+  "requires": {"str": 13, "feats": ["improved-bull-rush", "mounted-combat", "power-attack"], "ranks": {"Ride": 1}, "baseAttack": 1}
+}

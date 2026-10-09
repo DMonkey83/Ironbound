@@ -1,0 +1,7 @@
+{
+  "kind": "feat",
+  "id": "spell-penetration",
+  "name": "Spell Penetration",
+  "description": "+2 on caster level checks to beat spell resistance.",
+  "effect": "SpellPenetration"
+}

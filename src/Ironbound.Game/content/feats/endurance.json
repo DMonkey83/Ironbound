@@ -1,0 +1,7 @@
+{
+  "kind": "feat",
+  "id": "endurance",
+  "name": "Endurance",
+  "description": "+4 against heat, cold, hunger, thirst and forced marches, and sleep in light or medium armour. None of those happen in the game yet; it is here as the way to Diehard.",
+  "effect": "Endurance"
+}

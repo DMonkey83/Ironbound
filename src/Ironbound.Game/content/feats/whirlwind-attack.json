@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "whirlwind-attack",
+  "name": "Whirlwind Attack",
+  "combat": true,
+  "description": "As a full round, one melee attack at your full bonus against every foe within reach.",
+  "effect": "WhirlwindAttack",
+  "requires": {"dex": 13, "int": 13, "feats": ["combat-expertise", "dodge", "mobility", "spring-attack"], "baseAttack": 4}
+}

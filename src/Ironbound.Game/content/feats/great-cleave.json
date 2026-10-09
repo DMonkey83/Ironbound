@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "great-cleave",
+  "name": "Great Cleave",
+  "combat": true,
+  "description": "A cleave carries on from foe to adjacent foe for as long as the swings keep landing.",
+  "effect": "GreatCleave",
+  "requires": {"str": 13, "feats": ["cleave", "power-attack"], "baseAttack": 4}
+}

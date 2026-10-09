@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "forge-ring",
+  "name": "Forge Ring",
+  "itemCreation": true,
+  "description": "Make magic rings.",
+  "unavailable": "needs item crafting, which is not in the game",
+  "requires": {"casterLevel": 7}
+}

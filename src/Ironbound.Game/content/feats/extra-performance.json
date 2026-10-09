@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "extra-performance",
+  "name": "Extra Performance",
+  "description": "Six more rounds of bardic performance a day.",
+  "unavailable": "needs bardic performance, and bards are not in the game",
+  "requires": {"features": ["bardic-performance"]}
+}

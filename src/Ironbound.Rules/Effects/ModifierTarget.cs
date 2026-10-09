@@ -18,6 +18,18 @@ public enum ModifierTargetKind
 
     /// <summary>One of the three saving throws.</summary>
     Save,
+
+    /// <summary>One skill, named by <see cref="ModifierTarget.Which"/>: an elf's Perception.</summary>
+    Skill,
+
+    /// <summary>Every skill check at once: what being shaken does to all of them.</summary>
+    AllSkills,
+
+    /// <summary>
+    /// Every ability check — the Strength check to force a door, the Constitution check to
+    /// stop bleeding — which the fear and sickness conditions reach as well.
+    /// </summary>
+    AbilityChecks,
 }
 
 /// <summary>
@@ -46,6 +58,12 @@ public readonly record struct ModifierTarget(ModifierTargetKind Kind, int Which)
 
     public static ModifierTarget Save(Save save) => new(ModifierTargetKind.Save, (int)save);
 
+    public static ModifierTarget Skill(Skills.Skill skill) => new(ModifierTargetKind.Skill, (int)skill);
+
+    public static ModifierTarget AllSkills { get; } = new(ModifierTargetKind.AllSkills, 0);
+
+    public static ModifierTarget AbilityChecks { get; } = new(ModifierTargetKind.AbilityChecks, 0);
+
     /// <summary>The actual stack on a particular creature.</summary>
     public ModifierStack On(Creature creature)
     {
@@ -60,6 +78,9 @@ public readonly record struct ModifierTarget(ModifierTargetKind Kind, int Which)
             ModifierTargetKind.Initiative => creature.InitiativeModifiers,
             ModifierTargetKind.Ability => creature.Abilities[(Ability)Which].Modifiers,
             ModifierTargetKind.Save => creature.Saves[(Save)Which].Modifiers,
+            ModifierTargetKind.Skill => creature.Skills.Modifiers((Skills.Skill)Which),
+            ModifierTargetKind.AllSkills => creature.Skills.Checks,
+            ModifierTargetKind.AbilityChecks => creature.AbilityCheckModifiers,
             _ => throw new ArgumentOutOfRangeException(nameof(Kind)),
         };
     }
@@ -68,6 +89,9 @@ public readonly record struct ModifierTarget(ModifierTargetKind Kind, int Which)
     {
         ModifierTargetKind.Ability => $"ability.{AbilityInfo.Abbreviate((Ability)Which)}",
         ModifierTargetKind.Save => $"save.{SaveInfo.Abbreviate((Save)Which)}",
+        ModifierTargetKind.Skill => $"skill.{(Skills.Skill)Which}",
+        ModifierTargetKind.AllSkills => "skills",
+        ModifierTargetKind.AbilityChecks => "abilityChecks",
         _ => Kind.ToString().ToLowerInvariant(),
     };
 }

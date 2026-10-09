@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "improved-shield-bash",
+  "name": "Improved Shield Bash",
+  "combat": true,
+  "description": "Keep your shield's armour class while bashing with it.",
+  "unavailable": "needs two-weapon fighting: off-hand attacks and their penalties are not in the game yet",
+  "requires": {"armour": ["shields"]}
+}

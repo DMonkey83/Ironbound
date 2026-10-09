@@ -28,4 +28,10 @@ public enum DefenseOptions
     /// that what guards against blades and not arrows — a barbarian's guarded stance — can tell.
     /// </summary>
     Melee = 4,
+
+    /// <summary>
+    /// A swing drawn by walking out of, or through, somebody's reach. Changes nothing in the
+    /// armour class on its own; Mobility's four points of dodge ask for it.
+    /// </summary>
+    Moving = 8,
 }

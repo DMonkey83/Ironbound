@@ -31,11 +31,17 @@ public static class Opportunities
     /// <param name="walking">True when it is the walk itself that provokes. Moving out of
     /// several squares one enemy threatens is one opportunity for that enemy all turn, however
     /// many attacks of opportunity it has to spend.</param>
+    /// <param name="who">Who may take one, when not everybody may: Greater Bull Rush lets the
+    /// shover's friends swing at the foe it drives back, and not the shover.</param>
+    /// <param name="stopped">Where a Stand Still that held the mover is written, for a walk that
+    /// has to know to stop. Null when nothing is walking.</param>
     public static IReadOnlyList<StrikeResult> Provoke(
         Encounter encounter,
         Creature mover,
         GridSquare leaving,
-        bool walking = false)
+        bool walking = false,
+        Func<Creature, bool>? who = null,
+        List<ManeuverResult>? stopped = null)
     {
         ArgumentNullException.ThrowIfNull(encounter);
         ArgumentNullException.ThrowIfNull(mover);
@@ -59,22 +65,42 @@ public static class Opportunities
                 || !combatant.CanTakeOpportunity
                 || threatener.MeleeAttack is not { } weapon
                 || !field.Threatens(threatener, leaving)
-                || already?.Contains(threatener) == true)
+                || already?.Contains(threatener) == true
+                || who?.Invoke(threatener) == false)
             {
                 continue;
             }
 
             already?.Add(threatener);
             combatant.OpportunitiesUsed++;
-            taken.Add(Strike.Resolve(
+
+            // Stand Still: the swing spent instead on a manoeuvre that stops the walker dead.
+            if (walking && stopped is not null && StandsStill(field, threatener, mover, leaving))
+            {
+                var check = Maneuvers.Attempt(threatener, mover, encounter.Random, ManeuverKind.StandStill);
+                stopped.Add(check);
+
+                if (check.Succeeded)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            // Mobility is four of dodge against exactly this: the swing a walk draws.
+            var strike = Strike.Resolve(
                 threatener,
                 weapon,
                 mover,
                 encounter.Random,
-                DefenseOptions.None,
+                walking ? DefenseOptions.Moving : DefenseOptions.None,
                 encounter.Rules,
                 field,
-                flatFooted: encounter.IsFlatFootedTo(mover, threatener)));
+                flatFooted: encounter.IsFlatFootedTo(mover, threatener));
+
+            encounter.AfterStrike(strike);
+            taken.Add(strike);
 
             // Dropped before it could get away. Nobody else gets a swing at a falling target.
             if (!mover.IsConscious)
@@ -85,6 +111,21 @@ public static class Opportunities
 
         return taken;
     }
+
+    /// <summary>
+    /// Whether a creature with Stand Still spends this opportunity on it: the walker is going past
+    /// a square next to it, and the check is likelier to hold it than not.
+    /// </summary>
+    /// <remarks>
+    /// Better than even odds or a swing instead: a failed Stand Still is an opportunity thrown
+    /// away, and a swing at least does damage. Nobody is asked, as nobody is asked about any
+    /// attack of opportunity.
+    /// </remarks>
+    private static bool StandsStill(Battlefield field, Creature threatener, Creature mover, GridSquare leaving) =>
+        threatener.HasFeat(Feats.FeatEffect.StandStill)
+        && field.SquareOf(threatener) is { } standing
+        && Distance.AreAdjacent(standing, leaving)
+        && Maneuvers.Bonus(threatener, ManeuverKind.StandStill).Total + 11 >= Maneuvers.Defense(mover, ManeuverKind.StandStill);
 
     /// <summary>
     /// A rogue's opportunist talent: once a round, a free swing at a foe an ally has just struck

@@ -7,7 +7,11 @@
   "hitDie": 10,
   "attack": "Full",
   "goodSaves": ["Fortitude"],
-  "classSkills": ["Climb", "Intimidate", "Survival", "Swim"],
+  "classSkills": ["Climb", "Intimidate", "Survival", "Swim", "HandleAnimal", "Ride"],
+  "keyAbility": "Strength",
+  // An NPC class: the Bestiary rates a warrior two levels below the levels it has, where an
+  // adventurer's class is rated one below.
+  "npc": true,
   "weaponProficiencies": ["simple", "martial"],
   "armourProficiencies": ["light", "medium", "heavy", "shields"]
 }

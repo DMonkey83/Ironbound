@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "quick-draw",
+  "name": "Quick Draw",
+  "combat": true,
+  "description": "Draw a weapon as a free action.",
+  "unavailable": "needs drawing and reloading as actions, which are not in the game yet",
+  "requires": {"baseAttack": 1}
+}

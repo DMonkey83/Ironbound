@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "craft-wondrous-item",
+  "name": "Craft Wondrous Item",
+  "itemCreation": true,
+  "description": "Make wondrous items.",
+  "unavailable": "needs item crafting, which is not in the game",
+  "requires": {"casterLevel": 3}
+}

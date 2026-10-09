@@ -7,5 +7,5 @@
   "takes": "Weapon",
   "description": "Twice the threat range with one kind of weapon.",
   "effect": "ImprovedCritical",
-  "requires": { "baseAttack": 8 }
+  "requires": { "baseAttack": 8, "proficient": true }
 }

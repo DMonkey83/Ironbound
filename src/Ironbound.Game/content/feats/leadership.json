@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "leadership",
+  "name": "Leadership",
+  "description": "Attract a cohort and followers.",
+  "unavailable": "needs cohorts and followers, which are not in the game",
+  "requires": {"level": 7}
+}

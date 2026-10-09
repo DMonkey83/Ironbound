@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "sickening-critical",
+  "name": "Sickening Critical",
+  "combat": true,
+  "critical": true,
+  "description": "A critical hit sickens the foe for a minute; more of them add to the time.",
+  "effect": "SickeningCritical",
+  "requires": {"feats": ["critical-focus"], "baseAttack": 11}
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "blinding-critical",
+  "name": "Blinding Critical",
+  "combat": true,
+  "critical": true,
+  "description": "A critical hit blinds for good; a Fortitude save (DC 10 + your base attack) leaves it dazzled for 1d4 rounds.",
+  "effect": "BlindingCritical",
+  "requires": {"feats": ["critical-focus"], "baseAttack": 15}
+}

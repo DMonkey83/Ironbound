@@ -4,6 +4,8 @@
   "kind": "creature",
   "id": "orc-sentry",
   "name": "Orc Sentry",
+  // An ordinary orc with a knife: CR 1/3.
+  "cr": "1/3",
   "model": "res://art/orc.glb",
   "abilities": [15, 11, 12, 8, 7, 6],
   "classes": [ { "class": "warrior", "level": 1 } ],

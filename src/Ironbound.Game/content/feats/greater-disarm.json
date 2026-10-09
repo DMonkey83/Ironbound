@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-disarm",
+  "name": "Greater Disarm",
+  "combat": true,
+  "description": "+2 more on disarms, and the weapon lands well out of reach.",
+  "unavailable": "waits for the manoeuvres batch: disarm, sunder, grapple, overrun and feint are not in the game yet",
+  "requires": {"int": 13, "feats": ["combat-expertise", "improved-disarm"], "baseAttack": 6}
+}

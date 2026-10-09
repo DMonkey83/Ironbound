@@ -134,6 +134,44 @@ public sealed record CreatureDefinition
     /// <summary>The combat feat a War cleric's Weapon Master lends her, by id.</summary>
     public string? WeaponMaster { get; init; }
 
+    /// <summary>
+    /// Its challenge rating as the file writes it, or null to work it out from its class levels
+    /// by the Bestiary's rule. A creature with no class levels has to write one.
+    /// </summary>
+    public ChallengeRating? ChallengeRating { get; init; }
+
+    /// <summary>Its favoured class, by id, or null for the first class it lists.</summary>
+    public string? FavouredClass { get; init; }
+
+    public CreatureType Type { get; init; } = CreatureType.Humanoid;
+
+    /// <summary>Its subtypes, in the Bestiary's words: "evil", "fire".</summary>
+    public IReadOnlyList<string> Subtypes { get; init; } = [];
+
+    public int SpellResistance { get; init; }
+
+    /// <summary>
+    /// Hands the creature the facts about it that are its file's and not its fight's: its type,
+    /// subtypes, spell resistance, challenge rating and favoured class. At build, and again on
+    /// every load, so a save never holds a stale copy of any of them.
+    /// </summary>
+    internal void Describe(Creature creature)
+    {
+        creature.Type = Type;
+        creature.Subtypes.Clear();
+        creature.Subtypes.UnionWith(Subtypes);
+        creature.SpellResistance = SpellResistance;
+        creature.WrittenChallenge = ChallengeRating;
+        creature.FavouredClassId = FavouredClass;
+    }
+
+    /// <summary>
+    /// The rating this creature is worth: the written one, or the class-level rule. Null only
+    /// for a creature with neither, which the loader has already complained about.
+    /// </summary>
+    public ChallengeRating? ChallengeFor(IReadOnlyList<ClassLevel> levels) =>
+        ChallengeRating ?? (levels.Count > 0 ? Creatures.ChallengeRating.ForClassLevels(levels) : null);
+
     public Creature Build(ContentLibrary library, RuleOptions? rules = null, string? name = null)
     {
         ArgumentNullException.ThrowIfNull(library);
@@ -163,6 +201,8 @@ public sealed record CreatureDefinition
             Size = Size,
             Speed = Speed,
         };
+
+        Describe(creature);
 
         foreach (var taken in levels)
         {
@@ -672,8 +712,13 @@ public sealed record AreaDefinition
     /// </summary>
     public int Experience { get; init; } = DefaultExperience;
 
-    /// <summary>What finding a place is worth when its file does not say.</summary>
-    public const int DefaultExperience = 50;
+    /// <summary>
+    /// What finding a place is worth when its file does not say: to each of the party, on the
+    /// scale the Bestiary's awards set — a third of a goblin's share for a party of four. The
+    /// shipped levels write their own, worked out so that walking a level is worth about a
+    /// third of what its fights are.
+    /// </summary>
+    public const int DefaultExperience = 13;
 
     public bool Contains(GridSquare square) =>
         square.X >= X && square.Y >= Y && square.X < X + Width && square.Y < Y + Height;
@@ -734,11 +779,12 @@ public sealed record FeatureDefinition
     public int Experience { get; init; }
 
     /// <summary>What dealing with one of these is worth when its file does not say: a crossing
-    /// that can break a leg is worth more than a door.</summary>
+    /// that can break a leg is worth more than a door. Per character, and on the same scale
+    /// as <see cref="AreaDefinition.DefaultExperience"/>.</summary>
     public static int DefaultExperience(FeatureKind kind) => kind switch
     {
-        FeatureKind.Bridge => 100,
-        FeatureKind.Door => 50,
-        _ => 25,
+        FeatureKind.Bridge => 26,
+        FeatureKind.Door => 13,
+        _ => 6,
     };
 }

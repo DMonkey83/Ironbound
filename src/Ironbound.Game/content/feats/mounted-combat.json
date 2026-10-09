@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "mounted-combat",
+  "name": "Mounted Combat",
+  "combat": true,
+  "description": "Once a round, a Ride check to turn aside a blow at your mount.",
+  "unavailable": "needs mounts and mounted combat, which are not in the game",
+  "requires": {"ranks": {"Ride": 1}}
+}

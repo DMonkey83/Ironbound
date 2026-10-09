@@ -3,6 +3,8 @@
   "kind": "creature",
   "id": "sylwen",
   "name": "Sylwen",
+  // A first-level wizard: an adventurer's first level is CR 1/2.
+  "cr": "1/2",
   "model": "res://art/merrin.glb",
   // An elf: two more Dexterity and two less Constitution than the human she might have been.
   "abilities": [8, 16, 12, 17, 12, 10],

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "two-weapon-fighting",
+  "name": "Two-Weapon Fighting",
+  "combat": true,
+  "description": "Smaller penalties for fighting with a weapon in each hand.",
+  "unavailable": "needs two-weapon fighting: off-hand attacks and their penalties are not in the game yet",
+  "requires": {"dex": 15}
+}

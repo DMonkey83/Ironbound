@@ -6,6 +6,8 @@
   "kind": "creature",
   "id": "ogre",
   "name": "Ogre",
+  // The Bestiary's ogre is CR 3, and this one, filed down as it is, keeps the rating.
+  "cr": 3,
   "model": "res://art/ogre.glb",
   "abilities": [16, 8, 15, 6, 10, 7],
   "hitDice": 4,

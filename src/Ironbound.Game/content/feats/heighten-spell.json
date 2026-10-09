@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "heighten-spell",
+  "name": "Heighten Spell",
+  "metamagic": true,
+  "description": "Cast a spell as if it were a higher level, in a slot of that level, with the difficulty class to match.",
+  "effect": "HeightenSpell"
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "improved-channel",
+  "name": "Improved Channel",
+  "description": "+2 on the difficulty class of your channel energy.",
+  "effect": "ImprovedChannel",
+  "requires": {"features": ["channel-energy"]}
+}

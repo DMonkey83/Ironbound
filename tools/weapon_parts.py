@@ -42,8 +42,11 @@ def spline(points, per=6):
     """A Catmull-Rom curve through the points, `per` samples to each span. Points are (x, z)
     pairs in the blade's plane, or 3D."""
     pts = [V(p) for p in points]
-    if len(pts) < 3 or per <= 1:
+    if per <= 1:
         return pts
+    if len(pts) == 2:
+        # A straight run still needs its samples, or a width that varies along it never shows.
+        return [pts[0].lerp(pts[1], k / per) for k in range(per + 1)]
     out = []
     for i in range(len(pts) - 1):
         p0, p1, p2, p3 = pts[max(i - 1, 0)], pts[i], pts[i + 1], pts[min(i + 2, len(pts) - 1)]
@@ -115,9 +118,11 @@ def lathe(name, profile, material, n=12, oval=1.0, faceted=False, x=0.0, phase=0
     return crisp(o, 20 if faceted else 50)
 
 
-def tube(name, points, radius, material, n=8, closed=False, oval=1.0):
+def tube(name, points, radius, material, n=8, closed=False, oval=1.0, section=None):
     """A round bar swept along a path: a knuckle bow, a ring, a cord, a link. The section is
-    carried along by parallel transport, so a bar that bends in three dimensions does not twist."""
+    carried along by parallel transport, so a bar that bends in three dimensions does not twist.
+    `section` replaces the circle with (across, up) points scaled by the radius: a chakram's
+    lens, a crescent's wedge."""
     pts = [V(p) for p in points]
     if closed:
         pts = pts + [pts[0]]
@@ -138,7 +143,10 @@ def tube(name, points, radius, material, n=8, closed=False, oval=1.0):
             side = (side - tangents[i] * side.dot(tangents[i])).normalized()
         up = side.cross(tangents[i])
         r = at(radius, i / max(1, count - 1))
-        sections.append([p + (side * math.cos(k * 2 * math.pi / n) * oval + up * math.sin(k * 2 * math.pi / n)) * r for k in range(n)])
+        if section:
+            sections.append([p + (side * u + up * v) * r for u, v in section])
+        else:
+            sections.append([p + (side * math.cos(k * 2 * math.pi / n) * oval + up * math.sin(k * 2 * math.pi / n)) * r for k in range(n)])
     return gg.loft(name, sections, material, cap_start=not closed, cap_end=not closed)
 
 
@@ -288,12 +296,16 @@ def sweep(name, path, wl, wr, t, material, sharp=(True, True), tip="point", per=
     return crisp(gg.loft(name, sections, material), crisp_deg)
 
 
-def plate(name, outline, centre, thick, material, edge=0.003, y0=0.0, closed=False):
+def plate(name, outline, centre, thick, material, edge=0.003, y0=0.0, closed=False, cheek=None):
     """A flat head thick at `centre` and ground thin to its outline (x, z): an axe's blade, a
     cleaver, a spade. The outline is an open curve whose two ends lie against what holds the
-    head (a socket, an eye); `closed=True` makes a whole lens-shaped leaf instead."""
+    head (a socket, an eye); `closed=True` makes a whole lens-shaped leaf instead. `cheek` is a
+    second material for the flat of the head inside the ground bevel: a forged head is dark
+    and its edge is bright, and that is most of what makes it read as an axe."""
     cx, cz = centre
-    grind = ((0.0, 1.0), (0.45, 0.62), (0.8, 0.26), (1.0, edge / max(thick, 1e-6)))
+    # Flat cheeks and a narrow ground bevel, as a real head has. A grind running all the way
+    # from the eye to the edge made the whole face one tilted mirror for the key light.
+    grind = ((0.0, 1.0), (0.5, 0.9), (0.78, 0.72), (0.9, 0.36), (1.0, edge / max(thick, 1e-6)))
     if closed:
         rings = []
         for frac, k in grind:
@@ -305,7 +317,11 @@ def plate(name, outline, centre, thick, material, edge=0.003, y0=0.0, closed=Fal
         front = [(cx + (x - cx) * frac, y0 + thick * k, cz + (z - cz) * frac) for x, z in outline]
         back = [(x, y0 - (y - y0), z) for (x, y, z) in front]
         sections.append(ring(front + list(reversed(back))))
-    return crisp(gg.loft(name, sections, material), 30)
+    if cheek is None:
+        return crisp(gg.loft(name, sections, material), 30)
+    inner = crisp(gg.loft(name + "_Cheek", sections[:3], cheek, cap_end=False), 30)
+    outer = crisp(gg.loft(name, sections[2:], material, cap_start=False), 30)
+    return [inner, outer]
 
 
 # --- chains and cords --------------------------------------------------------------------------
@@ -495,7 +511,7 @@ def straight_blade(name, b, material):
     L = z1 - z0
     t0 = b["thick"]
     ps = 1.0 - b.get("point", 0.15)
-    steps = 18 if not b.get("wave") else max(18, int(b["wave"][1] * 8))
+    steps = b.get("steps", 18 if not b.get("wave") else max(18, int(b["wave"][1] * 8)))
     ss = {i / steps for i in range(steps)} | {ps, ps + 0.002} | {ps + (1 - ps) * k / 7 for k in range(1, 7)}
     ss = sorted(s for s in ss if 0 <= s < 1)
     fuller = b.get("fuller")

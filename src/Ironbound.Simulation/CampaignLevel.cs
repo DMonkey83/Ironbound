@@ -363,7 +363,7 @@ public sealed partial class Campaign
         }
 
         var taken = 0;
-        Award($"Won {area.Name}", Battle.Foes.Where(foe => !foe.IsConscious).Sum(Levelling.Award));
+        Award($"Won {area.Name}", Earned(Battle));
 
         foreach (var fallen in Battle.Foes.Where(foe => !foe.IsConscious))
         {
@@ -495,8 +495,9 @@ public sealed partial class Campaign
         }
         else
         {
+            // A Strength check, so being shaken costs as much here as it does on a lock.
             var natural = _explore.NextDie(20);
-            var strength = who.Abilities[Ability.Strength].Modifier;
+            var strength = who.AbilityCheck(Ability.Strength).Total;
             var total = natural + strength;
             success = total >= door.BreakDc;
             roll = $"{who.Name} Strength: d20 [{natural}] {strength:+0;-0;+0} = {total} "

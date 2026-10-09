@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "improved-great-fortitude",
+  "name": "Improved Great Fortitude",
+  "description": "Once a day, a failed Fortitude save is rolled again. Spent on a failure that would put you down or out of the fight.",
+  "effect": "ImprovedGreatFortitude",
+  "requires": {"feats": ["great-fortitude"]}
+}

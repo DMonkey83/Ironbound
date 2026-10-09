@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "deflect-arrows",
+  "name": "Deflect Arrows",
+  "combat": true,
+  "description": "Knock aside one arrow a round with a free hand.",
+  "unavailable": "needs unarmed strikes, which are not in the game yet",
+  "requires": {"dex": 13, "feats": ["improved-unarmed-strike"]}
+}

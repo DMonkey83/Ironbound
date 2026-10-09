@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "staggering-critical",
+  "name": "Staggering Critical",
+  "combat": true,
+  "critical": true,
+  "description": "A critical hit staggers for 1d4+1 rounds; a Fortitude save (DC 10 + your base attack) makes it one.",
+  "effect": "StaggeringCritical",
+  "requires": {"feats": ["critical-focus"], "baseAttack": 13}
+}

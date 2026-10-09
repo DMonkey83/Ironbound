@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "catch-off-guard",
+  "name": "Catch Off-Guard",
+  "combat": true,
+  "description": "No penalty with improvised melee weapons; the unarmed are flat-footed to them.",
+  "unavailable": "needs improvised weapons, which are not in the game yet"
+}

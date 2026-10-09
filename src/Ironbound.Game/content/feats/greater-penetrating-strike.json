@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-penetrating-strike",
+  "name": "Greater Penetrating Strike",
+  "combat": true,
+  "description": "As Penetrating Strike, but 10 points.",
+  "effect": "GreaterPenetratingStrike",
+  "requires": {"feats": ["penetrating-strike", "weapon-focus"], "classLevels": {"fighter": 16}}
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "deafening-critical",
+  "name": "Deafening Critical",
+  "combat": true,
+  "critical": true,
+  "description": "A critical hit deafens for good; a Fortitude save (DC 10 + your base attack) makes it one round.",
+  "effect": "DeafeningCritical",
+  "requires": {"feats": ["critical-focus"], "baseAttack": 13}
+}

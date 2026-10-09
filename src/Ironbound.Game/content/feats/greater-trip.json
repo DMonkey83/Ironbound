@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-trip",
+  "name": "Greater Trip",
+  "combat": true,
+  "description": "+2 more on trips, and a foe you trip draws attacks of opportunity as it falls.",
+  "effect": "GreaterTrip",
+  "requires": {"int": 13, "feats": ["combat-expertise", "improved-trip"], "baseAttack": 6}
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "maximize-spell",
+  "name": "Maximize Spell",
+  "metamagic": true,
+  "description": "Every number a spell rolls is at its maximum; it takes a slot three levels higher.",
+  "effect": "MaximizeSpell"
+}

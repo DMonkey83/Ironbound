@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "spell-mastery",
+  "name": "Spell Mastery",
+  "description": "Prepare a few chosen spells without your spellbook.",
+  "unavailable": "a wizard's spellbook is never lost or out of reach in the game, so it would change nothing",
+  "requires": {"classLevels": {"wizard": 1}}
+}

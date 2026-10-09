@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "extra-lay-on-hands",
+  "name": "Extra Lay On Hands",
+  "description": "Two more uses of lay on hands a day.",
+  "unavailable": "needs lay on hands, and paladins are not in the game",
+  "requires": {"features": ["lay-on-hands"]}
+}

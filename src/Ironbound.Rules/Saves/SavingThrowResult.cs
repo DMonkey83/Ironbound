@@ -31,14 +31,22 @@ public sealed record SavingThrowResult
     /// <summary>How much the roll beat the difficulty class by; negative when it failed.</summary>
     public int Margin => Total - DifficultyClass;
 
+    /// <summary>
+    /// The failed roll this one replaced, when a feat such as Improved Iron Will bought a second
+    /// go at it. Null for a save rolled once.
+    /// </summary>
+    public SavingThrowResult? FirstTry { get; init; }
+
     public override string ToString()
     {
         var name = SaveInfo.Name(Save);
         var verdict = Succeeded ? "success" : "failure";
 
-        return DecidedByNaturalRoll
+        var rolled = DecidedByNaturalRoll
             ? $"{name} save: d20 [{NaturalRoll}] — automatic {verdict}"
             : $"{name} save: d20 [{NaturalRoll}] {Bonus.Total:+0;-0;+0} = {Total} "
               + $"vs DC {DifficultyClass} — {verdict}";
+
+        return FirstTry is { } first ? $"{first}, rerolled: {rolled}" : rolled;
     }
 }

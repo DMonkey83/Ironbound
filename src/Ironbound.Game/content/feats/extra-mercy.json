@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "extra-mercy",
+  "name": "Extra Mercy",
+  "description": "One more mercy on your lay on hands.",
+  "unavailable": "needs mercies, and paladins are not in the game",
+  "requires": {"features": ["mercy"]}
+}

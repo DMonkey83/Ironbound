@@ -4,6 +4,8 @@
   "kind": "creature",
   "id": "hobgoblin-sergeant",
   "name": "Hobgoblin Sergeant",
+  // Fighter 6, an adventurer's class, rated one level down.
+  "cr": 5,
   "model": "res://art/hobgoblin.glb",
   "abilities": [15, 13, 14, 10, 10, 8],
   "classes": [ { "class": "fighter", "level": 6 } ],
@@ -13,7 +15,10 @@
     { "skill": "Perception", "ranks": 6 }
   ],
   "speed": 30,
-  "feats": ["combat-reflexes", "weapon-specialization", "power-attack"],
+  // Weapon Specialization in the longsword, the one weapon he fights with — and Weapon Focus in
+  // it, which the book asks for first and his file was missing until the feats were checked.
+  // A fighter 6 has seven feats; he still carries only four of them.
+  "feats": ["combat-reflexes", "weapon-focus:longsword", "weapon-specialization:longsword", "power-attack"],
 
   // A fighter 6 trains in a weapon group at fifth level: the longsword's.
   "weaponTraining": ["heavy-blades"],

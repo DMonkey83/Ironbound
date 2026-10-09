@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "greater-spell-penetration",
+  "name": "Greater Spell Penetration",
+  "description": "+2 more on caster level checks to beat spell resistance.",
+  "effect": "GreaterSpellPenetration",
+  "requires": {"feats": ["spell-penetration"]}
+}

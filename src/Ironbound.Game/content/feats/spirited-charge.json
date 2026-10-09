@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "spirited-charge",
+  "name": "Spirited Charge",
+  "combat": true,
+  "description": "Double damage on a mounted charge.",
+  "unavailable": "needs mounts and mounted combat, which are not in the game",
+  "requires": {"feats": ["mounted-combat", "ride-by-attack"], "ranks": {"Ride": 1}}
+}

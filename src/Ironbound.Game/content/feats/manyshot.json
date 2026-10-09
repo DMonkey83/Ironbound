@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "manyshot",
+  "name": "Manyshot",
+  "combat": true,
+  "description": "The first shot of a full attack with a bow is two arrows; if it hits, both do. The second adds no critical or precision damage.",
+  "effect": "Manyshot",
+  "requires": {"dex": 17, "feats": ["point-blank-shot", "rapid-shot"], "baseAttack": 6}
+}

@@ -79,8 +79,41 @@ public sealed class Combatant
     /// <summary>Whether a rogue's opportunist talent has been used since her last turn.</summary>
     public bool HasUsedOpportunist { get; internal set; }
 
-    /// <summary>Caught with their guard down: before their first turn, or surprised entirely.</summary>
-    public bool IsFlatFooted => !HasActed || IsUnaware;
+    /// <summary>
+    /// Caught with their guard down: before their first turn, or surprised entirely — or, for
+    /// the length of a round, running flat out without the Run feat to keep their footing.
+    /// </summary>
+    public bool IsFlatFooted => !HasActed || IsUnaware || IsRunning;
+
+    /// <summary>
+    /// Ran last turn without the Run feat, and so has no Dexterity to armour class until its next
+    /// turn begins.
+    /// </summary>
+    public bool IsRunning { get; internal set; }
+
+    /// <summary>Stopped dead by a Stand Still: no more walking this turn.</summary>
+    public bool IsHeld { get; internal set; }
+
+    /// <summary>
+    /// Followed a foe with Step Up since its last turn. That was an immediate action: this turn
+    /// it has no swift action, no five-foot step, and five feet less to walk.
+    /// </summary>
+    public bool SteppedUp { get; internal set; }
+
+    /// <summary>
+    /// Whether it took Step Up's step before this turn began: what is owed out of this turn.
+    /// Set from <see cref="SteppedUp"/> as the turn begins.
+    /// </summary>
+    public bool OwesStep { get; internal set; }
+
+    /// <summary>Lunging this turn: five more feet of reach on its own attacks until the turn ends.</summary>
+    public bool IsLunging { get; internal set; }
+
+    /// <summary>
+    /// How much difficult ground it has crossed this round as though it were clear: Nimble Moves
+    /// buys five feet of it a round, and Acrobatic Steps twenty.
+    /// </summary>
+    public int EasyGroundUsed { get; internal set; }
 
     /// <summary>
     /// Whether this one can do anything at all this turn.
@@ -117,8 +150,11 @@ public sealed class Combatant
     {
         Budget.Reset();
 
-        // Standing, but only just: at exactly nought hit points you get one action a round.
-        if (Creature.HitPoints.State == HitPointState.Disabled)
+        // Standing, but only just: at exactly nought hit points you get one action a round. So
+        // does anybody staggered, and anybody fighting on below nought, who is staggered too.
+        if (Creature.HitPoints.State == HitPointState.Disabled
+            || Creature.HitPoints.IsFightingOn
+            || Creature.Conditions.Any(condition => Conditions.ConditionInfo.Of(condition).SingleAction))
         {
             Budget.RestrictToSingleAction();
         }
@@ -128,6 +164,19 @@ public sealed class Combatant
         HasMoved = false;
         HasTakenFiveFootStep = false;
         WalkedAwayFrom.Clear();
+
+        // Step Up's step was this turn's immediate action, taken early: no swift action now.
+        OwesStep = SteppedUp;
+        SteppedUp = false;
+        if (OwesStep)
+        {
+            Budget.SpendSwift();
+        }
+
+        IsRunning = false;
+        IsHeld = false;
+        IsLunging = false;
+        EasyGroundUsed = 0;
     }
 
     public override string ToString() => $"{Creature.Name} (initiative {Initiative})";

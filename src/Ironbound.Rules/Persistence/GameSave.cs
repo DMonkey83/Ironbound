@@ -102,7 +102,13 @@ public static class GameSave
         combatant.Budget.HasMove,
         combatant.Budget.HasSwift,
         combatant.WasSurprised,
-        combatant.HasUsedOpportunist);
+        combatant.HasUsedOpportunist,
+        combatant.IsRunning,
+        combatant.SteppedUp,
+        combatant.OwesStep,
+        combatant.IsLunging,
+        combatant.IsHeld,
+        combatant.EasyGroundUsed);
 
     private static SavedModifier[] Capture(ModifierStack stack) =>
         [.. stack.Modifiers.Select(m => new SavedModifier(m.Value, m.Type, m.Source))];
@@ -123,8 +129,10 @@ public static class GameSave
             new SavedItem(entry.Item.Id, entry.Slot, entry.IsBroken, entry.IsOutOfHand))],
         [.. creature.Levels.Select(level => new SavedClassLevel(level.Class.Id, level.Level))],
         [.. Skills.SkillInfo.All
+            // Any modifier at all, not a non-zero total: an elf's +2 Perception dazzled down to
+            // +1 and blinded to -3 is a stack of three things, and each has to come back.
             .Where(skill => creature.Skills.Ranks(skill) > 0
-                || creature.Skills.Modifiers(skill).Total != 0)
+                || creature.Skills.Modifiers(skill).Count > 0)
             .Select(skill => new SavedSkill(
                 skill, creature.Skills.Ranks(skill), Capture(creature.Skills.Modifiers(skill))))],
         [.. creature.Stances.Active],
@@ -147,7 +155,9 @@ public static class GameSave
         [.. creature.Effects.Active.Select(Capture)],
         field?.SquareOf(creature) is { } square ? new SavedSquare(square.X, square.Y) : null,
         CaptureFeatures(creature),
-        creature.Race?.Id);
+        creature.Race?.Id,
+        Capture(creature.Skills.Checks),
+        Capture(creature.AbilityCheckModifiers));
 
     private static SavedFeatures CaptureFeatures(Creature creature)
     {
@@ -219,7 +229,7 @@ public static class GameSave
             grants is null ? null : [.. grants.Select(g => g.Target.Which)],
             (effect as DamageOverTimeEffect)?.Amount.ToString(),
             (effect as DamageOverTimeEffect)?.DamageType,
-            (effect as FastHealingEffect)?.Amount ?? (effect as RegenerationEffect)?.Amount,
+            (effect as FastHealingEffect)?.Amount ?? (effect as RegenerationEffect)?.Amount ?? (effect as AbilityBleedEffect)?.PerRound,
             (effect as RegenerationEffect)?.SuspendedBy.ToArray(),
             // "Suspended" for a regeneration is suppression; for a bleed it is having stopped.
             // Same field, same meaning: this effect is currently not doing its thing.
@@ -227,7 +237,7 @@ public static class GameSave
                 ?? (effect as BleedingOutEffect)?.IsStable
                 ?? false,
             effect.Condition,
-            (effect as Classes.BorrowedFeatEffect)?.Feat.Key);
+            (effect as Classes.BorrowedFeatEffect)?.Feat.Key ?? (effect as AbilityBleedEffect)?.Ability.ToString());
     }
 
     // ---- restore ----
@@ -266,6 +276,12 @@ public static class GameSave
                 IsUnaware = saved.IsUnaware,
                 WasSurprised = saved.WasSurprised,
                 HasUsedOpportunist = saved.HasUsedOpportunist,
+                IsRunning = saved.IsRunning,
+                SteppedUp = saved.SteppedUp,
+                OwesStep = saved.OwesStep,
+                IsLunging = saved.IsLunging,
+                IsHeld = saved.IsHeld,
+                EasyGroundUsed = saved.EasyGroundUsed,
             };
 
             combatant.Budget.Restore(saved.HasStandard, saved.HasMove, saved.HasSwift);
@@ -336,6 +352,10 @@ public static class GameSave
         Fill(creature.InitiativeModifiers, saved.Initiative);
         Fill(creature.SpeedModifiers, saved.SpeedModifiers);
 
+        // Absent before fifteen, when nothing reached every skill or every ability check at once.
+        Fill(creature.Skills.Checks, saved.SkillChecks ?? []);
+        Fill(creature.AbilityCheckModifiers, saved.AbilityChecks ?? []);
+
         creature.HitPoints.Restore(
             saved.HitPoints.Damage, saved.HitPoints.Temporary, saved.HitPoints.Nonlethal);
 
@@ -354,7 +374,8 @@ public static class GameSave
 
         foreach (var weapon in saved.Weapons)
         {
-            creature.Attacks.Add(Restore(weapon, saved.Items, library));
+            creature.Attacks.Add(
+                Rebuild(weapon, saved.Items, library, creature.Size) ?? Restore(weapon, saved.Items, library));
         }
 
         // Equipment, like feats, comes back by identity only: its bonuses were captured with
@@ -459,6 +480,9 @@ public static class GameSave
         }
 
         definition?.Familiarise(creature, library);
+
+        // Facts about the goblin rather than about the fight, so they come from its file again.
+        definition?.Describe(creature);
     }
 
     /// <summary>
@@ -622,6 +646,45 @@ public static class GameSave
         }
     }
 
+    /// <summary>
+    /// The weapon built again from the content it came from, when it came from content at all.
+    /// </summary>
+    /// <remarks>
+    /// What a longsword does is a fact about longswords, not part of anybody's progress. A save
+    /// keeps which sword it was, and whether it is broken or lying on the floor (both on the item,
+    /// not here), and asks the content for the rest. That is what lets a save made before a
+    /// weapon was corrected pick up the right numbers — and it is how a save written by a build
+    /// that was halfway through changing the weapon files, which had a whole party swinging
+    /// 1d6 clubs and Sylwen clubbing people with her bow, comes back whole. Enhancement and
+    /// special materials come from the item too, so nothing is lost. Only a weapon nothing in the
+    /// content describes, one made by hand in a test, comes back from its saved numbers.
+    /// </remarks>
+    private static WeaponAttack? Rebuild(
+        SavedWeapon saved, SavedItem[] items, ContentLibrary library, CreatureSize size)
+    {
+        foreach (var carried in items)
+        {
+            if (library.GetItem(carried.Id) is not { } item)
+            {
+                continue;
+            }
+
+            if (string.Equals(item.Name, saved.Name, StringComparison.Ordinal))
+            {
+                return library.BuildItemWeapon(item, size);
+            }
+
+            if (string.Equals($"{item.Name} (thrown)", saved.Name, StringComparison.Ordinal))
+            {
+                return library.BuildThrownItemWeapon(item, size);
+            }
+        }
+
+        // Teeth and the like, written straight into a creature file and built from the weapon.
+        var kind = saved.Kind ?? KindOf(saved.Name, items, library);
+        return kind is null ? null : library.BuildWeapon(kind, saved.Name, size);
+    }
+
     /// <param name="items">What the creature was carrying, so a weapon saved before weapons knew
     /// what kind they were can be matched to the item it came from and told.</param>
     private static WeaponAttack Restore(SavedWeapon saved, SavedItem[] items, ContentLibrary library)
@@ -751,6 +814,12 @@ public static class GameSave
 
             case nameof(Classes.RageEffect):
                 return new Classes.RageEffect(duration);
+
+            case nameof(AbilityBleedEffect):
+                return new AbilityBleedEffect(
+                    saved.Name,
+                    Enum.TryParse<Ability>(saved.Detail, out var bled) ? bled : Ability.Constitution,
+                    Math.Max(1, saved.Heal ?? 1));
 
             case nameof(Classes.BorrowedFeatEffect):
                 return new Classes.BorrowedFeatEffect(

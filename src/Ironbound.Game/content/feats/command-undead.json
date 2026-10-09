@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "command-undead",
+  "name": "Command Undead",
+  "description": "Spend a channel to take undead foes within 30 feet into your service, up to your level in hit dice (Will negates).",
+  "effect": "CommandUndead",
+  "requires": {"features": ["channel-energy"], "channel": "Negative"}
+}

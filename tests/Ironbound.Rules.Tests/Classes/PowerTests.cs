@@ -23,12 +23,13 @@ public class PowerTests
     public void TheyAreRebuiltSoTheyGrowWithTheLevel()
     {
         var cleric = ClassKit.Make("cleric", 2, "\"deity\": \"none\"");
-        var before = Assert.IsType<Restore>(cleric.Powers.First().Effect.Does.Single()).Amount.ToString();
+        // The healing half: a channel also burns the undead with the same dice.
+        var before = cleric.Powers.First().Effect.Does.OfType<Restore>().Single().Amount.ToString();
 
         Levelling.Gain(cleric, TestContent.Library.GetClass("cleric")!);
 
         Assert.Equal("1d6", before);
-        Assert.Equal("2d6", Assert.IsType<Restore>(cleric.Powers.First().Effect.Does.Single()).Amount.ToString());
+        Assert.Equal("2d6", cleric.Powers.First().Effect.Does.OfType<Restore>().Single().Amount.ToString());
     }
 
     [Fact]
@@ -224,7 +225,10 @@ public class ClassLevellingTests
         var fourth = ClassKit.Make("wizard", 4);
         var fifth = ClassKit.Make("wizard", 5);
 
-        Assert.Equal(["empower-spell"], ClassLevelling.NeedsFor(fourth, Library.GetClass("wizard")!, Library).BonusFeats.Select(feat => feat.Id));
+        // Every metamagic feat the game can do, now there are more of them than Empower Spell.
+        Assert.Equal(
+            ["empower-spell", "enlarge-spell", "extend-spell", "heighten-spell", "maximize-spell", "quicken-spell", "widen-spell"],
+            ClassLevelling.NeedsFor(fourth, Library.GetClass("wizard")!, Library).BonusFeats.Select(feat => feat.Id).Order());
         Assert.False(ClassLevelling.NeedsFor(fifth, Library.GetClass("wizard")!, Library).Any);
     }
 

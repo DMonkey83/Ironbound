@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "greater-grapple",
+  "name": "Greater Grapple",
+  "combat": true,
+  "description": "Keep a grapple going as a move action.",
+  "unavailable": "waits for the manoeuvres batch: disarm, sunder, grapple, overrun and feint are not in the game yet",
+  "requires": {"dex": 13, "feats": ["improved-grapple", "improved-unarmed-strike"], "baseAttack": 6}
+}

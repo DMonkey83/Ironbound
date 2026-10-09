@@ -208,7 +208,8 @@ public sealed class Encounter
         ArgumentNullException.ThrowIfNull(attacker);
 
         return IsFlatFooted(target)
-            || (IsSurpriseRound && attacker.Choices.HasTalent(Classes.TalentEffect.SurpriseAttack));
+            || (IsSurpriseRound && attacker.Choices.HasTalent(Classes.TalentEffect.SurpriseAttack))
+            || IsShattered(target, attacker);
     }
 
     /// <summary>
@@ -239,8 +240,44 @@ public sealed class Encounter
         return false;
     }
 
-    internal void CompleteTurn(Combatant combatant) =>
+    internal void CompleteTurn(Combatant combatant)
+    {
         combatant.NextTurnTick += Duration.TicksPerRound;
+
+        // Shatter Defenses lasts to the end of the attacker's next turn, which is now for any
+        // foe it shattered in the round before this one.
+        foreach (var key in _shattered.Where(entry => ReferenceEquals(entry.Key.Attacker, combatant.Creature)
+            && entry.Value <= Round).Select(entry => entry.Key).ToList())
+        {
+            _shattered.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// Who has shattered whose defences, and the round in which it wears off at the end of the
+    /// attacker's turn. Not saved: a reload in the middle of it costs the attacker the edge.
+    /// </summary>
+    private readonly Dictionary<(Creature Attacker, Creature Target), int> _shattered = [];
+
+    /// <summary>
+    /// What follows any blow landing, whoever struck it and whenever: Shatter Defenses, which
+    /// leaves a frightened foe flat-footed to the one who hit it until the end of that one's
+    /// next turn — this round's later swings included.
+    /// </summary>
+    public void AfterStrike(Combat.StrikeResult strike)
+    {
+        ArgumentNullException.ThrowIfNull(strike);
+
+        if (strike.IsHit
+            && strike.Attacker.HasFeat(Feats.FeatEffect.ShatterDefenses)
+            && (strike.Target.Has(Conditions.Condition.Shaken) || strike.Target.Has(Conditions.Condition.Frightened)))
+        {
+            _shattered[(strike.Attacker, strike.Target)] = Round + 1;
+        }
+    }
+
+    /// <summary>Whether one creature's defences are shattered as far as another is concerned.</summary>
+    public bool IsShattered(Creature target, Creature attacker) => _shattered.ContainsKey((attacker, target));
 
     public override string ToString() =>
         $"round {Round}, tick {Tick}: {string.Join(", ", _combatants)}";

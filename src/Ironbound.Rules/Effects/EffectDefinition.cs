@@ -88,9 +88,16 @@ public sealed record EffectDefinition
         : Duration.FromTicks(DurationTicks + (TicksPerLevel * Math.Max(0, casterLevel)));
 
     /// <summary>Mints a fresh effect. Each target needs its own, with its own clock.</summary>
-    public Effect Build(int casterLevel)
+    public Effect Build(int casterLevel) => Build(casterLevel, 1);
+
+    /// <summary>
+    /// The same, lasting so many times as long: Extend Spell's twice. A permanent effect is
+    /// permanent however it is stretched.
+    /// </summary>
+    public Effect Build(int casterLevel, int stretch)
     {
-        var duration = DurationFor(casterLevel);
+        var written = DurationFor(casterLevel);
+        var duration = written.IsPermanent || stretch <= 1 ? written : Duration.FromTicks(written.Ticks * stretch);
         Duration? period = PeriodTicks > 0 ? Duration.FromTicks(PeriodTicks) : null;
 
         switch (Kind)
@@ -109,7 +116,7 @@ public sealed record EffectDefinition
             default:
                 if (Condition is { } condition)
                 {
-                    return Conditions.ConditionInfo.Effect(condition, duration);
+                    return Conditions.ConditionInfo.Effect(condition, duration, Name);
                 }
 
                 var effect = new ModifierEffect(Name, duration);

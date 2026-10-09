@@ -3,6 +3,8 @@
   "kind": "creature",
   "id": "aldric",
   "name": "Aldric",
+  // A first-level fighter: the Bestiary rates an adventurer's class levels at one less, and a first level at 1/2.
+  "cr": "1/2",
   "model": "res://art/karn.glb",
   "abilities": [16, 13, 14, 10, 12, 8],
   "classes": [ { "class": "fighter", "level": 1 } ],

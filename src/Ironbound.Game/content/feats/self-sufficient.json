@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "self-sufficient",
+  "name": "Self-Sufficient",
+  "description": "+2 on Heal and Survival checks; +4 on either once it has 10 ranks.",
+  "effect": "SkillBonus",
+  "skills": ["Heal", "Survival"]
+}

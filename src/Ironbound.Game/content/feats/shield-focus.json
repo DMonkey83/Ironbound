@@ -6,5 +6,6 @@
   "combat": true,
   "description": "+1 to the armour class a shield gives.",
   "effect": "ShieldFocus",
-  "requires": { "baseAttack": 1 }
+  // Trained with shields first, by a class or by Shield Proficiency.
+  "requires": { "baseAttack": 1, "armour": ["shields"] }
 }

@@ -425,6 +425,9 @@ public partial class Main
 
 		_between.AddChild(Words("Spoils", Body, 16, PageInk));
 		_stash = new OptionButton { CustomMinimumSize = new Vector2(240, 0) };
+		// The icons are drawn at 256 for chests and the sheet; a dropdown wants them thumbnail-sized.
+		_stash.AddThemeConstantOverride("icon_max_width", 28);
+		_stash.GetPopup().AddThemeConstantOverride("icon_max_width", 48);
 		_between.AddChild(_stash);
 		_between.AddChild(Words("to", Body, 16, PageInk));
 		_bearer = new OptionButton { CustomMinimumSize = new Vector2(110, 0) };

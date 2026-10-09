@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "diehard",
+  "name": "Diehard",
+  "description": "Below 0 hit points you stabilise at once and stay on your feet, staggered: anything strenuous costs a hit point.",
+  "effect": "Diehard",
+  "requires": {"feats": ["endurance"]}
+}

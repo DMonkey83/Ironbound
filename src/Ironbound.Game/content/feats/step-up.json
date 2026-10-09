@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "step-up",
+  "name": "Step Up",
+  "combat": true,
+  "description": "When an adjacent foe steps five feet away, step after it. Costs your next swift action and five-foot step.",
+  "effect": "StepUp",
+  "requires": {"baseAttack": 1}
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "acrobatic",
+  "name": "Acrobatic",
+  "description": "+2 on Acrobatics and Fly checks; +4 on either once it has 10 ranks.",
+  "effect": "SkillBonus",
+  "skills": ["Acrobatics", "Fly"]
+}

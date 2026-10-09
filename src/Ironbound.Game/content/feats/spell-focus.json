@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "spell-focus",
+  "name": "Spell Focus",
+  "takes": "School",
+  "description": "+1 on the difficulty class of spells of one school. Taken again, it is another school.",
+  "effect": "SpellFocus"
+}

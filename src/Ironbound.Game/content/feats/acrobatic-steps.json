@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "acrobatic-steps",
+  "name": "Acrobatic Steps",
+  "description": "Cross twenty feet of difficult ground a round as though it were clear.",
+  "effect": "AcrobaticSteps",
+  "requires": {"dex": 15, "feats": ["nimble-moves"]}
+}

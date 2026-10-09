@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "shield-master",
+  "name": "Shield Master",
+  "combat": true,
+  "description": "No two-weapon penalties when one of the weapons is your shield.",
+  "unavailable": "needs two-weapon fighting: off-hand attacks and their penalties are not in the game yet",
+  "requires": {"feats": ["improved-shield-bash", "shield-slam", "two-weapon-fighting"], "armour": ["shields"], "baseAttack": 11}
+}

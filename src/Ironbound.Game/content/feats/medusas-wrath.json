@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "medusas-wrath",
+  "name": "Medusa's Wrath",
+  "combat": true,
+  "description": "Two more unarmed blows against a hindered foe.",
+  "unavailable": "needs unarmed strikes, which are not in the game yet",
+  "requires": {"feats": ["improved-unarmed-strike", "gorgons-fist", "scorpion-style"], "baseAttack": 11}
+}

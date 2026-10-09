@@ -4,6 +4,8 @@
   "kind": "creature",
   "id": "dire-rat",
   "name": "Dire Rat",
+  // The Bestiary's own rating for a dire rat.
+  "cr": "1/3",
   "model": "res://art/dire-rat.glb",
   "abilities": [10, 15, 12, 1, 12, 4],
   "hitDice": 1,

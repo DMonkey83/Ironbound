@@ -83,7 +83,7 @@ public sealed class Turn
         // Whether the effort will cost blood has to be decided before the action is taken,
         // because the action may well be what changes the answer.
         var strenuous = action.Cost is ActionCost.Standard or ActionCost.FullRound
-            && Actor.HitPoints.State == HitPointState.Disabled;
+            && (Actor.HitPoints.State == HitPointState.Disabled || Actor.HitPoints.IsFightingOn);
 
         Budget.Spend(action.Cost);
         var result = action.Perform(new ActionContext(this));
@@ -109,6 +109,9 @@ public sealed class Turn
 
         IsEnded = true;
         Budget.SpendAll();
+
+        // A lunge reaches for this turn's attacks only; the armour class it cost lasts longer.
+        Combatant.IsLunging = false;
 
         // Having had a turn, they are no longer caught flat-footed — and whatever they failed
         // to notice at the start, they have certainly noticed now.

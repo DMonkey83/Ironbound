@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "extend-spell",
+  "name": "Extend Spell",
+  "metamagic": true,
+  "description": "A spell's effects last twice as long; it takes a slot one level higher.",
+  "effect": "ExtendSpell"
+}

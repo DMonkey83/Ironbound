@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "scorpion-style",
+  "name": "Scorpion Style",
+  "combat": true,
+  "description": "An unarmed blow that slows a foe to five feet.",
+  "unavailable": "needs unarmed strikes, which are not in the game yet",
+  "requires": {"feats": ["improved-unarmed-strike"]}
+}

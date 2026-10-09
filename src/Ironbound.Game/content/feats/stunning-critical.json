@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "stunning-critical",
+  "name": "Stunning Critical",
+  "combat": true,
+  "critical": true,
+  "description": "A critical hit stuns for 1d4 rounds; a Fortitude save (DC 10 + your base attack) leaves it staggered instead.",
+  "effect": "StunningCritical",
+  "requires": {"feats": ["critical-focus", "staggering-critical"], "baseAttack": 17}
+}

@@ -2,6 +2,7 @@ using Ironbound.Rules.Abilities;
 using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Feats;
+using Ironbound.Rules.Skills;
 
 namespace Ironbound.Rules.Classes;
 
@@ -25,10 +26,12 @@ public static class ClassLevelling
     [
         "weapon-focus", "power-attack", "dodge", "improved-initiative", "weapon-finesse",
         "point-blank-shot", "shield-focus", "combat-reflexes", "cleave", "vital-strike",
-        "precise-shot", "improved-critical", "rapid-shot",
+        "precise-shot", "improved-critical", "rapid-shot", "weapon-specialization", "deadly-aim",
+        "greater-weapon-focus", "manyshot", "greater-trip", "greater-bull-rush", "critical-focus",
+        "greater-shield-focus", "mobility", "great-cleave", "far-shot",
     ];
 
-    private static readonly string[] WizardPreference = ["empower-spell"];
+    private static readonly string[] WizardPreference = ["empower-spell", "extend-spell", "quicken-spell", "maximize-spell"];
 
     private static readonly TalentEffect[] RoguePreference =
     [
@@ -76,10 +79,34 @@ public static class ClassLevelling
                 .Select(talent => (talent.Id, talent.Name)));
         }
 
+        var reaching = creature.Level + 1;
+        var favoured = IsFavoured(creature, taken);
+
         return new LevelNeeds(
             [.. feats.DistinctBy(feat => feat.Id).OrderBy(feat => feat.Name, StringComparer.Ordinal)],
             groups,
-            [.. talents.Distinct()]);
+            [.. talents.Distinct()])
+        {
+            AbilityIncrease = Levelling.GrantsAbilityIncreaseAt(reaching),
+            DefaultAbility = taken.KeyAbility,
+            FavouredClass = favoured,
+            FavouredSkills = favoured
+                ? [.. SkillInfo.All.Where(skill => creature.Skills.Ranks(skill) < reaching)]
+                : [],
+        };
+    }
+
+    /// <summary>
+    /// Whether a level in this class is a level in the creature's favoured class: the one its
+    /// file names, or else the first class it took. A creature with no class yet favours the
+    /// first one it takes.
+    /// </summary>
+    public static bool IsFavoured(Creature creature, ClassDefinition taken)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        ArgumentNullException.ThrowIfNull(taken);
+
+        return creature.FavouredClass is not { } favoured || string.Equals(favoured, taken.Id, StringComparison.Ordinal);
     }
 
     /// <summary>The feats a bonus-feat row of this kind offers: combat feats, or a wizard's.</summary>
@@ -197,7 +224,75 @@ public static class ClassLevelling
             group = DefaultGroup(creature);
         }
 
-        return (new LevelChoices(feat, group, talent?.Id), null);
+        // ---- the ability increase: the class's key ability unless somebody says ----
+        Ability? raised = null;
+        if (given.AbilityIncrease is { } ability)
+        {
+            if (!needs.AbilityIncrease)
+            {
+                return (null, $"level {creature.Level + 1} raises no ability score.");
+            }
+
+            if (!creature.Abilities[ability].HasScore)
+            {
+                return (null, $"{creature.Name} has no {AbilityInfo.Abbreviate(ability)} to raise.");
+            }
+
+            raised = ability;
+        }
+        else if (needs.AbilityIncrease)
+        {
+            raised = creature.Abilities[needs.DefaultAbility].HasScore ? needs.DefaultAbility : Ability.Strength;
+        }
+
+        // ---- the favoured class: a hit point unless somebody asks for the rank ----
+        FavouredClassBonus? bonus = null;
+        Skill? skill = null;
+        if (given.Favoured is not null && !needs.FavouredClass)
+        {
+            return (null, $"{taken.Name} is not {creature.Name}'s favoured class.");
+        }
+
+        if (given.FavouredSkill is not null && given.Favoured != FavouredClassBonus.SkillRank)
+        {
+            return (null, "a skill was named for a favoured-class bonus that is not a skill rank.");
+        }
+
+        if (needs.FavouredClass)
+        {
+            bonus = given.Favoured ?? FavouredClassBonus.HitPoint;
+
+            if (bonus == FavouredClassBonus.SkillRank)
+            {
+                skill = given.FavouredSkill ?? DefaultFavouredSkill(creature, taken, needs.FavouredSkills);
+
+                if (skill is not { } room || !needs.FavouredSkills.Contains(room))
+                {
+                    return (null, given.FavouredSkill is { } refused
+                        ? $"{SkillInfo.Name(refused)} already has as many ranks as {creature.Name}'s level allows."
+                        : $"{creature.Name} has no skill left with room for another rank.");
+                }
+            }
+        }
+
+        return (new LevelChoices(feat, group, talent?.Id, raised, bonus, skill), null);
+    }
+
+    /// <summary>
+    /// The skill a favoured-class rank goes into when nobody says: the class skill the creature
+    /// has put most into already that still has room, else any skill that has room.
+    /// </summary>
+    public static Skill? DefaultFavouredSkill(Creature creature, ClassDefinition taken, IReadOnlyList<Skill> room)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        ArgumentNullException.ThrowIfNull(taken);
+        ArgumentNullException.ThrowIfNull(room);
+
+        return room
+            .OrderByDescending(skill => taken.ClassSkills.Contains(skill))
+            .ThenByDescending(skill => creature.Skills.Ranks(skill))
+            .Cast<Skill?>()
+            .FirstOrDefault();
     }
 
     private static string KindOwed(ClassDefinition taken, int level) =>
@@ -231,6 +326,32 @@ public static class ClassLevelling
             creature.Choices.Talents.Add(talent);
         }
 
+        if (choices.AbilityIncrease is { } ability && creature.Abilities[ability].HasScore)
+        {
+            creature.Abilities[ability].Base += 1;
+
+            // A higher casting score can be worth a bonus spell. Raised rather than set, as the
+            // level's own slots were, so nothing spent this morning comes back.
+            if (ability == creature.Spells.CastingAbility && creature.Levels.Count > 0)
+            {
+                foreach (var (level, count) in Progression.SlotsFor(creature.Levels, creature.Abilities[ability].Modifier))
+                {
+                    creature.Spells.RaiseSlots(level, count);
+                }
+            }
+        }
+
+        switch (choices.Favoured)
+        {
+            case FavouredClassBonus.HitPoint:
+                creature.HitPoints.Base += 1;
+                break;
+
+            case FavouredClassBonus.SkillRank when choices.FavouredSkill is { } skill:
+                creature.Skills.SetRanks(skill, creature.Skills.Ranks(skill) + 1);
+                break;
+        }
+
         ClassFeatures.Establish(creature, library, refill: false);
     }
 
@@ -249,6 +370,11 @@ public static class ClassLevelling
             return feat;
         }
 
+        if (feat.Takes != FeatChoice.Weapon)
+        {
+            return ChooseOther(creature, feat);
+        }
+
         // A proficiency feat is taken for a weapon of its own category that the creature cannot
         // use yet; anything else for whatever it fights with first.
         var weapons = new[] { creature.MeleeAttack, creature.PrimaryAttack }
@@ -260,10 +386,46 @@ public static class ClassLevelling
             .OfType<string>()
             .Distinct();
 
-        foreach (var kind in weapons)
+        // One it qualifies for first — Weapon Specialization in the weapon it has Weapon Focus
+        // in — and failing that the first it does not hold yet, which is what a talent handing
+        // the feat out regardless of its prerequisites wants.
+        var fresh = weapons
+            .Select(kind => feat with { Choice = kind })
+            .Where(candidate => !creature.Feats.Any(held => held.Key == candidate.Key))
+            .ToList();
+
+        return fresh.FirstOrDefault(candidate => candidate.AvailableTo(creature)) ?? fresh.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// A feat taken for a skill, a school, an alignment or an element, with that chosen: Skill
+    /// Focus in the skill with most ranks, Spell Focus in the school most of the prepared spells
+    /// are of, and so on. Null when there is nothing left it could be taken for.
+    /// </summary>
+    private static FeatDefinition? ChooseOther(Creature creature, FeatDefinition feat)
+    {
+        IEnumerable<string> options = feat.Takes switch
         {
-            var candidate = feat with { Choice = kind };
-            if (!creature.Feats.Any(held => held.Key == candidate.Key))
+            FeatChoice.Skill => Skills.SkillInfo.All
+                .OrderByDescending(skill => creature.Skills.Ranks(skill))
+                .ThenBy(skill => skill)
+                .Select(skill => skill.ToString()),
+
+            // The school of most of what she prepares; any school after that.
+            FeatChoice.School => creature.Spells.Prepared
+                .GroupBy(spell => spell.School)
+                .OrderByDescending(group => group.Count())
+                .ThenBy(group => group.Key)
+                .Select(group => group.Key.ToString())
+                .Concat(FeatChoices.Options(FeatChoice.School)),
+
+            _ => FeatChoices.Options(feat.Takes),
+        };
+
+        foreach (var option in options.Distinct(StringComparer.Ordinal))
+        {
+            var candidate = feat with { Choice = option };
+            if (!creature.Feats.Any(held => held.Key == candidate.Key) && candidate.AvailableTo(creature))
             {
                 return candidate;
             }
@@ -302,9 +464,13 @@ public static class ClassLevelling
     {
         FeatEffect.WeaponFinesse => creature.Abilities[Ability.Dexterity].Modifier
             > creature.Abilities[Ability.Strength].Modifier,
-        FeatEffect.PointBlankShot or FeatEffect.PreciseShot or FeatEffect.RapidShot =>
+        FeatEffect.PointBlankShot or FeatEffect.PreciseShot or FeatEffect.RapidShot or FeatEffect.DeadlyAim
+            or FeatEffect.Manyshot or FeatEffect.FarShot or FeatEffect.ImprovedPreciseShot or FeatEffect.ShotOnTheRun =>
             creature.PrimaryAttack is { IsRanged: true },
-        FeatEffect.ShieldFocus => creature.Equipment.HasShield,
+        FeatEffect.ShieldFocus or FeatEffect.GreaterShieldFocus => creature.Equipment.HasShield,
+
+        // Nothing in the game yet that it would help with; taken only on purpose.
+        FeatEffect.Endurance => false,
         _ when Proficiency.IsProficiencyFeat(feat.Effect) => Proficiency.WouldHelp(creature, feat),
         _ => true,
     };

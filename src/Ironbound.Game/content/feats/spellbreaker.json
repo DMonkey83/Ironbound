@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "spellbreaker",
+  "name": "Spellbreaker",
+  "combat": true,
+  "description": "A foe who fails to cast defensively where you threaten draws your attack of opportunity.",
+  "unavailable": "left out of this batch by the plan, though casting defensively, which it punishes, now exists",
+  "requires": {"feats": ["disruptive"], "classLevels": {"fighter": 10}}
+}

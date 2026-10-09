@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "arcane-strike",
+  "name": "Arcane Strike",
+  "combat": true,
+  "description": "As a swift action, your weapons deal +1 damage and count as magic for a round; +1 more per five arcane caster levels.",
+  "effect": "ArcaneStrike",
+  "requires": {"arcane": true}
+}

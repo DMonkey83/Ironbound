@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "improved-sunder",
+  "name": "Improved Sunder",
+  "combat": true,
+  "description": "Sundering does not provoke, and the check is +2.",
+  "unavailable": "waits for the manoeuvres batch: disarm, sunder, grapple, overrun and feint are not in the game yet",
+  "requires": {"str": 13, "feats": ["power-attack"]}
+}

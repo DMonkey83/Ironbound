@@ -227,7 +227,7 @@ public class CavesOfShadowContentTests
         Assert.Equal(
             ["Bless", "Cure Light Wounds"],
             hale.Spells.Prepared.Select(spell => spell.Name));
-        Assert.Equal(17, hale.ArmorClass.Total);   // 10 + 4 scale + 2 heavy shield + 1 Dodge
+        Assert.Equal(16, hale.ArmorClass.Total);   // 10 + 4 scale + 2 heavy shield; no Dodge at Dex 10
     }
 
     [Fact]

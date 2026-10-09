@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "persuasive",
+  "name": "Persuasive",
+  "description": "+2 on Diplomacy and Intimidate checks; +4 on either once it has 10 ranks.",
+  "effect": "SkillBonus",
+  "skills": ["Diplomacy", "Intimidate"]
+}

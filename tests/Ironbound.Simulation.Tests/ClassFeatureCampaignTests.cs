@@ -22,9 +22,11 @@ internal static class LevelReady
               {{(extra.Length > 0 ? "," + extra : string.Empty)}} }
             """));
 
-        // Level eight, and therefore worth 6,400: enough for a level from anywhere up to fourth.
+        // Rated CR 9, and therefore worth 6,400: enough for a level from anywhere up to fourth.
+        // Experience comes from the challenge rating now, and a warrior 8 is only CR 6 by the
+        // Bestiary's rule, so the rating is written rather than left to the levels.
         files.Add(("test-foe.json", """
-            { "kind": "creature", "id": "test-foe", "name": "Something Large",
+            { "kind": "creature", "id": "test-foe", "name": "Something Large", "cr": 9,
               "abilities": [16, 12, 14, 10, 12, 10],
               "classes": [ { "class": "warrior", "level": 8 } ] }
             """));

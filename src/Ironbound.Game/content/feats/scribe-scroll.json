@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "scribe-scroll",
+  "name": "Scribe Scroll",
+  "itemCreation": true,
+  "description": "Write scrolls of spells you know.",
+  "unavailable": "needs item crafting, which is not in the game",
+  "requires": {"casterLevel": 1}
+}

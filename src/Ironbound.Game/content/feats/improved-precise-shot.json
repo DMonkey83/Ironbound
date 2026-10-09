@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "improved-precise-shot",
+  "name": "Improved Precise Shot",
+  "combat": true,
+  "description": "Your ranged attacks ignore cover short of total cover.",
+  "effect": "ImprovedPreciseShot",
+  "requires": {"dex": 19, "feats": ["point-blank-shot", "precise-shot"], "baseAttack": 11}
+}

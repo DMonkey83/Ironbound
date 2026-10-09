@@ -18,6 +18,37 @@ public enum SpellSchool
     Transmutation,
 }
 
+/// <summary>
+/// The metamagic feats a spell can be cast with, as flags: an empowered, maximized fireball is
+/// both. Each one costs a higher slot, which <see cref="Spell.SlotLevel"/> adds up.
+/// </summary>
+[Flags]
+public enum Metamagic
+{
+    None = 0,
+
+    /// <summary>Half as much again of every number rolled. Two levels.</summary>
+    Empower = 1,
+
+    /// <summary>Lasts twice as long. One level.</summary>
+    Extend = 2,
+
+    /// <summary>Every number rolled at its most. Three levels.</summary>
+    Maximize = 4,
+
+    /// <summary>Twice the area. Three levels.</summary>
+    Widen = 8,
+
+    /// <summary>Twice the range. One level.</summary>
+    Enlarge = 16,
+
+    /// <summary>A swift action, and it draws no swing. Four levels.</summary>
+    Quicken = 32,
+
+    /// <summary>Cast as a higher-level spell in every respect: <see cref="Spell.Heightened"/> says which.</summary>
+    Heighten = 64,
+}
+
 /// <summary>Who in the target area the spell actually touches.</summary>
 public enum SpellAffects
 {
@@ -72,8 +103,57 @@ public sealed record RayTarget : SpellTarget;
 /// <summary>Everything within a radius of a point.</summary>
 public sealed record BurstTarget(int RadiusFeet) : SpellTarget;
 
+/// <summary>What kind of creature a spell's effect is for.</summary>
+public enum SpellFilterKind
+{
+    /// <summary>The living — everything but the undead and constructs. What positive energy heals.</summary>
+    Living,
+
+    Undead,
+
+    /// <summary>Outsiders of one subtype: "evil" for Alignment Channel, "fire" for Elemental Channel.</summary>
+    Outsider,
+}
+
+/// <summary>Who one effect of a spell lands on, when it is not everybody the spell reaches.</summary>
+public sealed record SpellFilter(SpellFilterKind Kind, string? Subtype = null)
+{
+    public static SpellFilter Living { get; } = new(SpellFilterKind.Living);
+
+    public static SpellFilter Undead { get; } = new(SpellFilterKind.Undead);
+
+    public static SpellFilter Outsiders(string subtype) => new(SpellFilterKind.Outsider, subtype);
+
+    public bool Matches(Creature creature) => Kind switch
+    {
+        SpellFilterKind.Living => CreatureTypes.IsLiving(creature),
+        SpellFilterKind.Undead => CreatureTypes.IsUndead(creature),
+        _ => Subtype is { } subtype && CreatureTypes.IsOutsiderOf(creature, subtype),
+    };
+
+    public override string ToString() => Kind switch
+    {
+        SpellFilterKind.Living => "the living",
+        SpellFilterKind.Undead => "the undead",
+        _ => $"{Subtype} outsiders",
+    };
+}
+
 /// <summary>Something a spell does to whoever it lands on.</summary>
-public abstract record SpellEffect;
+public abstract record SpellEffect
+{
+    /// <summary>
+    /// Who this effect is for, or null for everybody the spell reaches. Channel energy is the
+    /// reason: one burst that heals the living and burns the undead is two effects, each for one.
+    /// </summary>
+    public SpellFilter? Only { get; init; }
+
+    /// <summary>Whether this effect lands on a creature at all.</summary>
+    public bool AppliesTo(Creature creature) => Only?.Matches(creature) ?? true;
+
+    /// <summary>Whether it is something a target would rather avoid: damage, or anything hung on it.</summary>
+    public bool IsHarmful => this is DealDamage or Bestow;
+}
 
 public sealed record DealDamage(SpellDice Amount, DamageType Type) : SpellEffect;
 
@@ -136,24 +216,111 @@ public sealed record Spell(string Id, string Name, int Level, SpellSchool School
     public IReadOnlyList<string> Descriptors { get; init; } = [];
 
     /// <summary>
+    /// Whether spell resistance can stop it. Nearly everything that does something to a foe;
+    /// grease, which makes the floor slippery rather than doing anything to anybody, is the
+    /// exception in the game so far.
+    /// </summary>
+    public bool AllowsResistance { get; init; } = true;
+
+    /// <summary>The metamagic it is being cast with, if any.</summary>
+    public Metamagic Metamagic { get; init; }
+
+    /// <summary>
     /// Cast with Empower Spell: half as much again of every number it rolls, for a slot two
     /// levels higher. The difficulty class stays the spell's own.
     /// </summary>
-    public bool Empowered { get; init; }
+    public bool Empowered
+    {
+        get => Metamagic.HasFlag(Metamagic.Empower);
+        init => Metamagic = value ? Metamagic | Metamagic.Empower : Metamagic & ~Metamagic.Empower;
+    }
 
-    /// <summary>The level of slot it takes: its own, or two more empowered.</summary>
-    public int SlotLevel => Level + (Empowered ? 2 : 0);
+    /// <summary>
+    /// The level Heighten Spell raised it to, or nought for a spell cast at its own level. A
+    /// heightened spell is that level for its difficulty class and everything else.
+    /// </summary>
+    public int Heightened { get; init; }
+
+    /// <summary>The level it counts as: its own, or the one it was heightened to.</summary>
+    public int EffectiveLevel => Math.Max(Level, Heightened);
+
+    /// <summary>
+    /// The level of slot it takes: the level it counts as, and one to four more for each other
+    /// metamagic feat on it — Empower's two, Extend's and Enlarge's one, Maximize's and Widen's
+    /// three, Quicken's four.
+    /// </summary>
+    public int SlotLevel => EffectiveLevel
+        + (Metamagic.HasFlag(Metamagic.Empower) ? 2 : 0)
+        + (Metamagic.HasFlag(Metamagic.Extend) ? 1 : 0)
+        + (Metamagic.HasFlag(Metamagic.Maximize) ? 3 : 0)
+        + (Metamagic.HasFlag(Metamagic.Widen) ? 3 : 0)
+        + (Metamagic.HasFlag(Metamagic.Enlarge) ? 1 : 0)
+        + (Metamagic.HasFlag(Metamagic.Quicken) ? 4 : 0);
+
+    /// <summary>The action it takes to cast: a swift one quickened, its own otherwise.</summary>
+    public ActionCost CastAs => Metamagic.HasFlag(Metamagic.Quicken) ? ActionCost.Swift : CastingTime;
 
     public bool Has(string descriptor) => Descriptors.Contains(descriptor, StringComparer.Ordinal);
 
     /// <summary>The same spell, empowered.</summary>
     public Spell Empower() => this with { Empowered = true };
 
+    /// <summary>The same spell with one more metamagic feat on it.</summary>
+    public Spell With(Metamagic metamagic) => this with { Metamagic = Metamagic | metamagic };
+
+    /// <summary>The same spell, heightened to a level higher than its own.</summary>
+    public Spell Heighten(int level)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(level, Level);
+        return this with { Heightened = level, Metamagic = Metamagic | Metamagic.Heighten };
+    }
+
     /// <summary>Whether this spell needs somewhere to aim rather than someone.</summary>
     public bool NeedsAPoint => Target is BurstTarget or PointTarget;
 
+    /// <summary>
+    /// How far it carries as cast: its range, and twice that enlarged — for the three ranges
+    /// that grow with the caster, which are the only ones Enlarge Spell can stretch.
+    /// </summary>
+    public int RangeInFeet(Creature caster, int level)
+    {
+        var feet = Range.InFeet(caster, level);
+        return Metamagic.HasFlag(Metamagic.Enlarge) && Range.Kind is SpellRangeKind.Close or SpellRangeKind.Medium or SpellRangeKind.Long
+            ? feet * 2
+            : feet;
+    }
+
+    /// <summary>Whether it carries from one square to another as cast.</summary>
+    public bool Reaches(Creature caster, GridSquare from, GridSquare to, int level) =>
+        Range.Kind is SpellRangeKind.Touch or SpellRangeKind.Personal
+            ? Range.Reaches(caster, from, to, level)
+            : Distance.Between(from, to) <= RangeInFeet(caster, level);
+
+    /// <summary>"empowered, maximized ", or nothing: what the log puts before the spell's name.</summary>
+    public string MetamagicWords
+    {
+        get
+        {
+            var words = Enum.GetValues<Metamagic>()
+                .Where(flag => flag != Metamagic.None && Metamagic.HasFlag(flag))
+                .Select(flag => flag switch
+                {
+                    Metamagic.Empower => "empowered",
+                    Metamagic.Extend => "extended",
+                    Metamagic.Maximize => "maximized",
+                    Metamagic.Widen => "widened",
+                    Metamagic.Enlarge => "enlarged",
+                    Metamagic.Quicken => "quickened",
+                    _ => $"heightened to {Heightened}",
+                })
+                .ToList();
+
+            return words.Count == 0 ? string.Empty : string.Join(", ", words) + " ";
+        }
+    }
+
     public override string ToString() =>
-        $"{(Empowered ? "empowered " : string.Empty)}{Name} (level {Level} {School.ToString().ToLowerInvariant()})";
+        $"{MetamagicWords}{Name} (level {EffectiveLevel} {School.ToString().ToLowerInvariant()})";
 }
 
 /// <summary>Where a spell is being pointed: at somebody, or at a spot on the ground.</summary>

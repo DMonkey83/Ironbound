@@ -67,8 +67,8 @@ public sealed class HeuristicActionSource : IActionSource
 
         // Standing at exactly nought, anything strenuous reopens the wound and drops you. The
         // only move that costs nothing is not making one, so a creature that intends to still
-        // be here next round makes none.
-        if (playsWell && actor.HitPoints.State == HitPointState.Disabled)
+        // be here next round makes none. Fighting on below nought with Diehard is the same bargain.
+        if (playsWell && (actor.HitPoints.State == HitPointState.Disabled || actor.HitPoints.IsFightingOn))
         {
             return null;
         }
@@ -128,13 +128,13 @@ public sealed class HeuristicActionSource : IActionSource
 
         if (playsWell && turn.Budget.HasStandard && ChooseSpell(turn, actor, target) is { } cast)
         {
-            return cast;
+            return Guarded(turn, actor, cast);
         }
 
         // Out of slots, the bonded object is one more spell; then the school's own missile.
         if (playsWell && turn.Budget.HasStandard && ChoosePower(turn, actor, target) is { } power)
         {
-            return power;
+            return Guarded(turn, actor, power);
         }
 
         // A cleric with nobody to hit this turn can at least make somebody else hit harder.
@@ -181,6 +181,7 @@ public sealed class HeuristicActionSource : IActionSource
             && !range.IsWithinReach(actor, target)
             && BestShot(range, actor, target, _battle.EnemiesOf(actor)) is { } bow)
         {
+            SetAim(actor, bow, target, range);
             return Swing(turn, bow, target);
         }
 
@@ -395,6 +396,135 @@ public sealed class HeuristicActionSource : IActionSource
     }
 
     /// <summary>
+    /// Deadly Aim on the same terms as Power Attack: worth it against something the shot would
+    /// beat anyway after the penalty, and dropped against anything harder to hit.
+    /// </summary>
+    private static void SetAim(Creature actor, WeaponAttack bow, Creature target, Battlefield? field)
+    {
+        if (!actor.Stances.CanAdopt(Stance.DeadlyAim))
+        {
+            return;
+        }
+
+        actor.Stances.Drop(Stance.DeadlyAim);
+
+        var bare = Strike.AttackBonus(actor, bow, target, field).Total;
+        if (bare + 11 - actor.Stances.Severity(Stance.DeadlyAim) >= target.ArmorClass.Total)
+        {
+            actor.Stances.Adopt(Stance.DeadlyAim);
+        }
+    }
+
+    /// <summary>A defensive cast holding at least this often is better than the swing an ordinary one draws.</summary>
+    public const int DefensiveCastingPercent = 50;
+
+    /// <summary>
+    /// A spell, or a power that draws swings as a spell does, made safe if it can be: cast
+    /// defensively when somebody could punish it and the concentration check holds at least
+    /// half the time; else, when a free step puts the caster out of every reach and the spell
+    /// still carries, that step first; else cast anyway and take the swing.
+    /// </summary>
+    /// <remarks>
+    /// The step is the better answer when there is one — it costs nothing and risks nothing —
+    /// but it is tried second, because a caster stepping away from the fight she is meant to
+    /// be in is giving up her place in the line as well.
+    /// </remarks>
+    private static GameAction Guarded(Turn turn, Creature actor, GameAction action)
+    {
+        var (provokes, level, casterLevel, spell, defensive) = action switch
+        {
+            CastSpellAction cast => (!cast.Spell.Metamagic.HasFlag(Metamagic.Quicken), cast.Spell.EffectiveLevel,
+                actor.Spells.CasterLevel, cast.Spell, (GameAction)cast.AsDefensive()),
+            UsePowerAction use => (use.Power.Provokes, use.Power.Effect.EffectiveLevel,
+                use.Power.Use == PowerUse.Spell ? actor.Spells.CasterLevel : use.Power.CasterLevel, use.Power.Effect,
+                use.AsDefensive()),
+            _ => (false, 0, 0, null, action),
+        };
+
+        if (!provokes || spell is null || turn.Encounter.Battlefield is not { } field || !IsThreatened(turn, actor, field))
+        {
+            return action;
+        }
+
+        if (Concentration.DefensiveChance(actor, casterLevel, level) >= DefensiveCastingPercent && turn.CanTake(defensive))
+        {
+            return defensive;
+        }
+
+        return SafeStep(turn, actor, field, action) ?? action;
+    }
+
+    /// <summary>Whether any foe that could take an attack of opportunity reaches the actor's square.</summary>
+    private static bool IsThreatened(Turn turn, Creature actor, Battlefield field) =>
+        field.SquareOf(actor) is { } square
+        && turn.Encounter.Order.Any(combatant =>
+            combatant.Creature.IsEnemyOf(actor)
+            && combatant.CanTakeOpportunity
+            && field.Threatens(combatant.Creature, square));
+
+    /// <summary>
+    /// A five-foot step to a square no foe threatens, from which the action is still possible —
+    /// in range, in sight — or null if there is none to take.
+    /// </summary>
+    private static GameAction? SafeStep(Turn turn, Creature actor, Battlefield field, GameAction action)
+    {
+        if (turn.Combatant.HasMoved || turn.Combatant.HasTakenFiveFootStep || field.SquareOf(actor) is not { } from)
+        {
+            return null;
+        }
+
+        for (var dy = -1; dy <= 1; dy++)
+        {
+            for (var dx = -1; dx <= 1; dx++)
+            {
+                var square = new GridSquare(from.X + dx, from.Y + dy);
+                if ((dx == 0 && dy == 0) || !field.IsFree(square) || field.IsDifficult(square))
+                {
+                    continue;
+                }
+
+                var watched = turn.Encounter.Order.Any(combatant =>
+                    combatant.Creature.IsEnemyOf(actor)
+                    && combatant.CanTakeOpportunity
+                    && field.Threatens(combatant.Creature, square));
+
+                if (watched || !StillWorks(field, actor, action, square))
+                {
+                    continue;
+                }
+
+                var step = FiveFootStepAction.To(from, square);
+                if (turn.CanTake(step))
+                {
+                    return step;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether a spell or power aimed from <paramref name="from"/> would still reach what it is aimed at.</summary>
+    private static bool StillWorks(Battlefield field, Creature actor, GameAction action, GridSquare from)
+    {
+        var (spell, aim, level) = action switch
+        {
+            CastSpellAction cast => (cast.Spell, cast.Aim, actor.Spells.CasterLevel),
+            UsePowerAction use => (use.Power.Effect, use.Aim, use.Power.CasterLevel),
+            _ => (null, default(SpellAim), 0),
+        };
+
+        if (spell is null || spell.Target is SelfTarget)
+        {
+            return spell is not null;
+        }
+
+        var to = aim.Point ?? (aim.Creature is { } at ? field.SquareOf(at) : null);
+        return to is not { } destination
+            || (spell.Reaches(actor, from, destination, level) && field.HasLineOfSight(from, destination));
+    }
+
+    /// <summary>
     /// Whether to fly into a rage now: an enemy in reach, or close enough to charge — twice her
     /// speed — so the rounds are spent on fighting rather than on walking.
     /// </summary>
@@ -459,7 +589,7 @@ public sealed class HeuristicActionSource : IActionSource
         if (turn.Encounter.Battlefield is not { } field
             || field.SquareOf(actor) is not { } middle
             || actor.Powers.FirstOrDefault(power => power.Id == ClassPowers.ChannelPool) is not { } channel
-            || !channel.Effect.Does.OfType<Restore>().Any())
+            || !channel.Effect.Does.OfType<Restore>().Any(mend => mend.Only is null or { Kind: SpellFilterKind.Living }))
         {
             return null;
         }
@@ -777,7 +907,7 @@ public sealed class HeuristicActionSource : IActionSource
 
     private static bool InRange(Battlefield field, Creature caster, Spell spell, GridSquare square) =>
         field.SquareOf(caster) is not { } from
-        || Distance.Between(from, square) <= spell.Range.InFeet(caster);
+        || Distance.Between(from, square) <= spell.RangeInFeet(caster, caster.Spells.CasterLevel);
 
     /// <summary>
     /// A single free square next door that keeps the target in reach — for a polearm, the one that

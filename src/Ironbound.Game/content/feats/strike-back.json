@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "strike-back",
+  "name": "Strike Back",
+  "combat": true,
+  "description": "Ready an attack against anybody who strikes you from beyond your reach.",
+  "effect": "StrikeBack",
+  "unavailable": "needs readied actions, which are not in the game yet",
+  "requires": {"baseAttack": 11}
+}

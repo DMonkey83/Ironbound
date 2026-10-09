@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "deft-hands",
+  "name": "Deft Hands",
+  "description": "+2 on Disable Device and Sleight of Hand checks; +4 on either once it has 10 ranks.",
+  "effect": "SkillBonus",
+  "skills": ["DisableDevice", "SleightOfHand"]
+}

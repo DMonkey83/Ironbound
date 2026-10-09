@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "widen-spell",
+  "name": "Widen Spell",
+  "metamagic": true,
+  "description": "A burst covers twice the distance; the spell takes a slot three levels higher.",
+  "effect": "WidenSpell"
+}

@@ -22,6 +22,12 @@ public enum PowerUse
     /// feat is whichever her file chose, so it cannot be written as a spell effect.
     /// </summary>
     BorrowFeat,
+
+    /// <summary>
+    /// Takes undead foes in the burst into the user's service, each saving against it, up to as
+    /// many hit dice as her cleric level: Command Undead. A change of side is not a spell effect.
+    /// </summary>
+    Command,
 }
 
 /// <summary>What has to be true of the target before a power will go off.</summary>

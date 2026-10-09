@@ -26,6 +26,16 @@ public enum Skill
     Stealth,
     Survival,
     Swim,
+
+    // Appended rather than sorted in: saves name skills as words, but nothing should have to
+    // wonder whether a position moved. These seven are here because a feat names them.
+    Disguise,
+    EscapeArtist,
+    Fly,
+    HandleAnimal,
+    Ride,
+    SleightOfHand,
+    UseMagicDevice,
 }
 
 /// <summary>What each skill runs on, and whether you can try it untrained.</summary>
@@ -46,9 +56,11 @@ public static class SkillInfo
     /// <summary>Which ability the check runs on.</summary>
     public static Ability AbilityFor(Skill skill) => skill switch
     {
-        Skill.Acrobatics or Skill.DisableDevice or Skill.Stealth => Ability.Dexterity,
+        Skill.Acrobatics or Skill.DisableDevice or Skill.Stealth or Skill.EscapeArtist or Skill.Fly
+            or Skill.Ride or Skill.SleightOfHand => Ability.Dexterity,
         Skill.Climb or Skill.Swim => Ability.Strength,
-        Skill.Bluff or Skill.Diplomacy or Skill.Intimidate => Ability.Charisma,
+        Skill.Bluff or Skill.Diplomacy or Skill.Intimidate or Skill.Disguise or Skill.HandleAnimal
+            or Skill.UseMagicDevice => Ability.Charisma,
         Skill.Knowledge or Skill.Spellcraft => Ability.Intelligence,
         _ => Ability.Wisdom,
     };
@@ -62,12 +74,17 @@ public static class SkillInfo
     /// stays shut however many times you try it.
     /// </remarks>
     public static bool TrainedOnly(Skill skill) =>
-        skill is Skill.DisableDevice or Skill.Knowledge or Skill.Spellcraft;
+        skill is Skill.DisableDevice or Skill.Knowledge or Skill.Spellcraft or Skill.HandleAnimal
+            or Skill.SleightOfHand or Skill.UseMagicDevice;
 
     public static string Name(Skill skill) => skill switch
     {
         Skill.DisableDevice => "Disable Device",
         Skill.SenseMotive => "Sense Motive",
+        Skill.EscapeArtist => "Escape Artist",
+        Skill.HandleAnimal => "Handle Animal",
+        Skill.SleightOfHand => "Sleight of Hand",
+        Skill.UseMagicDevice => "Use Magic Device",
         _ => skill.ToString(),
     };
 }

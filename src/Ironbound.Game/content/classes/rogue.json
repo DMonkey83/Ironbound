@@ -5,7 +5,8 @@
   "hitDie": 8,
   "attack": "ThreeQuarters",
   "goodSaves": ["Reflex"],
-  "classSkills": ["Acrobatics", "Bluff", "Climb", "DisableDevice", "Perception", "SenseMotive", "Stealth"],
+  "classSkills": ["Acrobatics", "Bluff", "Climb", "DisableDevice", "Perception", "SenseMotive", "Stealth", "Disguise", "EscapeArtist", "SleightOfHand", "UseMagicDevice"],
+  "keyAbility": "Dexterity",
   "weaponProficiencies": ["simple", "hand-crossbow", "rapier", "sap", "short-sword", "shortbow"],
   "armourProficiencies": ["light"],
 

@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "mounted-archery",
+  "name": "Mounted Archery",
+  "combat": true,
+  "description": "Half the penalty for shooting from the saddle.",
+  "unavailable": "needs mounts and mounted combat, which are not in the game",
+  "requires": {"feats": ["mounted-combat"], "ranks": {"Ride": 1}}
+}

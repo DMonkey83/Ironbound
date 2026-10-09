@@ -171,6 +171,51 @@ public class WeaponSaveTests
     }
 
     [Fact]
+    public void AWeaponSavedWithTheWrongNumbersComesBackWithTheRightOnes()
+    {
+        var encounter = Of("sylwen");
+        var bow = In(encounter, "Sylwen").PrimaryAttack!;
+        var json = JsonNode.Parse(GameSave.ToJson(GameSave.Capture(encounter)))!.AsObject();
+
+        // What a real thirteen held, written by a build that read the new weapon files with the
+        // old code: every weapon a melee 1d6 bludgeon off Strength, the bow included.
+        json["Version"] = 13;
+        foreach (var weapon in json["Creatures"]![0]!["Weapons"]!.AsArray())
+        {
+            weapon!["RangeIncrement"] = 0;
+            weapon["AttackAbility"] = "Strength";
+            weapon["Damage"]![0]!["Amount"] = "1d6";
+            weapon["Damage"]![0]!["Type"] = "Bludgeoning";
+        }
+
+        var back = Back(encounter, "Sylwen", json.ToJsonString());
+        var shortbow = back.Attacks.Single(attack => attack.Kind == "shortbow");
+
+        Assert.True(shortbow.IsRanged);
+        Assert.Equal(bow.RangeIncrement, shortbow.RangeIncrement);
+        Assert.Equal(bow.AttackAbility, shortbow.AttackAbility);
+        Assert.Equal(bow.Damage.Components[0].Amount.ToString(), shortbow.Damage.Components[0].Amount.ToString());
+        Assert.Equal(DamageType.Piercing, shortbow.Damage.Components[0].Type);
+        Assert.Equal("dagger", back.MeleeAttack!.Kind);
+    }
+
+    [Fact]
+    public void AnEnhancedItemKeepsItsEnhancementWhenRebuilt()
+    {
+        var aldric = TestContent.Library.BuildCreature("aldric")!;
+        aldric.Equipment.Unequip("greatsword");
+        Assert.True(TestContent.Library.Equip(aldric, TestContent.Library.GetItem("greatsword-plus-one")!));
+        var sword = aldric.MeleeAttack!;
+        Assert.Equal("greatsword +1", sword.Name);
+
+        var back = Back(new Encounter([aldric], new SequenceRandom(true, 10)), "Aldric");
+
+        Assert.Equal(sword.Name, back.MeleeAttack!.Name);
+        Assert.Equal(sword.Attack.Modifiers.Total, back.MeleeAttack.Attack.Modifiers.Total);
+        Assert.Equal(sword.DamageModifiers.Total, back.MeleeAttack.DamageModifiers.Total);
+    }
+
+    [Fact]
     public void AFourteenWithNoRaceMeansNone()
     {
         var encounter = Of("pip");

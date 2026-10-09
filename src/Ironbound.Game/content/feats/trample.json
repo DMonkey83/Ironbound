@@ -1,0 +1,9 @@
+{
+  "kind": "feat",
+  "id": "trample",
+  "name": "Trample",
+  "combat": true,
+  "description": "Ride a foe down, and let the mount kick it.",
+  "unavailable": "needs mounts and mounted combat, which are not in the game",
+  "requires": {"feats": ["mounted-combat"], "ranks": {"Ride": 1}}
+}

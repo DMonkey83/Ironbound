@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "fleet",
+  "name": "Fleet",
+  "repeatable": true,
+  "description": "+5 feet of speed in light armour or none. Taken again, another five.",
+  "effect": "Fleet"
+}

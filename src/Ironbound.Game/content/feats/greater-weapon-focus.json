@@ -1,0 +1,10 @@
+{
+  "kind": "feat",
+  "id": "greater-weapon-focus",
+  "name": "Greater Weapon Focus",
+  "combat": true,
+  "takes": "Weapon",
+  "description": "+1 more on attack rolls with the weapon you have Weapon Focus in.",
+  "effect": "GreaterWeaponFocus",
+  "requires": {"feats": ["weapon-focus"], "sameChoice": true, "proficient": true, "baseAttack": 1, "classLevels": {"fighter": 8}}
+}

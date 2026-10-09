@@ -2,6 +2,8 @@
   "kind": "creature",
   "id": "goblin",
   "name": "Goblin",
+  // A first-level warrior, as the Bestiary's goblin is: an NPC class is rated two levels down, which is 1/3.
+  "cr": "1/3",
   "model": "res://art/goblin.glb",
   "abilities": [11, 15, 12, 10, 9, 6],
   "classes": [ { "class": "warrior", "level": 1 } ],

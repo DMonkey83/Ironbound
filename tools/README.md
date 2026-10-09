@@ -59,28 +59,51 @@ it is thinned, and the coat is several hundred lofted locks, jittered so they do
 joined into one mesh per bone. New creatures should start the same way:
 a `frame()` of landmarks, a body grown from them, and whatever is sharp or bright added on top.
 
-## `generate_weapons.py` — what the party holds
+## `generate_weapons.py` — every weapon in the catalogue
 
 ```sh
-blender -b --factory-startup --python tools/generate_weapons.py -- src/Ironbound.Game/art/weapons [name ...]
+blender -b --factory-startup --python tools/generate_weapons.py -- src/Ironbound.Game/art/weapons [id ...]
+blender -b --factory-startup --python tools/generate_weapons.py -- src/Ironbound.Game/art/weapons --fx-only [id ...]
 ```
 
-One static `.glb` per hand-held item; an item's content file names it with `"model"`, and
-`Armoury.cs` puts the weapon a character fights with in their hands, using a table of grips
-measured per idle stance (see `art/PROVENANCE.md`), and slings the rest on their back. Read the convention at the top of the script before adding one: grip at the origin,
-business end up, and things you point are built lying forward. Shapes are lofted from
-cross-sections (`gg.loft`) — a blade has a fuller and tapers two ways at once, which no
-primitive does.
+One static `.glb` per weapon id in `content/weapons/` that is a thing you can hold (see
+`art/PROVENANCE.md` for the ones that get none, and why). An item's content file names its
+model with `"model"`, and `Armoury.cs` puts the weapon a character fights with in their hands,
+using a table of grips measured per idle stance. Shapes are lofted from cross-sections
+(`gg.loft`) — a blade has a fuller and tapers two ways at once, which no primitive does.
 
-New weapons are not new functions. `weapon_families.py` holds one recipe table, `RECIPES`,
-mapping each id to a family (`straight`, `curved` so far) and that family's parts and sizes,
-plus its hands class and an optional `variant` (`cold-iron`, `silver`, `adamantine`,
-`mithral`, `+1`…`+5`); `like` starts a row from another. The sixteen items characters hold
-today (`BAKED`) are textured by `surface.py` like everything else; any other weapon exports
-with a few materials named exactly as in `weapon_families.MATERIALS` (`Steel`, `DarkIron`,
-`Bronze`, `Wood`, `Wrap`, `Bone`, `Cloth`, `Gold`, `Stone`, and the special metals) and no
-textures, for the game to swap for shared ones. An enhancement's rune line is its own emissive
-material (`Rune1`…`Rune5`) and is never baked.
+New weapons are rows, not functions. Three files:
+
+- `weapon_recipes.py` — the table, `RECIPES`: every id, its family (the sheet it belongs to:
+  swords, sabres, knives, axes, hammers, spears, polearms, flails, bows, crossbows, firearms,
+  thrown, worn, shields, double), its builder and its parameters. `like` starts a row from
+  another and is merged in all the way down, so a named magic weapon later is a few lines —
+  `dict(like="longsword", guard=dict(span=0.4), fittings="Gold", extra=[...], variant="+2")`;
+  `extra` adds unique parts on top of the base's.
+- `weapon_families.py` — the builders (`straight`, `curved` for swords and knives; `hafted`
+  for anything on a haft or nothing at all; `bow`, `crossbow`, `firearm`, `shield`), the head
+  generators (`axe`, `hammer`, `pick`, `spear`, `glaive`, `hook`, `prongs`, `flanged`...), the
+  named materials, and the variants (`cold-iron`, `silver`, `adamantine`, `mithral`,
+  `+1`…`+5`).
+- `weapon_parts.py` — the primitives: blades swept along a path, plates ground to an edge,
+  lathes, tubes, chains, cords, guards, grips, pommels.
+
+Conventions, beyond grip-at-origin and business-end-up: the flat of a blade faces Y and an
+edge or a head's business side faces -X; crossbows and firearms are built standing and laid
+forward along +Y (`pointed`); a firearm's origin is its firing hand (a pistol's grip, a long
+gun's wrist); double weapons and staves are held at their middle; shields have their strap at
+the origin and face -Y; anything worn on the hand (`worn`) has the knuckle line along Z, strikes
+along +Y and runs up the forearm along -Y. Every weapon with a striking edge or head carries two
+empty nodes, `FX_Start` and `FX_End`, along it, for flame, frost and shock effects; `--fx-only`
+writes them into existing files without rebuilding them.
+
+The sixteen items characters held before the catalogue (`BAKED`) are textured by `surface.py`
+like every model they stand next to. Everything else exports with a few materials named exactly
+as in `weapon_families.MATERIALS` (`Steel`, `DarkIron`, `Bronze`, `Wood`, `Wrap`, `Bone`,
+`Cloth`, `Gold`, `Stone`, `Horn`, `Crystal`, `Obsidian` and the special metals) and no textures,
+for the game to swap for shared ones: about 30 KB a weapon instead of 3 MB. A glow — an
+enhancement's rune line (`Rune1`…`Rune5`), radium — is its own emissive material and never
+baked. Budgets: 3,000 triangles for a light or one-handed weapon, 150 KB a file.
 
 ## `render_icons.py` — inventory icons
 
@@ -91,9 +114,13 @@ blender -b --factory-startup --python tools/render_icons.py -- src/Ironbound.Gam
 One 256² transparent PNG per `.glb`, drawn from the model the game uses: grip bottom left,
 turned 22° about its length, under a fixed three-light setup. Icons keep relative size — the
 frame is set by the weapon's hands class (`weapon_families.hands`), so a dagger fills about
-60% of the slot's diagonal, a longsword 85% and a greatsword all of it. A model with the shared
-named materials is drawn with each name's procedural recipe, so its icon is not flat grey.
-Judge a batch on a contact sheet of dark slots, and at 64 px as well as full size.
+60% of the slot's diagonal, a longsword 85% and a greatsword or a polearm all of it; bows and
+crossbows about 90%. Some families are turned to show what makes them themselves: a bow to face
+the camera with its curve, a firearm onto its lock side, a spiked shield further round, a
+gauntlet to show the back of the hand. A model with the shared named materials is drawn with
+each name's procedural recipe (edge wear turned down, as the game's tileable materials have
+none), so its icon is not flat grey. Judge a batch on a contact sheet of dark slots, and at
+64 px as well as full size.
 
 ## `surface.py` — the textures
 
@@ -196,6 +223,12 @@ every weapon, which ranged weapons are thrown rather than shot, which slings put
 the shot, and a line for every weapon whose Special column says *see text*, saying what that text
 is about and that the game does not do it yet. Edit the script, not the generated files.
 
+A save keeps *which* weapon a character holds, and whether it is broken or thrown, but not its
+numbers: loading builds every weapon again from its item and these files. So a change made here
+reaches games already in progress the next time they are loaded. It also mended a real save,
+written by a build that was half-way through this change, where every weapon had come out as a
+1d6 club and Sylwen's bow as one too.
+
 ## Menus, pages and experience
 
 - **Title** (`Menu.cs`): Continue, New Game, Load Game, Quit, inked on the book's page.
@@ -239,6 +272,10 @@ clicked, the first of them leading, and the first of them is who opens a door, c
 bridge, searches a chest, takes the spoils and levels up. A double click on a portrait opens the
 sheet. In a fight, whoever's turn it is acts. `--explore @Pip 21,42 @all ...` picks on the way
 (`Selection.cs`).
+
+**Spoils.** The spoils list shows each weapon with its icon (`art/icons/weapons/<model>.png`, from
+`render_icons.py`), and hovering an entry gives what `DescribeItem` says about it for the bearer
+picked, "not proficient" included. Armour and other gear have no icons yet and show as words.
 
 **Moving.** Hovering draws the path the click will take as a glowing pipe from the mover's feet
 (`PathPreview.cs`, `path.gdshader`): the rules' own path and the longest part of it this turn

@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "silent-spell",
+  "name": "Silent Spell",
+  "metamagic": true,
+  "description": "Cast a spell without speaking; it takes a slot one level higher.",
+  "unavailable": "spell components are not modelled, so it would change nothing"
+}

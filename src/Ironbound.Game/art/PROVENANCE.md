@@ -82,16 +82,37 @@ shaped by rules, not a sculptor's wrinkles, and the difference shows close up.
 
 ## Weapons — `weapons/*.glb`
 
-**Generated**, by `tools/generate_weapons.py`: ten small static meshes, one per hand-held item,
-lofted from cross-sections and textured by the same bake as the creatures, so each is 1–3 MB. Each item's content file names its own, so the silvered longsword and the
-plain one are different models — which blade Valeria is holding is the point of the werewolf
-fight, and now it shows.
+**Generated**, by `tools/generate_weapons.py` from the recipe table in `tools/weapon_recipes.py`:
+one small static mesh per weapon in the catalogue that is a thing you can hold, 326 in all. The
+sixteen that characters held before the catalogue are textured by the same bake as the
+creatures, so each is 0.5–2 MB. Every other one carries no textures, only a few materials named
+for what they are (`Steel`, `DarkIron`, `Bronze`, `Wood`, `Wrap`, `Bone`, `Cloth`, `Gold`,
+`Stone`, `Horn`, `Crystal`, `Obsidian`, the special metals, and the glowing `Rune1`–`Rune5` and
+`Radium`), for the game to put its own shared materials on; those are 5–130 KB each. Each item's
+content file names its own model, so the silvered longsword and the plain one are different
+models — which blade Valeria is holding is the point of the werewolf fight, and now it shows.
+
+No model, on purpose: the siege engines (41 rows) and the modern and siege firearms and
+explosives (the Nagant revolver, the Mosin-Nagant, the Madsen and Maxim guns, the Lawrence
+flamethrower, the Aasen mortar, the Hotchkiss gun, the gas cylinder and the grenades), which the
+catalogue keeps but nothing in the game uses; the natural attacks (`bite`, `rat-bite`) and
+`unarmed-strike`, which are not objects; `spiked-armor`, which is armour; and `ogre-axe`, whose
+item already uses `greataxe.glb`.
+
+Every weapon with a striking edge or head carries two empty nodes, `FX_Start` and `FX_End`,
+along it — a blade from its base to its tip, an axe's or a mace's head from bottom to top, a
+bow from nock to nock, a crossbow's bolt, a gun's barrel — for the game to run flame, frost and
+shock along. They were written into the sixteen baked models' files directly, without
+rebuilding them, so those meshes and textures are byte for byte as they were.
 
 They hang on the `wep_pos_R` / `wep_pos_L` socket bones the human pack's skeleton already had.
 The generated creatures have no sockets and carry their own modelled kit, so they are untouched.
 
 One convention for all of them: grip at the origin, business end up; a shield faces forward
-from its strap; anything you *point* (the crossbow) is built lying forward. How each kind sits
+from its strap; anything you *point* (crossbows, firearms) is built lying forward, with a gun's
+origin at its firing hand; double weapons are held at their middle; anything worn on the hand
+has its knuckle line where a grip would be and strikes forward along the forearm. The catalogue's
+new kinds of grip (pistols, gauntlets, double weapons) are not in `Armoury.cs`'s table yet. How each kind sits
 in a hand was then **measured**, not found by looking: a scratch Godot scene posed each
 character in the idle clip for each grip, found each fist from its finger bones, aimed the item
 through it — through both fists for a two-handed weapon, the left fist for a bow — and read the
@@ -100,11 +121,12 @@ character fights with is in their hands; a shield goes on the forearm when the l
 and on the back when it is not, and anything else worn is slung across the back. The old single
 "+90 degrees about X" was right for none of them, and two main-hand items used to share one fist.
 
-The seven swords were rebuilt from `tools/weapon_families.py`'s recipe table after the owner's
-verdict on the first icon sheet ("some of those swords look way too similar, some dont look
+The seven swords were rebuilt from the recipe table after the owner's verdict on the first
+icon sheet ("some of those swords look way too similar, some dont look
 correct"): a dagger with a narrow, evenly tapering diamond-section blade and a scent-stopper
-pommel; a gladius-like short sword with parallel edges, a short angular point, an oval bronze
-hilt-guard and a ridged bone grip; a slender longsword with a two-thirds fuller, a long straight
+pommel; a gladius-like short sword with parallel edges, a short angular point, an oval hilt-guard
+and a big rounded pommel, in plain iron with a wound grip (the catalogue's `gladius` is the same
+blade with bronze fittings and a ridged bone grip); a slender longsword with a two-thirds fuller, a long straight
 cross, a hand-and-a-half grip and a wheel pommel; a zweihander greatsword with a leather-wrapped
 ricasso, parrying lugs, side rings and a forearm-long grip; a scimitar with a clip point at the
 end of a flared, curving single-edged blade. The silvered longsword is that longsword in bright
@@ -115,9 +137,10 @@ with a blue temper sheen; its icon used to read as plain steel.
 
 ## Weapon icons — `icons/weapons/*.png`
 
-**Rendered**, by `tools/render_icons.py`, from the same `.glb` files the game loads: 256² with a
-transparent background, grip bottom left, under one fixed light. Sized by hands class, not
-filled to the slot, so a dagger stays smaller than a greatsword.
+**Rendered**, by `tools/render_icons.py`, from the same `.glb` files the game loads, one for
+every model: 256² with a transparent background, grip bottom left, under one fixed light. Sized
+by hands class, not filled to the slot, so a dagger stays smaller than a greatsword. Models with
+the shared named materials are drawn with procedural stand-ins for them.
 
 ## Werewolf — `werewolf.glb`
 

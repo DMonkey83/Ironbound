@@ -1,0 +1,8 @@
+{
+  "kind": "feat",
+  "id": "improved-iron-will",
+  "name": "Improved Iron Will",
+  "description": "Once a day, a failed Will save is rolled again. Spent on a failure that would put you down or out of the fight.",
+  "effect": "ImprovedIronWill",
+  "requires": {"feats": ["iron-will"]}
+}
