@@ -781,12 +781,17 @@ public static class GameSave
                 return effect;
 
             case nameof(DamageOverTimeEffect):
+                // The condition as well, as for a modifier effect: a poison that is also the
+                // reason somebody is sickened has to reload as both.
                 return new DamageOverTimeEffect(
                     saved.Name,
                     duration,
                     saved.Amount!,
                     saved.DamageType!.Value,
-                    Duration.FromTicks(saved.Period.Ticks));
+                    Duration.FromTicks(saved.Period.Ticks))
+                {
+                    Condition = saved.Condition,
+                };
 
             case nameof(FastHealingEffect):
                 return new FastHealingEffect(

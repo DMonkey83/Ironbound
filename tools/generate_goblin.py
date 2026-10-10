@@ -2033,7 +2033,7 @@ def read_glb_json(path):
         raw = f.read(json_chunk_length)
         return json.loads(raw.rstrip(b" \t\r\n\x00").decode("utf-8"))
 
-def validate_glb(path, arm, creature="goblin"):
+def validate_glb(path, arm, creature="goblin", clips=("idle_combat", "attack_melee", "run", "death")):
     data = read_glb_json(path)
     meshes = data.get("meshes", [])
     skins = data.get("skins", [])
@@ -2078,7 +2078,7 @@ def validate_glb(path, arm, creature="goblin"):
                 bbox_max.z = max(bbox_max.z, world.z)
 
     # The four the game knows how to ask for, under whatever creature's name they were made.
-    expected_names = [f"{creature}_{clip}" for clip in ("idle_combat", "attack_melee", "run", "death")]
+    expected_names = [f"{creature}_{clip}" for clip in clips]
     animation_ok = all(any(expected in name for name in animations) for expected in expected_names)
     print(f"Meshes:             {len(exported_mesh_nodes)}")
     print(f"Skinned meshes:     {len(skinned_nodes)}/{len(exported_mesh_nodes)}")
@@ -2146,8 +2146,8 @@ def parse_args():
         variant = user[0]
         output = user[1]
     else:
-        raise RuntimeError("Usage: ... -- goblin|goblin-archer|hobgoblin OUTPUT_GLB")
-    if variant not in {"goblin", "goblin-archer", "hobgoblin", "orc", "ogre"}:
+        raise RuntimeError("Usage: ... -- goblin|goblin-archer|hobgoblin|orc|ogre|tobin|pedlar OUTPUT_GLB")
+    if variant not in {"goblin", "goblin-archer", "hobgoblin", "orc", "ogre", "tobin", "pedlar"}:
         raise RuntimeError(f"Unknown variant: {variant}")
     return variant, output
 
@@ -2189,6 +2189,12 @@ def dress(body, equipment):
 
 def main():
     variant, output = parse_args()
+    if variant in ("tobin", "pedlar"):
+        # The villagers are people, not goblins: grown in villager.py from this file's skeleton,
+        # skinning, export and self-check.
+        import villager
+        villager.build(variant, output)
+        return
     build(variant, output)
 
 if __name__ == "__main__":

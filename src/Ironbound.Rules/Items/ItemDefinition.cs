@@ -66,6 +66,12 @@ public enum ItemKind
 
     /// <summary>Teeth and claws. Never looted, dropped or shown in a bag.</summary>
     Natural,
+
+    /// <summary>
+    /// Potions, oils and alchemical flasks: hung on the belt, and gone once used. Appended, as
+    /// the slots are, so the kinds above keep their numbers.
+    /// </summary>
+    Consumable,
 }
 
 /// <summary>How much armour something is, which decides what it costs the wearer.</summary>
@@ -171,6 +177,12 @@ public sealed record ItemDefinition
     public DamageBypass Qualities { get; init; }
 
     public bool IsWeapon => Weapon is not null;
+
+    /// <summary>What using it up does, for a potion or a flask; null for anything else.</summary>
+    public ConsumableDefinition? Consumable { get; init; }
+
+    /// <summary>Something used up by using it: a potion, an oil, a flask of acid.</summary>
+    public bool IsConsumable => Consumable is not null;
 
     /// <summary>Light, medium or heavy armour, a shield, or nothing of the sort.</summary>
     public ArmourCategory Armour { get; init; } = ArmourCategory.None;

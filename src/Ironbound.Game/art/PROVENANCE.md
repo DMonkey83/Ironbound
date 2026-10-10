@@ -174,6 +174,24 @@ Shape, stance and palette follow a second concept sheet from the project owner
 (`Werewolf Captain` / `Werewolf`, an image-generator render used as reference only): the
 unarmoured werewolf in its lower half. The armoured Captain above it is an obvious later variant.
 
+## Villagers — `tobin.glb`, `pedlar.glb`
+
+**Generated**, by `tools/villager.py` (run through `tools/generate_goblin.py -- tobin|pedlar`),
+because the modular human pack the party came from cannot be rebuilt here (see *Characters*). No
+source art and nothing to licence. The body is grown from metaballs like the goblins', on the
+party's proportions (Karn measured: hips at 0.51 of his height, knees 0.27, shoulders 0.78); the
+clothes are cut from that body's own skin or lofted round its outline, and baked by `surface.py`;
+hair and beards are cards (`tools/cards.py`). Same skeleton and bone names as the goblins, one
+clip each (`tobin_idle`, `pedlar_idle`).
+
+| File | Look | Triangles |
+| --- | --- | --- |
+| `tobin.glb` | an old carter, stooped: patched brown coat to the knee, rope belt, neckerchief, flat cap, grey beard, trousers into boots | ~29,800 |
+| `pedlar.glb` | a travelling pedlar: dark dress with a high collar and an apron, hooded cloak, canvas pack with a blanket roll, frying pan, pot, ladle and kettle | ~30,900 |
+
+An experiment, and judged as one: at the game's distance both read as who they are; close up the
+faces are as plain as a mannequin's, Tobin's beard is ragged, and the cloth has no real folds.
+
 ## Props — `props/*.glb`
 
 **Generated**, by `tools/generate_props.py` with its helpers `props_parts.py`,
@@ -181,6 +199,10 @@ unarmoured werewolf in its lower half. The armoured Captain above it is an obvio
 script. Containers (`crate`, `crate-b`, `chest`, `strongbox`, `barrel`, `sack`, `sack-open`,
 `cart`, `cart-overturned`, `weapon-rack`, `pile`, `niche`) and furniture (`bed`, `table`), each
 baked by `surface.py` into one atlas like the creatures.
+
+The `niche` is a piece of cave wall, not a stone standing on the floor: its sides and back sink
+under the relief `LevelLook.BuildGround` raises in a wall square, and its rock is painted the way
+`level_ground.gdshader` paints the relief round it.
 
 The weapon rack's contents are copies of three of the game's own models — `weapons/shortspear.glb`,
 `weapons/greataxe.glb`, `weapons/longsword.glb` — unchanged in shape, their own baked textures
@@ -192,6 +214,10 @@ re-baked into the rack's atlas. If those weapons are rebuilt, rebuild the rack t
 camera, so they sit with the weapon icons. Armour, rings, coins, valuables and the party's bag
 are modelled in that script (no source art, nothing to licence); `container-*.png` are drawn from
 `props/*.glb` with the lid open. Sized by family, not filled to the slot.
+
+The consumables (`potion-of-cure-light-wounds`, `potion-of-mage-armor`, `oil-of-magic-weapon`,
+`acid-flask`, `alchemists-fire`, `tanglefoot-bag`, `thunderstone`) are modelled there too, each
+its own shape so the three potions differ by more than colour.
 
 ## Terrain — `Grass_Flat`, `Prop_Tree_Cedar_1`, `Sand_Flat`, `Prop_Cliff_Rock_1`
 

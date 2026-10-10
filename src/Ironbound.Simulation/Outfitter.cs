@@ -127,6 +127,251 @@ public static class Outfitter
         return done;
     }
 
+    // ---- the belt ----
+
+    /// <summary>
+    /// The armour class a creature's own weapon is weighed against when deciding who carries the
+    /// flasks: about what the foes of the first few levels wear.
+    /// </summary>
+    public const int ReferenceArmorClass = 15;
+
+    /// <summary>The touch armour class a thrown flask is weighed against, for the same purpose.</summary>
+    public const int ReferenceTouchArmorClass = 11;
+
+    /// <summary>
+    /// What a flask is reckoned to do on a hit, for the same purpose: alchemist's fire's 1d6, and
+    /// 1d6 more as it burns.
+    /// </summary>
+    public const double FlaskYardstick = 7;
+
+    /// <summary>
+    /// Hangs what this creature should carry into the next fight on its belt, from the bag: one
+    /// healing potion, and a share of the flasks, bags and stones if its own weapon is weak.
+    /// Returns what was done.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The plan is the party's, and each creature takes its own part of it, so it comes out the
+    /// same whichever order the party is asked in. Healing potions go one to a member, to those
+    /// who cannot heal anybody first — a cleric has her own cures — in party order. Anything to
+    /// throw is shared round among the members whose own weapon would do less than a flask:
+    /// those with most to gain first, each kind starting where the last left off.
+    /// </para>
+    /// <para>
+    /// Nothing is hung that would put its carrier in a heavier load, and nothing already on a
+    /// belt is taken off. Potions of other spells — mage armor, an oil of magic weapon — are left
+    /// in the bag for the player.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<string> HangConsumables(Campaign campaign, Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(campaign);
+        ArgumentNullException.ThrowIfNull(creature);
+
+        var done = new List<string>();
+        if (!campaign.Party.Contains(creature) || !creature.IsAlive)
+        {
+            return done;
+        }
+
+        if (!Consumables.OnBelt(creature).Any(stack => IsHealingPotion(stack.Item)))
+        {
+            // Everybody still without one, ahead of this creature in the queue.
+            var ahead = campaign.Party
+                .Where(one => one.IsAlive && !Consumables.OnBelt(one).Any(stack => IsHealingPotion(stack.Item)))
+                .OrderBy(one => HeuristicActionSource.IsHealer(one) ? 1 : 0)
+                .TakeWhile(one => !ReferenceEquals(one, creature))
+                .Count();
+
+            var potions = Sound(campaign).Where(entry => IsHealingPotion(entry.Item)).ToList();
+            if (potions.Sum(entry => entry.Count) > ahead && campaign.Stow(creature, potions[0], 1) is { Success: true } hung)
+            {
+                done.Add(hung.Line);
+            }
+        }
+
+        var throwers = campaign.Party
+            .Where(one => one.IsAlive && IsWeakInMelee(one))
+            .OrderByDescending(one => ThrowExpectation(one) - MeleeExpectation(one))
+            .ToList();
+
+        var rank = throwers.IndexOf(creature);
+        if (rank < 0)
+        {
+            return done;
+        }
+
+        // Every kind there is to share, in a fixed order, whether it is in the bag or hung already.
+        var kinds = Sound(campaign).Select(entry => entry.Item)
+            .Concat(throwers.SelectMany(one => Consumables.OnBelt(one).Select(stack => stack.Item)))
+            .Where(item => item.Consumable is { IsThrown: true })
+            .DistinctBy(item => item.Id)
+            .OrderBy(item => item.Id, StringComparer.Ordinal)
+            .ToList();
+
+        var dealt = 0;
+        foreach (var item in kinds)
+        {
+            var entry = Sound(campaign).FirstOrDefault(found => found.Id == item.Id);
+            var inBag = entry?.Count ?? 0;
+            var pool = inBag + throwers.Sum(one => Consumables.Count(one, item));
+
+            // Dealt round like cards, starting with whoever the last kind would have come to next.
+            var place = ((rank - (dealt % throwers.Count)) + throwers.Count) % throwers.Count;
+            var share = (pool / throwers.Count) + (place < pool % throwers.Count ? 1 : 0);
+            dealt += pool;
+
+            var wanted = Math.Min(inBag, share - Consumables.Count(creature, item));
+            while (wanted > 0 && !Fits(creature, item, wanted))
+            {
+                wanted--;
+            }
+
+            if (wanted > 0 && entry is not null && campaign.Stow(creature, entry, wanted) is { Success: true } hung)
+            {
+                done.Add(hung.Line);
+            }
+        }
+
+        return done;
+    }
+
+    /// <summary>
+    /// Between fights, with no rest left to fall back on: healing potions into everybody below
+    /// half their hit points, the worst hurt first, until they are back above half or the potions
+    /// run out — their own belt's, then the bag's, then a friend's. The belts are filled again from
+    /// the bag afterwards. Returns what was done.
+    /// </summary>
+    /// <remarks>
+    /// While a rest remains it does nothing: a rest heals everything and costs no potions, and
+    /// whether to spend it is a separate decision.
+    /// </remarks>
+    public static IReadOnlyList<string> PatchUp(Campaign campaign)
+    {
+        ArgumentNullException.ThrowIfNull(campaign);
+
+        var done = new List<string>();
+        if (campaign.RestsRemaining > 0 || campaign.State is CampaignState.Fighting or CampaignState.Lost)
+        {
+            return done;
+        }
+
+        foreach (var one in campaign.Party
+            .Where(member => member.IsAlive)
+            .OrderBy(member => (double)member.HitPoints.Current / member.HitPoints.Maximum)
+            .ToList())
+        {
+            while (one.HitPoints.Current * 2 < one.HitPoints.Maximum && HealingPotionFor(campaign, one) is { } potion)
+            {
+                var drunk = campaign.Drink(one, potion);
+                if (!drunk.Success)
+                {
+                    break;
+                }
+
+                done.Add(drunk.Line);
+            }
+        }
+
+        foreach (var one in campaign.Party)
+        {
+            done.AddRange(HangConsumables(campaign, one));
+        }
+
+        return done;
+    }
+
+    /// <summary>
+    /// A healing potion this creature can drink now: off its own belt, from the bag, or — moved
+    /// into the bag first — off the belt of whichever friend is least hurt.
+    /// </summary>
+    private static ItemDefinition? HealingPotionFor(Campaign campaign, Creature creature)
+    {
+        if (Consumables.OnBelt(creature).FirstOrDefault(stack => IsHealingPotion(stack.Item)) is { } own)
+        {
+            return own.Item;
+        }
+
+        if (Sound(campaign).FirstOrDefault(entry => IsHealingPotion(entry.Item)) is { } bagged)
+        {
+            return bagged.Item;
+        }
+
+        foreach (var friend in campaign.Party
+            .Where(other => !ReferenceEquals(other, creature))
+            .OrderByDescending(other => (double)other.HitPoints.Current / other.HitPoints.Maximum))
+        {
+            var worn = friend.Equipment.Worn.FirstOrDefault(entry =>
+                entry.Slot == EquipmentSlot.Carried && !entry.IsOutOfHand && IsHealingPotion(entry.Item));
+
+            if (worn is not null && campaign.Unstow(friend, worn).Success)
+            {
+                return worn.Item;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsHealingPotion(ItemDefinition item) =>
+        item.Consumable is { Kind: ConsumableKind.Potion, Heals: true };
+
+    /// <summary>What is in the bag and not broken.</summary>
+    private static IEnumerable<BagEntry> Sound(Campaign campaign) =>
+        campaign.Bag.Entries.Where(entry => !entry.IsBroken);
+
+    /// <summary>Whether so many more of something leave its carrier's own load no heavier a category than now.</summary>
+    private static bool Fits(Creature creature, ItemDefinition item, int count)
+    {
+        var load = Encumbrance.Load(creature);
+        return load.Capacity.Classify(load.Weight + (item.Weight * count)) <= load.Category;
+    }
+
+    /// <summary>Whether a flask in this creature's hand would do more than its own weapon.</summary>
+    public static bool IsWeakInMelee(Creature creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        return MeleeExpectation(creature) < ThrowExpectation(creature);
+    }
+
+    /// <summary>
+    /// A round of the creature's melee weapon against <see cref="ReferenceArmorClass"/>: every swing
+    /// of a full attack, at its chance to hit times its average damage. Nought with none.
+    /// </summary>
+    private static double MeleeExpectation(Creature creature)
+    {
+        if (creature.MeleeAttack is not { } weapon || !creature.CanAttackWith(weapon))
+        {
+            return 0;
+        }
+
+        var damage = weapon.Damage.Average + Strike.DamageBonus(creature, weapon).Total;
+        var worth = 0.0;
+
+        for (var swing = 0; swing < creature.AttacksPerFullAttack; swing++)
+        {
+            var bonus = Strike.AttackBonus(creature, weapon, iterativePenalty: -Iteratives.Step * swing).Total;
+            worth += Chance(bonus, ReferenceArmorClass) * damage;
+        }
+
+        return worth;
+    }
+
+    /// <summary>
+    /// A flask from this creature against <see cref="ReferenceTouchArmorClass"/>: base attack,
+    /// Dexterity and size — what any throw starts from — and <see cref="FlaskYardstick"/> on a hit.
+    /// </summary>
+    private static double ThrowExpectation(Creature creature)
+    {
+        var bonus = creature.BaseAttackBonus
+            + creature.Abilities[Ability.Dexterity].Modifier
+            + CreatureSizes.Modifier(creature.Size);
+
+        return Chance(bonus, ReferenceTouchArmorClass) * FlaskYardstick;
+    }
+
+    private static double Chance(int bonus, int armour) => Math.Clamp(21 + bonus - armour, 1, 19) / 20.0;
+
     private static GearComparison CompareWeapon(
         Creature creature, ItemDefinition item, EquippedItem? current, ContentLibrary library, string? refusal)
     {

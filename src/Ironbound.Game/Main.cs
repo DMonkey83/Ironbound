@@ -10,6 +10,7 @@ using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Classes;
 using Ironbound.Rules.Encounters.Actions;
 using Ironbound.Rules.Feats;
+using Ironbound.Rules.Items;
 using Ironbound.Rules.Magic;
 using Ironbound.Rules.Maps;
 using Ironbound.Rules.Persistence;
@@ -83,10 +84,13 @@ public partial class Main : Node3D
 
 		/// <summary>Kneel beside somebody on the floor and stop the bleeding.</summary>
 		Help,
+
+		/// <summary>Something off the belt: a potion drunk or given, a flask thrown.</summary>
+		Items,
 	}
 
 	private static readonly Mode[] ModeOrder =
-		[Mode.Move, Mode.Attack, Mode.Full, Mode.Trip, Mode.Shove, Mode.Demoralize, Mode.Help, Mode.Cast];
+		[Mode.Move, Mode.Attack, Mode.Full, Mode.Trip, Mode.Shove, Mode.Demoralize, Mode.Help, Mode.Cast, Mode.Items];
 
 	private readonly Dictionary<Creature, Node3D> _figures = new();
 	private readonly Dictionary<Creature, Label3D> _nameplates = new();
@@ -112,6 +116,8 @@ public partial class Main : Node3D
 	private Label _prompt;
 	private OptionButton _spells;
 	private CheckButton _castDefensively;
+	private OptionButton _items;
+	private readonly List<BeltStack> _usables = new();
 	private Button _endTurn;
 	private Button _load;
 	private Button _stand;
@@ -304,6 +310,7 @@ public partial class Main : Node3D
 			{
 				_hovered = null;
 				SelectSpellsFor(turn.Actor);
+				SelectItemsFor(turn.Actor);
 				PromptTurn();
 				RefreshFigures();
 				RefreshControls();
@@ -855,6 +862,9 @@ public partial class Main : Node3D
 					? $"{actor.Name} has no spell selected."
 					: $"{actor.Name} cannot target that square.";
 
+			case Mode.Items:
+				return ItemWhyNot(actor, square, occupant);
+
 			default:
 				return field.SquareOf(actor) == square
 					? $"{actor.Name} is already there."
@@ -901,6 +911,9 @@ public partial class Main : Node3D
 				return occupant is not null && actor.IsEnemyOf(occupant)
 					? new DemoralizeAction(occupant)
 					: null;
+
+			case Mode.Items:
+				return ItemActionFor(actor, square, occupant);
 
 			case Mode.Help:
 				return occupant is not null && !actor.IsEnemyOf(occupant)
@@ -1033,8 +1046,12 @@ public partial class Main : Node3D
 		{
 			_cursor.Visible = false;
 			HidePath();
+			HighlightAt(null);
 			return;
 		}
+
+		// What the pointer is over glows if a click would use it: between fights only.
+		HighlightAt(fighting ? null : square);
 
 		_cursor.Visible = true;
 		_cursor.Position = new Vector3(square.X, 0.004f, square.Y);
@@ -1307,6 +1324,12 @@ public partial class Main : Node3D
 		_figures.Clear();
 		_nameplates.Clear();
 		_containerNodes.Clear();
+
+		// Whatever was lit was on the board being thrown away.
+		_lit = null;
+		_litMeshes.Clear();
+		_litHidden.Clear();
+		_litName = null;
 		ClearStage();
 		_world = new Node3D();
 		AddChild(_world);
@@ -1776,6 +1799,7 @@ public partial class Main : Node3D
 		Check(nameof(_logPanel), _logPanel);
 		Check(nameof(_showLog), _showLog);
 		Check(nameof(_spells), _spells);
+		Check(nameof(_items), _items);
 		Check(nameof(_stand), _stand);
 		Check(nameof(_endTurn), _endTurn);
 		Check(nameof(_load), _load);
@@ -2366,6 +2390,40 @@ public partial class Main : Node3D
 			&& one.Creature.IsEnemyOf(actor)
 			&& field.Threatens(one.Creature, square));
 
+	/// <summary>
+	/// The Items list: whatever is on the actor's belt that can be used in a fight, one line a
+	/// stack, "alchemist's fire ×3". Weapons on the belt are drawn by attacking, not from here.
+	/// </summary>
+	private void SelectItemsFor(Creature actor)
+	{
+		if (StageBusy)
+		{
+			Enqueue(0.0, () => SelectItemsFor(actor));
+			return;
+		}
+
+		var keep = SelectedUsable()?.Id;
+		_items.Clear();
+		_usables.Clear();
+		foreach (var stack in Consumables.OnBelt(actor))
+		{
+			_items.AddItem(stack.Count > 1 ? $"{stack.Item.Name} ×{stack.Count}" : stack.Item.Name);
+			_usables.Add(stack);
+		}
+
+		_items.Disabled = _items.ItemCount == 0;
+		if (_items.ItemCount > 0)
+		{
+			var again = _usables.FindIndex(stack => stack.Item.Id == keep);
+			_items.Selected = again >= 0 ? again : 0;
+		}
+	}
+
+	private ItemDefinition SelectedUsable() =>
+		_battle.Encounter.Current is not null && _items is not null && _items.Selected >= 0 && _items.Selected < _usables.Count
+			? _usables[_items.Selected].Item
+			: null;
+
 	private Power SelectedPower() =>
 		_battle.Encounter.Current is not null && _spells.Selected >= 0 && _spells.Selected < _castables.Count
 			? _castables[_spells.Selected].Power
@@ -2464,6 +2522,9 @@ public partial class Main : Node3D
 			|| !((turn.Budget.HasStandard && Castable(turn.Actor).Any(turn.Actor.Spells.CanCast))
 				|| turn.Actor.Powers.Any(power => turn.Actor.UsesLeft(power) > 0 && turn.Budget.CanAfford(power.Cost)));
 		_modes[Mode.Move].Disabled = turn is null || !CanStillMove(turn);
+		_modes[Mode.Items].Disabled = turn is null || !turn.Budget.HasStandard || Consumables.OnBelt(turn.Actor).Count == 0;
+		_items.Disabled = _modes[Mode.Items].Disabled;
+		RefreshItemButtons(turn);
 
 		_spells.Disabled = turn is null || _spells.ItemCount == 0;
 		_stand.Disabled = turn is null || !turn.CanTake(new StandUpAction());
@@ -2623,16 +2684,20 @@ public partial class Main : Node3D
 			Mode.Move => ReachColour,
 			Mode.Cast => SpellColour,
 			Mode.Help => HelpColour,
+			Mode.Items => SelectedUsable()?.Consumable is { IsPotion: true } ? HelpColour : SpellColour,
 			_ => StrikeColour,
 		};
 
 		// Only where an answer could be yes. Asking every square of a level the size of the
 		// caves ran a path search for each of sixteen hundred squares on every click.
 		IEnumerable<GridSquare> candidates;
-		if ((_mode == Mode.Move || (_mode == Mode.Cast && SelectedSpell() is { NeedsAPoint: true }))
+		var thrown = _mode == Mode.Items && SelectedUsable()?.Consumable is { IsThrown: true, Aim: ThrowAim.Square or ThrowAim.Either };
+		if ((_mode == Mode.Move || thrown || (_mode == Mode.Cast && SelectedSpell() is { NeedsAPoint: true }))
 			&& field.SquareOf(turn.Actor) is { } at)
 		{
-			var radius = _mode == Mode.Move ? (turn.Actor.CurrentSpeed / Distance.FeetPerSquare) + 1 : 24;
+			var radius = _mode == Mode.Move ? (turn.Actor.CurrentSpeed / Distance.FeetPerSquare) + 1
+				: thrown ? SelectedUsable().Consumable.MaximumRange / Distance.FeetPerSquare
+				: 24;
 			candidates = Enumerable.Range(System.Math.Max(0, at.X - radius), System.Math.Min(field.Width, at.X + radius + 1) - System.Math.Max(0, at.X - radius))
 				.SelectMany(x => Enumerable.Range(System.Math.Max(0, at.Y - radius), System.Math.Min(field.Height, at.Y + radius + 1) - System.Math.Max(0, at.Y - radius))
 					.Select(y => new GridSquare(x, y)));
@@ -2749,7 +2814,10 @@ public partial class Main : Node3D
 				&& !Ironbound.Rules.Effects.Bleeding.IsStable(one)),
 
 			// Only for somebody who can rage at all; greyed while worn out or out of rounds.
-			Rage: actor is not null && actor.RageRoundsPerDay > 0);
+			Rage: actor is not null && actor.RageRoundsPerDay > 0,
+
+			// Only for somebody with something on the belt to use.
+			Items: actor is not null && Consumables.OnBelt(actor).Count > 0);
 		(bool, bool, bool)? pips = open is null || !_battle.IsPartyTurn
 			? null
 			: (open.Budget.HasStandard, open.Budget.HasMove, open.Budget.HasSwift);

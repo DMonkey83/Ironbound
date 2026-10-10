@@ -911,7 +911,7 @@ public class ShippedLootTests
     {
         var run = Campaign.Begin(ContentFiles.Default, "caves-of-shadow");
 
-        Assert.Equal(ContainerLook.Cart, run.GetContainer("tobins-cart")!.Look);
+        Assert.Equal(ContainerLook.Crate, run.GetContainer("tobins-cart")!.Look);
         Assert.Contains(run.GetContainer("tobins-cart")!.Contents, entry => entry.Id == "greatsword-plus-one");
         Assert.Contains(run.GetContainer("storeroom-crates")!.Contents, entry => entry.Id == "light-crossbow");
         Assert.Equal(20m, run.GetContainer("storeroom-sack")!.Weight);

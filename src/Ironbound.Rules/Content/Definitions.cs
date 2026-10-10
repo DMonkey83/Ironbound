@@ -809,6 +809,12 @@ public enum FeatureKind
     /// <c>"cache"</c>, the name it had when it was searched once and emptied into the sack.
     /// </summary>
     Container,
+
+    /// <summary>
+    /// Somebody to trade with: a figure by a stall, who sells from a stock and buys what the party
+    /// brings, once whatever made the place unsafe has been dealt with. Never used up.
+    /// </summary>
+    Merchant,
 }
 
 /// <summary>
@@ -827,12 +833,16 @@ public sealed record FeatureDefinition
 
     public required string Name { get; init; }
 
-    /// <summary>What is read once it has been dealt with.</summary>
+    /// <summary>
+    /// What is read once it has been dealt with. For a merchant, the greeting, read every time
+    /// somebody goes to trade.
+    /// </summary>
     public string Text { get; init; } = string.Empty;
 
     /// <summary>
     /// Where it is. A door's squares are its doorway, a bridge's the chasm it spans, a
-    /// container's the furniture it is in, the niche in the wall, or the floor a sack lies on.
+    /// container's the furniture it is in, the niche in the wall, or the floor a sack lies on. A
+    /// merchant's are the stall and the square the figure stands on, all of them furniture.
     /// </summary>
     public IReadOnlyList<GridSquare> Squares { get; init; } = [];
 
@@ -871,6 +881,39 @@ public sealed record FeatureDefinition
     /// <summary>Experience for dealing with it: the door opened, the chasm crossed, the container found.</summary>
     public int Experience { get; init; }
 
+    /// <summary>What a merchant has to sell, the same shape as a container's loot.</summary>
+    public IReadOnlyList<LootDefinition> Stock { get; init; } = [];
+
+    /// <summary>
+    /// The room whose occupants have to be beaten before a merchant will trade, or null for one
+    /// open from the start. Tobin will not haggle with orcs prodding him.
+    /// </summary>
+    public string? OpensAfter { get; init; }
+
+    /// <summary>
+    /// What a merchant says, or what is said of them, while they will not trade yet; empty for
+    /// the plain refusal.
+    /// </summary>
+    public string Closed { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The most a merchant pays for any one item, in gold pieces. The GameMastery Guide's purchase
+    /// limit: anything worth more fetches this and no more.
+    /// </summary>
+    public int PurchaseLimit { get; init; } = Items.Trade.DefaultPurchaseLimitGold;
+
+    /// <summary>
+    /// What a merchant looks like: a path the rules hold and never open, as a creature's is. It
+    /// may not exist yet; whoever draws it draws a stand-in.
+    /// </summary>
+    public string Model { get; init; } = string.Empty;
+
+    /// <summary>The square a merchant's figure stands on: one of <see cref="Squares"/>. Null for anything else.</summary>
+    public GridSquare? StandsAt { get; init; }
+
+    /// <summary>The prop a merchant trades from, by file name: <c>"cart"</c>, <c>"cart-overturned"</c>.</summary>
+    public string Stall { get; init; } = string.Empty;
+
     /// <summary>The distance in feet within which somebody gets their one look for a hidden container.</summary>
     public const int NoticeFeet = 10;
 
@@ -881,6 +924,9 @@ public sealed record FeatureDefinition
     {
         FeatureKind.Bridge => 26,
         FeatureKind.Door => 13,
+
+        // Nobody is rewarded for going shopping.
+        FeatureKind.Merchant => 0,
         _ => 6,
     };
 }

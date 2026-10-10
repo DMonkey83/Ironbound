@@ -8,7 +8,7 @@
   "R....RR.RR.....R.....R,,TT,T,,,,T,T,,TTT,T,TTTT,,,,,",
   "...R.....R..RR..R..RR.,T,T,T,,T,TT,TTT,TT,T,,TTT,,,,",
   ".........R..R.........TT,,,,,,,,,,,,,T,,,,,,,,,T,,,,",
-  "......................,,,,,,T,,,,,,,,,,,,,,T,,,T,,,,",
+  "....ccc...............,,,,,,T,,,,,,,,,,,,,,T,,,T,,,,",
   "..R..................c,,,T,,T,,,,,,TT,,T,,T,,,,,,,,,",
   "............R.........T,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
   ".........R..R....R....,,,,,,,,,,,,,,,,,,,,,T,,,,,,,,",
@@ -114,13 +114,18 @@
     }
    ],
    "loot": [
-    "silk-scarf"
+    "silk-scarf",
+    {
+     "item": "potion-of-cure-light-wounds",
+     "count": 2
+    },
+    "tanglefoot-bag"
    ],
    "coins": {
     "gp": 35,
     "sp": 60
    },
-   "text": "A cart on its side at the edge of the road, its mule long gone. The goblins had not finished with it: a strongbox under the seat is still shut, and still full."
+   "text": "A cart on its side at the edge of the road, its mule long gone. The goblins had not finished with it: a strongbox under the seat is still shut, and still full, and a satchel caught under the axle holds two vials of healing draught and a lumpy leather bag that sticks to the fingers."
   },
   {
    "id": "goblin-sack",
@@ -130,20 +135,74 @@
    "name": "the goblins' sack",
    "squares": [
     {
-     "x": 17,
+     "x": 18,
      "y": 6
     }
    ],
    "loot": [
     "pewter-tankard",
-    "bone-dice"
+    "bone-dice",
+    "alchemists-fire"
    ],
    "coins": {
     "gp": 8,
     "sp": 40,
     "cp": 75
    },
-   "text": "Stuffed behind the standing stone: what the goblins have taken off the road this month, which is not much."
+   "text": "Stuffed behind the standing stone: what the goblins have taken off the road this month, which is not much \u2014 though one of them had the sense to wrap a flask of alchemist's fire in a rag before stealing it."
+  },
+  {
+   "id": "pedlar",
+   "kind": "merchant",
+   "name": "Wenna",
+   "squares": [
+    {
+     "x": 4,
+     "y": 3
+    },
+    {
+     "x": 5,
+     "y": 3
+    },
+    {
+     "x": 6,
+     "y": 3
+    }
+   ],
+   "standsAt": {
+    "x": 4,
+    "y": 3
+   },
+   "stall": "cart",
+   "model": "res://art/pedlar.glb",
+   "text": "Wenna the pedlar has her cart pulled off the road where it starts to climb, and she does not look like someone who means to go any further. \"East? Then you'll want more than luck. Draughts for the hurt, fire and acid for whatever hurt you, glue for whatever won't hold still. Coin on the board, and I'll buy what you don't need on the way back \u2014 if you come back this way.\"",
+   "stock": [
+    {
+     "item": "potion-of-cure-light-wounds",
+     "count": 4
+    },
+    "potion-of-mage-armor",
+    {
+     "item": "oil-of-magic-weapon",
+     "count": 2
+    },
+    {
+     "item": "alchemists-fire",
+     "count": 4
+    },
+    {
+     "item": "acid-flask",
+     "count": 4
+    },
+    {
+     "item": "tanglefoot-bag",
+     "count": 2
+    },
+    {
+     "item": "thunderstone",
+     "count": 2
+    }
+   ]
   }
  ]
 }

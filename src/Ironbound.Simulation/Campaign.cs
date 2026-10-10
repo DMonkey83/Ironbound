@@ -495,7 +495,8 @@ public sealed partial class Campaign
                 CaptureLevel(),
                 [.. _bag.Entries.Select(Capture)],
                 Capture(_bag.Money),
-                [.. _containers.Select(Capture)])));
+                [.. _containers.Select(Capture)],
+                [.. _merchants.Select(Capture)])));
 
     /// <summary>
     /// Reads one back. Refuses a save with no campaign in it rather than inventing one.
@@ -528,7 +529,7 @@ public sealed partial class Campaign
 
         if (state.Level is { } level)
         {
-            campaign.Resume(level, state.Containers);
+            campaign.Resume(level, state.Containers, state.Merchants);
         }
         else
         {

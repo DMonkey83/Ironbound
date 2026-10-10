@@ -38,6 +38,31 @@ public class SneakAttackTests
     }
 
     [Fact]
+    public void AThrowFromTheFlankingSquareIsNotAFlank()
+    {
+        var rogue = ClassKit.Make("rogue", 1, "\"items\": [\"dagger\"]");
+        var ally = ClassKit.Dummy("Ally");
+        var target = ClassKit.Dummy("Target");
+        var field = ClassKit.Field((rogue, 4, 5), (target, 5, 5), (ally, 6, 5));
+        rogue.Allegiance = ally.Allegiance = 1;
+        target.Allegiance = 2;
+        var thrown = rogue.Attacks.Single(attack => attack.IsThrownUse);
+
+        Assert.Same(ally, Strike.FlankingPartner(rogue, target, field));
+        Assert.Contains(Strike.AttackBonus(rogue, rogue.PrimaryAttack!, target, field).Applied,
+            entry => entry.Modifier.Source.StartsWith("Flanking", StringComparison.Ordinal));
+        Assert.DoesNotContain(Strike.AttackBonus(rogue, thrown, target, field).Applied,
+            entry => entry.Modifier.Source.StartsWith("Flanking", StringComparison.Ordinal));
+
+        // 15 to hit and 3 on the dagger — and no sneak attack die, or the sequence runs dry.
+        var strike = Strike.Resolve(rogue, thrown, target, new SequenceRandom(15, 3), field: field);
+
+        Assert.True(strike.IsHit);
+        Assert.Equal(0, strike.SneakAttackDice);
+        Assert.Equal(3 + 2, strike.Damage!.Total);   // die, and Strength 14 on a thrown dagger
+    }
+
+    [Fact]
     public void AFlatFootedTargetTakesThemToo()
     {
         var rogue = Rogue(3);

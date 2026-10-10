@@ -12,8 +12,9 @@ namespace Ironbound.Rules.Encounters.Actions;
 /// </summary>
 /// <remarks>
 /// The Run feat makes it five times (four in heavy armour) and keeps the Dexterity. A straight
-/// line on a grid is every step in the same direction. The fatigued and the exhausted cannot
-/// run at all, nor can anybody who has already moved this turn: it is all of the turn's movement.
+/// line on a grid is every step in the same direction. The fatigued, the exhausted and the
+/// entangled cannot run at all, nor can anybody who has already moved this turn: it is all of
+/// the turn's movement.
 /// </remarks>
 public sealed class RunAction(IReadOnlyList<GridSquare> path) : MoveAction(path)
 {
@@ -53,6 +54,7 @@ public sealed class RunAction(IReadOnlyList<GridSquare> path) : MoveAction(path)
             || Encumbrance.Effective(context.Actor) == LoadCategory.Overloaded
             || context.Actor.Has(Condition.Fatigued)
             || context.Actor.Has(Condition.Exhausted)
+            || context.Actor.Has(Condition.Entangled)
             || !IsStraight())
         {
             return false;

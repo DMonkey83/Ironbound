@@ -163,6 +163,29 @@ public sealed class Equipment(Creature owner)
         return true;
     }
 
+    /// <summary>
+    /// Uses up one of an item hung on the belt: a potion drunk, a flask thrown. The entry is gone
+    /// for good — not out of hand, so nothing brings it back when the fight is over. False when
+    /// there is none of it on the belt.
+    /// </summary>
+    /// <remarks>
+    /// Matched by id, not by entry: three potions are three equal entries, and which of them is
+    /// drunk makes no difference. The last one hung goes first, so a stack keeps its place.
+    /// </remarks>
+    public bool UseUp(ItemDefinition item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        var index = _worn.FindLastIndex(entry => Consumables.IsOnBelt(entry) && Consumables.SameItem(entry.Item, item));
+        if (index < 0)
+        {
+            return false;
+        }
+
+        Remove(_worn[index]);
+        return true;
+    }
+
     /// <summary>What everything on it weighs, sized for it: see <see cref="Encumbrance.WornWeight"/>.</summary>
     public decimal Weight => Encumbrance.Carried(_owner);
 

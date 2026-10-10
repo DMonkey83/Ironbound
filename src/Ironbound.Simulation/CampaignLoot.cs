@@ -5,6 +5,7 @@ using Ironbound.Rules.Content;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Items;
+using Ironbound.Rules.Magic;
 using Ironbound.Rules.Maps;
 using Ironbound.Rules.Persistence;
 using Ironbound.Rules.Skills;
@@ -200,10 +201,13 @@ public sealed partial class Campaign
     }
 
     /// <summary>
-    /// Hangs something from the bag on a character's belt: still theirs, counted on their own
-    /// load, and — a weapon — still something they can swing, since drawing is not modelled.
+    /// Hangs so many of something from the bag on a character's belt: still theirs, counted on
+    /// their own load, and — a weapon — still something they can swing, since drawing is not
+    /// modelled. Potions and flasks have to be here to be used in a fight. Each one hung is an
+    /// entry of its own, so three potions are three, and drinking one leaves two. All or nothing:
+    /// refused, and nothing moved, when the bag holds fewer.
     /// </summary>
-    public GearResult Stow(Creature creature, BagEntry entry)
+    public GearResult Stow(Creature creature, BagEntry entry, int count = 1)
     {
         ArgumentNullException.ThrowIfNull(creature);
         ArgumentNullException.ThrowIfNull(entry);
@@ -218,10 +222,104 @@ public sealed partial class Campaign
             return GearResult.Refused($"There is no {entry.Item.Name} in the bag.");
         }
 
-        _bag.Remove(held);
-        _library.Equip(creature, held.Item, EquipmentSlot.Carried, held.IsBroken);
+        if (count < 1 || !_bag.Remove(held, count))
+        {
+            return GearResult.Refused($"The bag holds fewer than {Math.Max(1, count)} {held.Item.Name}.");
+        }
 
-        return GearResult.Done($"{creature.Name} hangs the {held.Item.Name} on the belt.");
+        for (var i = 0; i < count; i++)
+        {
+            _library.Equip(creature, held.Item, EquipmentSlot.Carried, held.IsBroken);
+        }
+
+        return GearResult.Done(count == 1
+            ? $"{creature.Name} hangs the {held.Item.Name} on the belt."
+            : $"{creature.Name} hangs {held with { Count = count }} on the belt.");
+    }
+
+    /// <summary>
+    /// Drinks a potion, or rubs on an oil, between fights: one from the creature's own belt if
+    /// there is one there, otherwise one from the bag. It takes no time worth counting, so it
+    /// costs nothing but the potion.
+    /// </summary>
+    /// <remarks>
+    /// Refused in a fight — there a potion is drunk from the belt as an action, with everything
+    /// an action brings — and for anything that is not a potion or an oil. Somebody down and
+    /// dying can have one poured into them by a friend, as the book allows at any time; the dead
+    /// are past helping. The dice are the ones for everything done between fights.
+    /// <para>
+    /// Nothing between fights passes time, so a potion drunk now loses none of its duration
+    /// before the next fight: an oil of magic weapon put on now is still on when the next fight
+    /// opens, as a bless cast at the end of the last one is.
+    /// </para>
+    /// </remarks>
+    public GearResult Drink(Creature drinker, ItemDefinition potion)
+    {
+        ArgumentNullException.ThrowIfNull(drinker);
+        ArgumentNullException.ThrowIfNull(potion);
+
+        if (State == CampaignState.Fighting)
+        {
+            return GearResult.Refused($"Not now: in a fight, {drinker.Name} drinks from the belt, and that takes an action.");
+        }
+
+        if (GearRefusal(drinker) is { } why)
+        {
+            return GearResult.Refused(why);
+        }
+
+        if (potion.Consumable is not { IsPotion: true, Spell: { } spell } use)
+        {
+            return GearResult.Refused($"The {potion.Name} is not something to drink.");
+        }
+
+        if (!drinker.HitPoints.IsAlive)
+        {
+            return GearResult.Refused($"{drinker.Name} is past the help of any potion.");
+        }
+
+        var fromBelt = drinker.Equipment.UseUp(potion);
+        if (!fromBelt)
+        {
+            if (_bag.Find(potion.Id) is not { } line)
+            {
+                return GearResult.Refused($"There is no {potion.Name} on {drinker.Name}'s belt or in the bag.");
+            }
+
+            _bag.Remove(line);
+        }
+
+        // Asked before it works: a dying man who is given a cure wakes up, but he did not drink it.
+        var awake = drinker.IsConscious;
+        var verb = use.Kind == ConsumableKind.Oil ? "applies" : "drinks";
+        var cast = Casting.Resolve(
+            drinker, spell, SpellAim.At(drinker), _explore, _rules, field: null, Invocation.FromItem(use, verb));
+
+        var who = awake ? $"{drinker.Name} {verb} the {potion.Name}" : $"{drinker.Name} is given the {potion.Name}";
+
+        if (!fromBelt)
+        {
+            who += " from the bag";
+        }
+
+        return GearResult.Done(cast.Targets.FirstOrDefault() is { } result
+            ? $"{who}: {Effect(result)}."
+            : $"{who}.");
+    }
+
+    /// <summary>"healed 6 (12/14 hp)", "gains Mage Armor".</summary>
+    private static string Effect(SpellTargetResult result)
+    {
+        var parts = new List<string>();
+
+        if (result.Healed > 0)
+        {
+            parts.Add($"healed {result.Healed} ({result.Target.HitPoints})");
+        }
+
+        parts.AddRange(result.Applied);
+
+        return parts.Count == 0 ? "nothing happens" : string.Join("; ", parts);
     }
 
     /// <summary>Moves something from a character's belt back into the bag.</summary>

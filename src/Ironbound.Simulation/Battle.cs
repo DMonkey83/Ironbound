@@ -378,6 +378,30 @@ public sealed class Battle
             lines.AddRange(cast.Cast?.Targets.Select(hit => $"  {hit}") ?? []);
         }
 
+        // A potion's spell lands on whoever drank it; its own line says who poured it.
+        if (result is PotionResult potion)
+        {
+            lines.AddRange(potion.Opportunities.Select(strike => $"  {strike}"));
+            lines.AddRange(potion.Cast?.Targets.Select(hit => $"  {hit}") ?? []);
+        }
+
+        // The throw's own line has the roll and where it came down; then everybody it reached.
+        if (result is ThrowResult thrown)
+        {
+            lines.AddRange(thrown.Opportunities.Select(strike => $"  {strike}"));
+            lines.AddRange(thrown.Effects.Select(effect => $"  {effect}"));
+        }
+
+        if (result is BreakFreeResult freeing)
+        {
+            lines.Add($"  {freeing.Roll}");
+        }
+
+        if (result is PutOutFlamesResult rolling)
+        {
+            lines.Add($"  {rolling.Actor.Name}: {rolling.Save}");
+        }
+
         return lines;
     }
 

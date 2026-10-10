@@ -6,6 +6,14 @@
   "height": 12,
   "terrain": "rocky",
 
+  // What the level has in the travellers' cart and the goblins' sack, found here once the
+  // goblins are dealt with, so the chain plays with what a player finds.
+  "loot": [
+    { "item": "potion-of-cure-light-wounds", "count": 2 },
+    "tanglefoot-bag",
+    "alchemists-fire"
+  ],
+
   // Two pillars across the middle of the room. They are not decoration: a shot whose line
   // clips one gives the target +4, so the archer has to care where it stands.
   "blocked": [

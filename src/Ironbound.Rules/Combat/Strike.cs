@@ -90,7 +90,10 @@ public static class Strike
         // Only the armour class asks whether it was a swing, for a guarded stance's sake.
         var asked = weapon.IsRanged ? defenderState : defenderState | DefenseOptions.Melee;
         var feet = field?.DistanceInFeet(attacker, target);
-        var flanking = FlankingPartner(attacker, target, field) is not null;
+
+        // Flanking is a melee attack's: a shot or a throw from the flanking square neither gets
+        // the two nor counts as flanking for a sneak attack.
+        var flanking = !weapon.IsRanged && FlankingPartner(attacker, target, field) is not null;
 
         // A bullet up close goes through armour as if it were not there.
         if (Firearms.TargetsTouch(weapon, feet))
@@ -419,7 +422,7 @@ public static class Strike
             weapon.Attack.Modifiers,
             BaseAttack(attacker),
             SizeOf(attacker),
-            Flanking(attacker, target, field),
+            Flanking(attacker, weapon.IsRanged ? null : target, field),
             AtRange(attacker, weapon, target, field),
             Iterative(iterativePenalty),
             Stance(attacker, !weapon.IsRanged),
@@ -548,8 +551,61 @@ public static class Strike
     }
 
     /// <summary>
-    /// Two allies on opposite sides are worth +2 each. Worked out at the moment of the swing,
-    /// because it depends on where everyone is standing right now.
+    /// The bonus on something thrown that is not a weapon — a flask, a bag of glue, a
+    /// thunderstone — at a creature, or with no creature at a spot on the ground
+    /// <paramref name="feet"/> away.
+    /// </summary>
+    /// <remarks>
+    /// Everything a shot gets — the thrower's skill at arms, size, Dexterity, distance, firing
+    /// into a melee, Point-Blank Shot — and none of the trades: no Power Attack, no Deadly Aim,
+    /// no rage power, and no Combat Expertise, which the book makes a melee trade. Fighting
+    /// defensively is the one that stays, because the book takes its four off every attack in
+    /// the round and the armour class it buys is still being enjoyed. A spot on the ground
+    /// has nobody fighting over it, so it is only the distance that is added by hand.
+    /// </remarks>
+    /// <param name="weapon">The roll's weapon, built for the throw and owned by nobody.</param>
+    /// <param name="feet">How far the spot is, when the throw is at the ground.</param>
+    public static ModifierBreakdown ThrownBonus(
+        Creature attacker,
+        WeaponAttack weapon,
+        Creature? target,
+        Battlefield? field,
+        int? feet = null)
+    {
+        ArgumentNullException.ThrowIfNull(attacker);
+        ArgumentNullException.ThrowIfNull(weapon);
+
+        var distance = target is null ? feet : field?.DistanceInFeet(attacker, target);
+        var defensive = new ModifierStack();
+        if (attacker.Stances.IsActive(Combat.Stance.FightingDefensively))
+        {
+            defensive.Add(Stances.DefensivePenalty, BonusType.Untyped, Combat.Stances.Name(Combat.Stance.FightingDefensively));
+        }
+
+        var ground = new ModifierStack();
+        if (target is null && distance is { } away && weapon.RangePenalty(away) is var penalty and < 0)
+        {
+            ground.Add(
+                attacker.HasFeat(Feats.FeatEffect.FarShot) ? penalty / 2 : penalty,
+                BonusType.Untyped,
+                $"Range ({away} ft)");
+        }
+
+        return ModifierStack.Combine(
+            attacker.AttackModifiers,
+            weapon.Attack.Modifiers,
+            BaseAttack(attacker),
+            SizeOf(attacker),
+            target is null ? ground : AtRange(attacker, weapon, target, field),
+            defensive,
+            Martial.AttackBonus(attacker, weapon, distance),
+            Proficiency.AttackPenalties(attacker, weapon),
+            Derived(attacker, Martial.AttackAbility(attacker, weapon), modifier => modifier));
+    }
+
+    /// <summary>
+    /// Two allies on opposite sides are worth +2 each, to a melee attack. Worked out at the
+    /// moment of the swing, because it depends on where everyone is standing right now.
     /// </summary>
     private static ModifierStack Flanking(Creature attacker, Creature? target, Battlefield? field)
     {

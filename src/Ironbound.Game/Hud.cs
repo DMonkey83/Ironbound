@@ -39,7 +39,7 @@ public partial class Main
 		Move, Attack, Full, Trip, Shove, Help, Cast,
 		Stand, EndTurn, PowerAttack, Expertise, Defend,
 		Rage, PowerfulBlow, SurpriseAccuracy, StrengthSurge,
-		Demoralize, DeadlyAim,
+		Demoralize, DeadlyAim, Items,
 		Log, Sheet, Save, Load,
 	}
 
@@ -55,7 +55,7 @@ public partial class Main
 	}
 
 	/// <summary>Which buttons the bar offers whoever it is showing.</summary>
-	private sealed record Offer(bool Hotbar, bool Cast, IReadOnlyList<Stance> Stances, bool Stand, bool Help, bool Rage);
+	private sealed record Offer(bool Hotbar, bool Cast, IReadOnlyList<Stance> Stances, bool Stand, bool Help, bool Rage, bool Items = false);
 
 	private void ShowOffer(Offer offer)
 	{
@@ -63,6 +63,8 @@ public partial class Main
 		_modes[Mode.Cast].Visible = offer.Cast;
 		_spells.Visible = offer.Cast;
 		_modes[Mode.Help].Visible = offer.Help;
+		_modes[Mode.Items].Visible = offer.Items;
+		_items.Visible = offer.Items;
 		_stand.Visible = offer.Stand;
 		_rage.Visible = offer.Rage;
 
@@ -362,12 +364,12 @@ public partial class Main
 		across.AddChild(bar);
 		_hotbar = bar;
 
-		var keys = new[] { Key.Key1, Key.Key2, Key.Key3, Key.Key4, Key.Key5, Key.Key6, Key.Key7, Key.Key8 };
+		var keys = new[] { Key.Key1, Key.Key2, Key.Key3, Key.Key4, Key.Key5, Key.Key6, Key.Key7, Key.Key8, Key.Key9 };
 		var glyphs = new Dictionary<Mode, Glyph>
 		{
 			[Mode.Move] = Glyph.Move, [Mode.Attack] = Glyph.Attack, [Mode.Full] = Glyph.Full,
 			[Mode.Trip] = Glyph.Trip, [Mode.Shove] = Glyph.Shove, [Mode.Help] = Glyph.Help,
-			[Mode.Cast] = Glyph.Cast, [Mode.Demoralize] = Glyph.Demoralize,
+			[Mode.Cast] = Glyph.Cast, [Mode.Demoralize] = Glyph.Demoralize, [Mode.Items] = Glyph.Items,
 		};
 
 		for (var i = 0; i < ModeOrder.Length; i++)
@@ -386,6 +388,11 @@ public partial class Main
 		// Only there while it would matter: see RefreshDefensive.
 		_castDefensively = new CheckButton { Visible = false, FocusMode = Control.FocusModeEnum.None, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
 		bar.AddChild(_castDefensively);
+
+		// What the actor has on the belt to use: potions to drink or give, flasks to throw.
+		_items = new OptionButton { CustomMinimumSize = new Vector2(170, 0), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, Visible = false };
+		_items.ItemSelected += _ => RefreshReach();
+		bar.AddChild(_items);
 
 		bar.AddChild(new VSeparator());
 
@@ -420,6 +427,9 @@ public partial class Main
 		_stand = Hot(Glyph.Stand, "Stand up", Key.G, toggle: false);
 		_stand.Pressed += OnStandUp;
 		bar.AddChild(_stand);
+
+		// Tanglefoot and alchemist's fire each leave something to get out of; offered when they do.
+		BuildItemButtons(bar);
 
 		_endTurn = Hot(Glyph.EndTurn, "End turn", Key.Space, toggle: false);
 		_endTurn.Pressed += OnEndTurn;
@@ -659,6 +669,12 @@ public partial class Main
 				Poly(-2, 2, 6, -1, 6, 7);
 				button.DrawArc(P(6, 2), 9f, -0.7f, 0.7f, 10, ink, 2.5f, true);
 				button.DrawArc(P(6, 2), 15f, -0.6f, 0.6f, 12, ink, 2.5f, true);
+				break;
+			case Glyph.Items:
+				// A round-bellied flask with a stopper: what comes off the belt.
+				button.DrawCircle(P(0, 6), 11f, ink);
+				Poly(-4, -4, 4, -4, 4, -12, -4, -12);
+				Poly(-6, -12, 6, -12, 6, -16, -6, -16);
 				break;
 			case Glyph.DeadlyAim:
 				// A drawn bow and its arrow, with the point aimed through a mark.

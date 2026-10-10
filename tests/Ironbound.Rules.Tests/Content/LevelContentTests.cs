@@ -33,18 +33,20 @@ public class ShippedLevelTests
     }
 
     [Fact]
-    public void TheCavesHaveTheirDoorsBridgeAndContainers()
+    public void TheCavesHaveTheirDoorsBridgeContainersAndTobin()
     {
         var caves = Library.GetLevel("caves-of-shadow")!;
 
         Assert.Equal(
             [FeatureKind.Bridge, FeatureKind.Door, FeatureKind.Door,
                 FeatureKind.Container, FeatureKind.Container, FeatureKind.Container,
-                FeatureKind.Container, FeatureKind.Container],
+                FeatureKind.Container, FeatureKind.Container, FeatureKind.Merchant],
             caves.Features.Select(feature => feature.Kind));
         Assert.Equal(17, caves.GetFeature("den-door")!.BreakDc);
-        Assert.Equal([new LootDefinition("greatsword-plus-one")], caves.GetFeature("tobins-cart")!.Loot);
-        Assert.Equal(ContainerLook.Cart, caves.GetFeature("tobins-cart")!.Look);
+        Assert.Equal(
+            [new LootDefinition("greatsword-plus-one"), new LootDefinition("potion-of-cure-light-wounds")],
+            caves.GetFeature("tobins-cart")!.Loot);
+        Assert.Equal(ContainerLook.Crate, caves.GetFeature("tobins-cart")!.Look);
     }
 }
 

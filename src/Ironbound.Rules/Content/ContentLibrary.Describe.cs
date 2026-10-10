@@ -116,9 +116,19 @@ public sealed partial class ContentLibrary
                 lines.Add(heading);
             }
 
+            if (item.Consumable is not null)
+            {
+                lines.Add(ConsumableHeading(item.Consumable));
+            }
+
             if (item.Description.Length > 0)
             {
                 lines.Add(item.Description);
+            }
+
+            if (item.Consumable is { } use)
+            {
+                lines.AddRange(ConsumableLines(use));
             }
 
             lines.AddRange(item.Grants.Select(Grant));
@@ -322,6 +332,95 @@ public sealed partial class ContentLibrary
         ArmourCategory.Shield => item.TowerShield ? "Tower shield" : "Shield",
         _ => null,
     };
+
+    private static string ConsumableHeading(ConsumableDefinition use) => use.Kind switch
+    {
+        ConsumableKind.Potion => "Potion",
+        ConsumableKind.Oil => "Oil",
+        ConsumableKind.Splash => "Alchemical · splash weapon",
+        _ => "Alchemical · thrown",
+    };
+
+    /// <summary>
+    /// What using it does, in a line: "Drink: cure light wounds at caster level 1 (1d8+1).",
+    /// "Thrown: ranged touch, 10 ft increments; 1d6 fire, 1 fire splash, burns 1d6 next round."
+    /// </summary>
+    private static IEnumerable<string> ConsumableLines(ConsumableDefinition use)
+    {
+        switch (use.Kind)
+        {
+            case ConsumableKind.Potion or ConsumableKind.Oil:
+                var verb = use.Kind == ConsumableKind.Oil ? "Apply" : "Drink";
+                var spell = use.Spell?.Name.ToLowerInvariant() ?? use.SpellId ?? "nothing";
+                var effect = use.Spell is { } held ? SpellEffectWords(held, use.CasterLevel) : null;
+                yield return effect is null
+                    ? $"{verb}: {spell} at caster level {use.CasterLevel}."
+                    : $"{verb}: {spell} at caster level {use.CasterLevel} ({effect}).";
+
+                if (use.Kind == ConsumableKind.Oil)
+                {
+                    yield return "Simplified: the bonus goes to whoever applies it, for every weapon they swing";
+                }
+
+                yield return "Drunk or applied between fights from the bag; in a fight, only from the belt";
+                break;
+
+            case ConsumableKind.Splash:
+                var type = DamageTypes.Name(use.DamageType);
+                var burn = use.Burn is { } dice ? $", burns {dice} next round" : string.Empty;
+                yield return $"Thrown: ranged touch, {use.RangeIncrement} ft increments; "
+                    + $"{use.Damage} {type}, {use.Splash} {type} splash{burn}.";
+                break;
+
+            case ConsumableKind.Tanglefoot:
+                yield return $"Thrown: ranged touch, {use.RangeIncrement} ft increments; entangled for {use.Rounds} rounds, "
+                    + $"and stuck fast on a failed DC {use.SaveDc} Reflex save (DC {use.EscapeDc} to break free).";
+                break;
+
+            case ConsumableKind.Thunderstone:
+                yield return $"Thrown at a square, {use.RangeIncrement} ft increments; everyone within {use.RadiusFeet} ft "
+                    + $"makes a DC {use.SaveDc} Fortitude save or is deafened for {Duration.Hours(use.DeafenedHours)}.";
+                break;
+        }
+
+        if (use.IsThrown)
+        {
+            yield return "Used up when thrown, hit or miss; in a fight, only from the belt";
+        }
+    }
+
+    /// <summary>What a spell does at a caster level, in a few words: "1d8+1", "+4 armour to armour class for 1 hour".</summary>
+    private static string? SpellEffectWords(Magic.Spell spell, int casterLevel)
+    {
+        var parts = new List<string>();
+
+        foreach (var effect in spell.Does)
+        {
+            switch (effect)
+            {
+                case Magic.Restore mend:
+                    parts.Add(mend.Amount.At(casterLevel).ToString());
+                    break;
+
+                case Magic.Bolster shore:
+                    parts.Add($"{shore.Amount.At(casterLevel)} temporary hit points");
+                    break;
+
+                case Magic.DealDamage hurt:
+                    parts.Add($"{hurt.Amount.At(casterLevel)} {DamageTypes.Name(hurt.Type)}");
+                    break;
+
+                case Magic.Bestow { Effect: var given }:
+                    var times = given.ScaleAt(casterLevel);
+                    var grants = given.Grants.Select(grant => Grant(grant with { Value = grant.Value * times })).ToList();
+                    var what = grants.Count > 0 ? string.Join(", ", grants) : given.Name.ToLowerInvariant();
+                    parts.Add($"{what} for {given.DurationFor(casterLevel)}");
+                    break;
+            }
+        }
+
+        return parts.Count == 0 ? null : string.Join("; ", parts);
+    }
 
     private static string Grant(ModifierGrant grant)
     {

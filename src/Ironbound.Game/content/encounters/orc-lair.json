@@ -12,8 +12,14 @@
 
   // The storeroom at the back of the cave, searched once the sleepers are dealt with. The coin
   // and the rope stay where they are: the rules have nothing to spend the one on or tie the
-  // other to.
-  "loot": ["greatsword-plus-one", "light-crossbow"],
+  // other to. The draught is the one that survived in Tobin's cart, the two flasks are from
+  // the crates: the same finds the level places, so the chain plays with what a player finds.
+  "loot": [
+    "greatsword-plus-one",
+    "light-crossbow",
+    "potion-of-cure-light-wounds",
+    { "item": "alchemists-fire", "count": 2 }
+  ],
 
   // Bedrolls heaped on stone platforms along the back wall, and two pillars holding up a roof
   // nobody would trust.

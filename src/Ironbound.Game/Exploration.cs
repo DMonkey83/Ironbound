@@ -44,6 +44,12 @@ public partial class Main
 		public GridSquare Goal;
 		public float Waited;
 		public int Detours;
+
+		/// <summary>The square the figure is on, which runs ahead of the rules' while it passes a friend.</summary>
+		public GridSquare At;
+
+		/// <summary>This step goes through a friend's square: the figure moves, the rules wait.</summary>
+		public bool Passing;
 	}
 
 	private readonly Dictionary<Creature, Walker> _walkers = new();
@@ -87,7 +93,7 @@ public partial class Main
 					case LevelCell.Table:
 						Furniture(square, "table", new Vector3(0.9f, 0.62f, 0.9f), new Color(0.36f, 0.24f, 0.14f));
 						break;
-					case LevelCell.Crate when _campaign.ContainerAt(square) is null:
+					case LevelCell.Crate when _campaign.ContainerAt(square) is null && !IsMerchantSquare(square):
 						Furniture(square, "crate-b", new Vector3(0.82f, 0.72f, 0.82f), new Color(0.42f, 0.30f, 0.18f));
 						break;
 				}
@@ -101,6 +107,7 @@ public partial class Main
 
 		_containerNodes.Clear();
 		RefreshContainers();
+		DrawMerchants();
 
 		// The rooms' occupants, waiting where the level put them. They are not on the rules'
 		// board until their room is entered, so they are placed here by hand.
@@ -331,7 +338,7 @@ public partial class Main
 			return;
 		}
 
-		if (Walkway(field, from, to) is not { Count: > 0 } path)
+		if (Route(field, from, to) is not { Count: > 0 } path)
 		{
 			if (arrived is not null)
 			{
@@ -341,7 +348,7 @@ public partial class Main
 			return;
 		}
 
-		_walkers[who] = new Walker { Path = path, Arrived = arrived, Goal = to };
+		_walkers[who] = new Walker { Path = path, Arrived = arrived, Goal = to, At = from };
 		PlayClip(who, true, "run", "walk");
 	}
 
@@ -370,11 +377,32 @@ public partial class Main
 				}
 
 				var next = walker.Path[walker.Next];
+				var last = walker.Next == walker.Path.Count - 1;
+				var friend = field.OccupantOf(next) is { } there && !ReferenceEquals(there, who) && _campaign.Party.Contains(there)
+					? there
+					: null;
+
+				// The goal itself taken by a friend who is staying put: stop beside them instead,
+				// rather than wait for somebody who is not going anywhere.
+				if (last && friend is not null && !_walkers.ContainsKey(friend)
+					&& Ring(field, walker.Goal, 1, [walker.Goal]) is [var beside, ..]
+					&& Route(field, walker.At, beside) is { Count: > 0 } instead)
+				{
+					walker.Path = instead;
+					walker.Goal = beside;
+					walker.Next = 0;
+					continue;
+				}
+
+				// A friend's square on the way is walked through, as the rules allow in a fight:
+				// only the figure moves, and the rules catch up on the next free square. Nobody
+				// ever ends a step sharing a square.
+				walker.Passing = friend is not null && !last;
 
 				// The step is taken in the rules first. If somebody is in the way — another of the
 				// party, still walking — wait a moment for them to clear it, then go round them;
 				// and if there is no way round, stop here.
-				if (!_campaign.Walk(who, next))
+				if (!walker.Passing && !_campaign.Walk(who, next))
 				{
 					walker.Waited += (float)delta;
 					if (walker.Waited < 0.6f)
@@ -383,24 +411,15 @@ public partial class Main
 					}
 
 					walker.Waited = 0;
-					if (++walker.Detours <= 4 && field.SquareOf(who) is { } here && Walkway(field, here, walker.Goal) is { Count: > 0 } around)
+					if (++walker.Detours <= 4 && Route(field, walker.At, walker.Goal) is { Count: > 0 } around)
 					{
 						walker.Path = around;
 						walker.Next = 0;
-						if (_campaign.Walk(who, around[0]))
-						{
-							next = around[0];
-						}
-						else
-						{
-							continue;
-						}
-					}
-					else
-					{
-						Finish(who, walker, arrived: false);
 						continue;
 					}
+
+					Finish(who, walker, arrived: false);
+					continue;
 				}
 
 				walker.Waited = 0;
@@ -428,13 +447,15 @@ public partial class Main
 			walker.Stepping = false;
 			var landed = walker.Path[walker.Next];
 			walker.Next++;
+			walker.At = landed;
 
 			if (ReferenceEquals(who, Subject()) || _walkers.Count == 1)
 			{
 				Follow(figure);
 			}
 
-			if (Landed(who, landed))
+			// Passing through a friend is not arriving anywhere: the rules have not moved them.
+			if (!walker.Passing && Landed(who, landed))
 			{
 				// Something happened — a fight, a page — and every walk stops where it is.
 				return;
@@ -445,6 +466,7 @@ public partial class Main
 	private void Finish(Creature who, Walker walker, bool arrived)
 	{
 		_walkers.Remove(who);
+		Settle(who);
 		Idle(who);
 		if (arrived)
 		{
@@ -467,9 +489,9 @@ public partial class Main
 	/// way and stopped there — next to a door it could not reach. This one goes round them.
 	/// Diagonals do not cut a wall's corner.
 	/// </remarks>
-	private static List<GridSquare> Walkway(Battlefield field, GridSquare from, GridSquare to)
+	private static List<GridSquare> Walkway(Battlefield field, GridSquare from, GridSquare to, Func<Creature, bool> through = null)
 	{
-		if (from == to || !field.IsPassable(to))
+		if (from == to || !field.IsPassable(to) || (through is not null && !field.IsFree(to)))
 		{
 			return null;
 		}
@@ -496,7 +518,8 @@ public partial class Main
 			foreach (var (dx, dy) in Steps)
 			{
 				var next = new GridSquare(at.X + dx, at.Y + dy);
-				if (came.ContainsKey(next) || !field.IsPassable(next) || (!field.IsFree(next) && next != to))
+				if (came.ContainsKey(next) || !field.IsPassable(next)
+					|| (!field.IsFree(next) && next != to && !(through is not null && field.OccupantOf(next) is { } held && through(held))))
 				{
 					continue;
 				}
@@ -517,17 +540,31 @@ public partial class Main
 
 	private static readonly (int, int)[] Steps = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)];
 
+	/// <summary>
+	/// The way somewhere, going round friends where it can and through them where it cannot —
+	/// one standing on the rope bridge used to cut the level in two. The last square is always
+	/// one nobody is standing on.
+	/// </summary>
+	private List<GridSquare> Route(Battlefield field, GridSquare from, GridSquare to) =>
+		Walkway(field, from, to) ?? Walkway(field, from, to, one => _campaign.Party.Contains(one));
+
+	/// <summary>Puts a figure back on the square the rules have it on, wherever its walk left it.</summary>
+	private void Settle(Creature who)
+	{
+		if (_figures.TryGetValue(who, out var figure) && _battle.Battlefield?.SquareOf(who) is { } square)
+		{
+			figure.Position = new Vector3(square.X + 0.5f, 0, square.Y + 0.5f);
+		}
+	}
+
 	/// <summary>Everyone stops on the square the rules have them on.</summary>
 	private void StopWalkers()
 	{
-		foreach (var (who, walker) in _walkers.ToList())
+		foreach (var who in _walkers.Keys.ToList())
 		{
-			if (_figures.TryGetValue(who, out var figure) && walker.Stepping)
-			{
-				// The rules moved them at the start of the step; the figure catches up.
-				figure.Position = walker.To;
-			}
-
+			// Mid-step the rules are already on the next square; mid-pass they are still a
+			// square or two back. Either way the figure goes where the rules have it.
+			Settle(who);
 			Idle(who);
 		}
 
@@ -649,7 +686,7 @@ public partial class Main
 			.SelectMany(Neighbours)
 			.Where(field.IsFree)
 			.Distinct()
-			.Select(square => (square, path: from is { } f ? Walkway(field, f, square) : null))
+			.Select(square => (square, path: from is { } f ? Route(field, f, square) : null))
 			.Where(one => one.path is { Count: > 0 })
 			.OrderBy(one => one.path!.Count)
 			.Select(one => (GridSquare?)one.square)
@@ -683,7 +720,8 @@ public partial class Main
 			LogText($"{line}\n");
 		}
 
-		if (result.Lines.Count > 0)
+		// A merchant's greeting is a speech, said in the trade window; it does not fit the prompt.
+		if (result.Lines.Count > 0 && !(result.Success && feature.Kind == FeatureKind.Merchant))
 		{
 			Prompt(result.Lines[0]);
 		}
@@ -705,6 +743,13 @@ public partial class Main
 		RebuildFrames();
 		RefreshFigures();
 		RefreshControls();
+
+		// A merchant greeted: the trade window, the greeting already in the log.
+		if (result.Success && feature.Kind == FeatureKind.Merchant && _campaign.GetMerchant(feature.Id) is { } merchant)
+		{
+			ShowTrade(merchant);
+			return;
+		}
 
 		// A container opened: its page the first time, if it has one, and then what is in it.
 		if (result.Success && feature.Kind == FeatureKind.Container && _campaign.GetContainer(feature.Id) is { } box)

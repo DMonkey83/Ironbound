@@ -1,0 +1,8 @@
+// The draught every adventurer hopes somebody else remembered to buy. Brewed at the lowest caster
+// level that can make it, so it heals 1d8+1; its price comes from the spell and that level.
+{
+  "kind": "item", "id": "potion-of-cure-light-wounds", "name": "potion of cure light wounds",
+  "type": "consumable",
+  "description": "A stoppered vial of something faintly warm and the colour of weak tea. It closes a cut and puts some colour back in the cheeks.",
+  "use": { "kind": "potion", "spell": "cure-light-wounds", "casterLevel": 1 }
+}

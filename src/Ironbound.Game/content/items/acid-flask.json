@@ -1,0 +1,8 @@
+// A splash weapon: thrown as a ranged touch attack, 1d6 acid on a direct hit and 1 acid to everybody
+// else within five feet of where it breaks.
+{
+  "kind": "item", "id": "acid-flask", "name": "flask of acid",
+  "type": "consumable", "cost": 10, "weight": 1,
+  "description": "A thick clay flask sealed with wax, its outside pitted where a drop once ran down it.",
+  "use": { "kind": "splash", "range": 10, "damage": "1d6", "damageType": "acid", "splash": 1 }
+}

@@ -2,10 +2,12 @@ using Ironbound.Rules.Classes;
 using Ironbound.Rules.Combat;
 using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Creatures;
+using Ironbound.Rules.Defense;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Effects;
 using Ironbound.Rules.Encounters;
 using Ironbound.Rules.Encounters.Actions;
+using Ironbound.Rules.Items;
 using Ironbound.Rules.Magic;
 using Ironbound.Rules.Maps;
 
@@ -105,6 +107,13 @@ public sealed class HeuristicActionSource : IActionSource
                 return rebuke;
             }
 
+            // A healing draught does more than a bandage: it stops the bleeding and puts them
+            // back on their feet. It takes the whole round, so only when the whole round is free.
+            if (Administer(turn, actor, patient) is { } administer)
+            {
+                return administer;
+            }
+
             return new StabiliseAction(patient);
         }
 
@@ -115,6 +124,20 @@ public sealed class HeuristicActionSource : IActionSource
                 && power.Effect.Does.OfType<Restore>().Any()) is { } vigour)
         {
             return vigour;
+        }
+
+        // Badly hurt with a healing potion on the belt and nobody near who could heal instead:
+        // drink it, or step clear first so that drinking it draws no swing.
+        if (playsWell && IsBadlyHurt(actor) && turn.Budget.HasStandard && Drink(turn, actor) is { } drink)
+        {
+            return drink;
+        }
+
+        // Alchemist's fire that could finish it off when it burns again is worth the round spent
+        // rolling it out — but not with somebody standing over it to take the free hits.
+        if (playsWell && Douse(turn, actor) is { } douse)
+        {
+            return douse;
         }
 
         if (playsWell && IsBadlyHurt(actor) && turn.Budget.HasStandard)
@@ -143,8 +166,33 @@ public sealed class HeuristicActionSource : IActionSource
             return encourage;
         }
 
-        // Having just thrown a spell, a caster does not then stroll into the front line.
-        if (turn.Taken.Any(taken => taken is CastSpellResult))
+        // Something off the belt, when it beats what the creature would otherwise do: a bag of
+        // glue at the worst of them, a thunderstone among their casters, a flask at whoever it
+        // would hurt most. Each is a ranged attack, so never with somebody close enough to punish it.
+        if (playsWell
+            && turn.Budget.HasStandard
+            && turn.Encounter.Battlefield is { } clear
+            && !IsThreatened(turn, actor, clear))
+        {
+            if (Tanglefoot(turn, actor, clear, enemies) is { } glue)
+            {
+                return glue;
+            }
+
+            if (Thunderstone(turn, actor, clear, enemies) is { } bang)
+            {
+                return bang;
+            }
+
+            if (Flask(turn, actor, target, clear, enemies) is { } flask)
+            {
+                return flask;
+            }
+        }
+
+        // Having just thrown a spell, a caster does not then stroll into the front line — nor
+        // does anybody who has just drunk a potion or thrown a flask from where they stand.
+        if (turn.Taken.Any(taken => taken is CastSpellResult or PotionResult or ThrowResult))
         {
             return null;
         }
@@ -158,9 +206,13 @@ public sealed class HeuristicActionSource : IActionSource
             return null;
         }
 
+        // Glued to the floor by a tanglefoot bag, nothing that moves is on the table at all.
+        var anchored = actor.Has(Condition.Anchored);
+
         // A polearm is no use against somebody standing on your toes. A free step back puts them
         // at the end of it again, which beats both swinging at nothing and walking off.
         if (playsWell
+            && !anchored
             && turn.Encounter.Battlefield is { } close
             && actor.MeleeAttack is { IsReach: true }
             && !close.IsWithinReach(actor, target)
@@ -187,6 +239,14 @@ public sealed class HeuristicActionSource : IActionSource
 
         if (turn.Encounter.Battlefield is { } field && !field.IsWithinReach(actor, target))
         {
+            // Stuck fast with nobody in reach and nothing to shoot: the round goes on tearing
+            // free, which is the only way back into the fight. A walk would only be refused.
+            if (anchored)
+            {
+                var free = new BreakFreeAction();
+                return turn.CanTake(free) ? free : null;
+            }
+
             var walk = turn.Budget.CanAfford(ActionCost.Move)
                 ? MoveAction.Towards(field, actor, target)
                 : null;
@@ -220,6 +280,7 @@ public sealed class HeuristicActionSource : IActionSource
         // Already in reach, but standing in the wrong place. A five-foot step costs nothing and
         // arriving on the far side is worth two on this swing and every one after it.
         if (playsWell
+            && !anchored
             && turn.Encounter.Battlefield is { } ground
             && !turn.Combatant.HasMoved
             && !turn.Combatant.HasTakenFiveFootStep
@@ -337,12 +398,17 @@ public sealed class HeuristicActionSource : IActionSource
         return spare && !enemies.Any(enemy => CanReachThisTurn(field, actor, enemy));
     }
 
-    /// <summary>In reach now, or after one move.</summary>
+    /// <summary>In reach now, or after one move — which, stuck fast, there is none of.</summary>
     private static bool CanReachThisTurn(Battlefield field, Creature actor, Creature enemy)
     {
         if (field.IsWithinReach(actor, enemy))
         {
             return true;
+        }
+
+        if (actor.Has(Condition.Anchored))
+        {
+            return false;
         }
 
         var path = field.FindApproach(actor, enemy, actor.CurrentSpeed);
@@ -451,8 +517,11 @@ public sealed class HeuristicActionSource : IActionSource
 
     /// <summary>Whether any foe that could take an attack of opportunity reaches the actor's square.</summary>
     private static bool IsThreatened(Turn turn, Creature actor, Battlefield field) =>
-        field.SquareOf(actor) is { } square
-        && turn.Encounter.Order.Any(combatant =>
+        field.SquareOf(actor) is { } square && IsThreatenedAt(turn, actor, field, square);
+
+    /// <summary>Whether any such foe would reach the actor standing on this square.</summary>
+    private static bool IsThreatenedAt(Turn turn, Creature actor, Battlefield field, GridSquare square) =>
+        turn.Encounter.Order.Any(combatant =>
             combatant.Creature.IsEnemyOf(actor)
             && combatant.CanTakeOpportunity
             && field.Threatens(combatant.Creature, square));
@@ -894,4 +963,394 @@ public sealed class HeuristicActionSource : IActionSource
 
     private static bool IsBadlyHurt(Creature creature) =>
         creature.HitPoints.Current * 100 <= creature.HitPoints.Maximum * GuardBelowPercent;
+
+    // ---- what hangs on the belt ----
+
+    /// <summary>A friend within this many feet who can still heal is left to do it, and the potion kept.</summary>
+    public const int HealerRangeFeet = 30;
+
+    /// <summary>The farthest a flask is thrown from: three increments, past which the odds fall away.</summary>
+    public const int FlaskRangeFeet = 30;
+
+    /// <summary>The farthest a tanglefoot bag is thrown from: two increments.</summary>
+    public const int TanglefootRangeFeet = 20;
+
+    /// <summary>What lying down is worth against a ranged attack, flask or arrow alike.</summary>
+    private const int ProneAgainstRanged = 4;
+
+    /// <summary>The sides that have thrown their one tanglefoot bag this fight.</summary>
+    private readonly HashSet<Side> _tangled = [];
+
+    /// <summary>The first potion on a creature's belt that puts hit points back, if it has one.</summary>
+    private static ItemDefinition? HealingPotion(Creature creature) =>
+        Consumables.OnBelt(creature)
+            .Select(stack => stack.Item)
+            .FirstOrDefault(item => item.Consumable is { Kind: ConsumableKind.Potion, Heals: true });
+
+    /// <summary>The first thing of this kind on a creature's belt, if it has one.</summary>
+    private static ItemDefinition? OnBelt(Creature creature, ConsumableKind kind) =>
+        Consumables.OnBelt(creature)
+            .Select(stack => stack.Item)
+            .FirstOrDefault(item => item.Consumable?.Kind == kind);
+
+    /// <summary>
+    /// A healing potion poured into a friend bleeding out next to the actor, from the actor's own
+    /// belt. The whole round, so only when the whole round is still to spend.
+    /// </summary>
+    private static GameAction? Administer(Turn turn, Creature actor, Creature patient)
+    {
+        if (HealingPotion(actor) is not { } potion)
+        {
+            return null;
+        }
+
+        var action = new AdministerPotionAction(potion, patient);
+        return turn.CanTake(action) ? action : null;
+    }
+
+    /// <summary>
+    /// A healing potion for somebody badly hurt, when no friend nearby could heal them instead:
+    /// drunk where they stand if nobody can punish it, or — if somebody can, and a free step
+    /// reaches ground nobody threatens — the step first, and the drink once there.
+    /// </summary>
+    /// <remarks>
+    /// Null leaves the existing answer standing: covering up. Drinking with somebody's blade at
+    /// your throat hands them a free swing for the five points the potion gives back.
+    /// </remarks>
+    private static GameAction? Drink(Turn turn, Creature actor)
+    {
+        if (HealingPotion(actor) is not { } potion || HealerNearby(turn, actor))
+        {
+            return null;
+        }
+
+        var drink = new DrinkPotionAction(potion);
+        if (!turn.CanTake(drink))
+        {
+            return null;
+        }
+
+        return turn.Encounter.Battlefield is not { } field || !IsThreatened(turn, actor, field)
+            ? drink
+            : StepClear(turn, actor, field);
+    }
+
+    /// <summary>
+    /// Whether a conscious friend within <see cref="HealerRangeFeet"/> still has a cure to cast or a
+    /// channel to spend.
+    /// </summary>
+    private static bool HealerNearby(Turn turn, Creature actor)
+    {
+        var field = turn.Encounter.Battlefield;
+
+        return turn.Encounter.Order.Any(combatant =>
+            combatant.Creature is var ally
+            && ally.IsAllyOf(actor)
+            && ally.IsConscious
+            && (field is null || field.DistanceInFeet(actor, ally) is <= HealerRangeFeet)
+            && CanStillHeal(ally));
+    }
+
+    /// <summary>A cure prepared or spontaneous with a slot to cast it from, or a healing channel left.</summary>
+    internal static bool CanStillHeal(Creature creature) =>
+        creature.Powers.Any(power =>
+            power.Id == ClassPowers.ChannelPool && Heals(power.Effect) && creature.UsesLeft(power) > 0)
+        || creature.Spells.Prepared.Concat(creature.Spells.Spontaneous)
+            .Any(spell => Heals(spell) && creature.Spells.CanCast(spell));
+
+    /// <summary>Whether a creature could heal anybody at all, spent or not: what makes it a healer.</summary>
+    internal static bool IsHealer(Creature creature) =>
+        creature.Powers.Any(power => power.Id == ClassPowers.ChannelPool && Heals(power.Effect))
+        || creature.Spells.Prepared.Concat(creature.Spells.Spontaneous).Any(Heals);
+
+    /// <summary>Puts hit points back into the living: a cure, a positive channel.</summary>
+    private static bool Heals(Spell spell) =>
+        spell.Does.OfType<Restore>().Any(mend => mend.Only is null or { Kind: SpellFilterKind.Living });
+
+    /// <summary>A free five-foot step to a square no enemy threatens, if there is one.</summary>
+    private static FiveFootStepAction? StepClear(Turn turn, Creature actor, Battlefield field)
+    {
+        if (turn.Combatant.HasMoved || turn.Combatant.HasTakenFiveFootStep || field.SquareOf(actor) is not { } from)
+        {
+            return null;
+        }
+
+        for (var dx = -1; dx <= 1; dx++)
+        {
+            for (var dy = -1; dy <= 1; dy++)
+            {
+                var candidate = new GridSquare(from.X + dx, from.Y + dy);
+                if ((dx == 0 && dy == 0)
+                    || !field.IsFree(candidate)
+                    || field.IsDifficult(candidate)
+                    || IsThreatenedAt(turn, actor, field, candidate))
+                {
+                    continue;
+                }
+
+                var step = FiveFootStepAction.To(from, candidate);
+                if (turn.CanTake(step))
+                {
+                    return step;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Rolling out alchemist's fire, when its next burn could put the actor on the floor and
+    /// nobody is close enough to take advantage of the round spent doing it.
+    /// </summary>
+    private static GameAction? Douse(Turn turn, Creature actor)
+    {
+        if (!PutOutFlamesAction.IsBurning(actor) || actor.Defenses.IsImmuneTo(DamageType.Fire))
+        {
+            return null;
+        }
+
+        var worst = actor.Effects.Active
+            .OfType<DamageOverTimeEffect>()
+            .Where(effect => effect.DamageType == DamageType.Fire)
+            .Sum(effect => effect.Amount.Maximum)
+            - actor.Defenses.ResistanceTo(DamageType.Fire);
+
+        if (worst <= 0
+            || actor.HitPoints.Current > worst
+            || (turn.Encounter.Battlefield is { } field && IsThreatened(turn, actor, field)))
+        {
+            return null;
+        }
+
+        var douse = new PutOutFlamesAction();
+        return turn.CanTake(douse) ? douse : null;
+    }
+
+    /// <summary>
+    /// A tanglefoot bag at the strongest enemy within <see cref="TanglefootRangeFeet"/> that is not
+    /// already caught and not too big to be held: once a fight for each side, since the second
+    /// bag is worth far less than the first.
+    /// </summary>
+    private GameAction? Tanglefoot(Turn turn, Creature actor, Battlefield field, IReadOnlyList<Creature> enemies)
+    {
+        var side = _battle.SideOf(actor);
+        if (_tangled.Contains(side) || OnBelt(actor, ConsumableKind.Tanglefoot) is not { } bag)
+        {
+            return null;
+        }
+
+        var mark = enemies
+            .Where(enemy => enemy.Size < CreatureSize.Huge
+                && !enemy.Has(Condition.Entangled)
+                && field.DistanceInFeet(actor, enemy) is <= TanglefootRangeFeet
+                && field.HasLineOfSight(actor, enemy))
+            .OrderByDescending(enemy => enemy.Challenge)
+            .FirstOrDefault();
+
+        if (mark is null)
+        {
+            return null;
+        }
+
+        var action = ThrowItemAction.At(bag, mark);
+        if (!turn.CanTake(action))
+        {
+            return null;
+        }
+
+        _tangled.Add(side);
+        return action;
+    }
+
+    /// <summary>
+    /// A thunderstone on an enemy spellcaster who can still cast and can still hear, when the bang
+    /// would deafen none of the actor's own side — the actor included.
+    /// </summary>
+    private static GameAction? Thunderstone(Turn turn, Creature actor, Battlefield field, IReadOnlyList<Creature> enemies)
+    {
+        if (OnBelt(actor, ConsumableKind.Thunderstone) is not { Consumable: { } use } stone)
+        {
+            return null;
+        }
+
+        foreach (var caster in enemies.Where(enemy => !enemy.Has(Condition.Deafened)
+            && enemy.Spells.Prepared.Concat(enemy.Spells.Spontaneous).Any(enemy.Spells.CanCast)))
+        {
+            if (field.SquareOf(caster) is not { } centre
+                || field.CreaturesWithin(centre, use.RadiusFeet)
+                    .Any(heard => heard.IsAlive && (ReferenceEquals(heard, actor) || heard.IsAllyOf(actor))))
+            {
+                continue;
+            }
+
+            var action = ThrowItemAction.At(stone, centre);
+            if (turn.CanTake(action))
+            {
+                return action;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The flask, and the enemy within <see cref="FlaskRangeFeet"/> to throw it at, that would do
+    /// the most harm — when that beats what the actor's own weapon would do this turn, and the
+    /// splash would hurt nobody it must not: the thrower, or a friend with a hit point or less.
+    /// </summary>
+    private static GameAction? Flask(
+        Turn turn, Creature actor, Creature target, Battlefield field, IReadOnlyList<Creature> enemies)
+    {
+        var flasks = Consumables.OnBelt(actor)
+            .Select(stack => stack.Item)
+            .Where(item => item.Consumable?.Kind == ConsumableKind.Splash)
+            .ToList();
+
+        if (flasks.Count == 0)
+        {
+            return null;
+        }
+
+        GameAction? best = null;
+        var most = 0.0;
+
+        foreach (var enemy in enemies)
+        {
+            if (field.SquareOf(enemy) is not { } at
+                || field.DistanceInFeet(actor, enemy) is not <= FlaskRangeFeet
+                || !field.HasLineOfSight(actor, enemy)
+                || !SafeToSplash(actor, enemy, at, field))
+            {
+                continue;
+            }
+
+            foreach (var flask in flasks)
+            {
+                var worth = FlaskValue(actor, flask, enemy, field);
+                if (worth <= most)
+                {
+                    continue;
+                }
+
+                var action = ThrowItemAction.At(flask, enemy);
+                if (turn.CanTake(action))
+                {
+                    (best, most) = (action, worth);
+                }
+            }
+        }
+
+        return best is not null && most > WeaponValue(turn, actor, target, field) ? best : null;
+    }
+
+    /// <summary>Nobody within a splash of the target who must not be splashed: the thrower, or a friend at a hit point or less.</summary>
+    private static bool SafeToSplash(Creature actor, Creature target, GridSquare at, Battlefield field) =>
+        !field.CreaturesWithin(at, ThrowItemAction.SplashFeet).Any(other =>
+            !ReferenceEquals(other, target)
+            && other.IsAlive
+            && (ReferenceEquals(other, actor) || (other.IsAllyOf(actor) && other.HitPoints.Current <= 1)));
+
+    /// <summary>
+    /// What a flask is worth thrown at somebody: the chance of a touch hit, times its dice and
+    /// any burn after, through the target's resistances; and a point for every other enemy the
+    /// splash would catch.
+    /// </summary>
+    internal static double FlaskValue(Creature thrower, ItemDefinition flask, Creature target, Battlefield field)
+    {
+        ArgumentNullException.ThrowIfNull(thrower);
+        ArgumentNullException.ThrowIfNull(flask);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(field);
+
+        if (flask.Consumable is not { } use || field.SquareOf(target) is not { } at)
+        {
+            return 0;
+        }
+
+        var armour = target.ArmorClass.Touch
+            + Strike.CoverFor(thrower, target, field)
+            + (target.IsProne ? ProneAgainstRanged : 0);
+        var chance = Chance(ThrowItemAction.AttackBonus(thrower, flask, target, field).Total, armour);
+        var direct = Energy(target, Average(use.Damage), use.DamageType)
+            + (target.Defenses.IsImmuneTo(use.DamageType) ? 0 : Energy(target, Average(use.Burn), use.DamageType));
+
+        var splashed = field.CreaturesWithin(at, ThrowItemAction.SplashFeet)
+            .Where(other => !ReferenceEquals(other, target) && other.IsAlive && thrower.IsEnemyOf(other))
+            .Sum(other => Energy(other, use.Splash, use.DamageType));
+
+        return (chance * direct) + splashed;
+    }
+
+    /// <summary>
+    /// What the actor's own weapon is worth this turn against its target: every swing a full
+    /// attack would make, if the round is still free for one, each at its chance to hit times
+    /// its damage after damage reduction — sneak attack counted when it would land — and halved
+    /// when it has to spend its move getting there. A free five-foot step that closes the gap is
+    /// no walk; stuck fast out of reach, there is no swing at all.
+    /// </summary>
+    internal static double WeaponValue(Turn turn, Creature actor, Creature target, Battlefield field)
+    {
+        ArgumentNullException.ThrowIfNull(turn);
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(field);
+
+        if (InClose(actor) is not { } weapon || !actor.CanAttackWith(weapon))
+        {
+            return 0;
+        }
+
+        var reduction = target.Defenses.ReductionAgainst(
+            weapon.DamageTypes.Aggregate(weapon.Qualities, (qualities, type) => qualities | DamageBypasses.Of(type)));
+
+        var sneak = SneakAttack.Dice(actor) > 0
+            && !weapon.IsRanged
+            && (Strike.FlankingPartner(actor, target, field) is not null || turn.Encounter.IsFlatFootedTo(target, actor))
+                ? SneakAttack.Dice(actor) * 3.5
+                : 0;
+
+        var hit = Math.Max(0, weapon.Damage.Average + Strike.DamageBonus(actor, weapon).Total + sneak - reduction);
+        var swings = turn.Budget.CanAfford(ActionCost.FullRound) ? actor.AttacksPerFullAttack : 1;
+        var worth = 0.0;
+
+        for (var swing = 0; swing < swings; swing++)
+        {
+            var bonus = Strike.AttackBonus(actor, weapon, target, field, -Iteratives.Step * swing).Total;
+            worth += Chance(bonus, target.ArmorClass.Total) * hit;
+        }
+
+        if (weapon.IsRanged || field.IsWithinReach(actor, target))
+        {
+            return worth;
+        }
+
+        if (actor.Has(Condition.Anchored))
+        {
+            return 0;
+        }
+
+        var stepIn = !turn.Combatant.HasMoved
+            && !turn.Combatant.HasTakenFiveFootStep
+            && Step(field, actor, target, mustFlank: false) is not null;
+
+        return stepIn ? worth : worth / 2;
+    }
+
+    /// <summary>The chance a d20 plus this bonus meets this armour class: never below 1 in 20, never above 19.</summary>
+    private static double Chance(int bonus, int armour) => Math.Clamp(21 + bonus - armour, 1, 19) / 20.0;
+
+    private static double Average(string? dice) => dice is null ? 0 : DiceExpression.Parse(dice).Average;
+
+    /// <summary>Energy damage as a creature would take it: nothing if immune, less its resistance, half again if vulnerable.</summary>
+    private static double Energy(Creature creature, double amount, DamageType type)
+    {
+        if (creature.Defenses.IsImmuneTo(type))
+        {
+            return 0;
+        }
+
+        var taken = Math.Max(0, amount - creature.Defenses.ResistanceTo(type));
+        return creature.Defenses.IsVulnerableTo(type) ? taken * 1.5 : taken;
+    }
 }

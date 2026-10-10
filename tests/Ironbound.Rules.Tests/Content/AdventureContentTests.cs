@@ -155,9 +155,11 @@ public class CavesOfShadowContentTests
     [Fact]
     public void AndTheStoreroomBehindItHoldsTheMerchantsSword()
     {
+        // And what the level's storeroom adds: the draught that survived in Tobin's cart, and
+        // the crates' two flasks of alchemist's fire.
         Assert.Equal(
-            ["greatsword-plus-one", "light-crossbow"],
-            Library.GetEncounter("orc-lair")!.Loot.Select(found => found.ItemId));
+            [("greatsword-plus-one", 1), ("light-crossbow", 1), ("potion-of-cure-light-wounds", 1), ("alchemists-fire", 2)],
+            Library.GetEncounter("orc-lair")!.Loot.Select(found => (found.ItemId, found.Count)));
     }
 
     [Fact]

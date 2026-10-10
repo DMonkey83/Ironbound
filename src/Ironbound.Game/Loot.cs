@@ -92,7 +92,13 @@ public partial class Main
 			var middle = Middle(container.Squares);
 			holder.Position = new Vector3(middle.X, 0, middle.Y);
 
-			// The fallen are already on the board as themselves; they only need the glint.
+			// The fallen are on the board as themselves, laid out again if the board was rebuilt;
+			// they only need the glint.
+			if (container.Look == ContainerLook.Body)
+			{
+				LayOut(container);
+			}
+
 			var height = 0.55f;
 			if (container.Look != ContainerLook.Body)
 			{
@@ -335,7 +341,7 @@ public partial class Main
 			.Concat(container.Squares.SelectMany(Neighbours))
 			.Where(field.IsFree)
 			.Distinct()
-			.Select(square => (square, path: from is { } f ? Walkway(field, f, square) : null))
+			.Select(square => (square, path: from is { } f ? Route(field, f, square) : null))
 			.Where(one => one.path is { Count: > 0 })
 			.OrderBy(one => one.path!.Count)
 			.Select(one => (GridSquare?)one.square)
@@ -424,8 +430,9 @@ public partial class Main
 	}
 
 	/// <summary>
-	/// What a sensible player takes when nobody is there to choose: the coin, the valuables, and
-	/// anything somebody would be better off with. Four suits of orc leather stay on the orcs.
+	/// What a sensible player takes when nobody is there to choose: the coin, the valuables, the
+	/// potions and flasks, and anything somebody would be better off with. Four suits of orc
+	/// leather stay on the orcs.
 	/// </summary>
 	private void TakeWorthwhile(Container container)
 	{
@@ -436,7 +443,7 @@ public partial class Main
 
 		foreach (var entry in container.Contents.ToList())
 		{
-			var wanted = entry.Item.Kind == ItemKind.Valuable
+			var wanted = entry.Item.Kind is ItemKind.Valuable or ItemKind.Consumable
 				|| _campaign.Party.Any(member => member.IsConscious
 					&& entry.Item.Kind != ItemKind.Natural
 					&& Outfitter.Compare(_campaign, member, entry.Item).Verdict == GearVerdict.Upgrade);

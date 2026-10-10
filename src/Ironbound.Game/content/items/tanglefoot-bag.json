@@ -1,0 +1,9 @@
+// Thrown as a ranged touch attack. A hit entangles for 2d4 rounds; a failed DC 15 Reflex save also
+// glues the target to the floor for as long, until it tears free (DC 17). No use against anything
+// Huge or bigger.
+{
+  "kind": "item", "id": "tanglefoot-bag", "name": "tanglefoot bag",
+  "type": "consumable", "cost": 50, "weight": 4,
+  "description": "A heavy leather pouch packed with a grey paste that turns to stubborn, stringy glue the moment the bag splits.",
+  "use": { "kind": "tanglefoot", "range": 10, "save": 15, "rounds": "2d4", "escape": 17 }
+}

@@ -1,0 +1,8 @@
+// Mage armor for whoever drinks it: +4 armour for an hour at caster level 1. An armour bonus, so it
+// does nothing for somebody already in better armour, and nothing against a touch attack.
+{
+  "kind": "item", "id": "potion-of-mage-armor", "name": "potion of mage armor",
+  "type": "consumable",
+  "description": "A thin, silvery liquid that tingles on the tongue and leaves the skin feeling as though it were wrapped in something unseen and stiff.",
+  "use": { "kind": "potion", "spell": "mage-armor", "casterLevel": 1 }
+}

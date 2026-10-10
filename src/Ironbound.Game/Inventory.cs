@@ -35,6 +35,7 @@ public partial class Main
 		All,
 		Weapons,
 		Armour,
+		Potions,
 		Valuables,
 		Other,
 	}
@@ -411,10 +412,17 @@ public partial class Main
 			_dollBottom.AddChild(SlotTile(creature, slot, label, slot == "Ring" ? rings++ : 0));
 		}
 
+		// Weapons one by one; potions and flasks as stacks, "×3", the way Wrath's quick slots
+		// show them. Three potions are three entries in the rules but one thing to look at.
 		var belt = creature.Equipment.Worn.Where(worn => worn.Slot == EquipmentSlot.Carried).ToList();
-		foreach (var worn in belt)
+		foreach (var worn in belt.Where(worn => !worn.Item.IsConsumable))
 		{
 			_dollBelt.AddChild(WornTile(creature, worn, string.Empty));
+		}
+
+		foreach (var stack in Consumables.OnBelt(creature))
+		{
+			_dollBelt.AddChild(WornTile(creature, belt.First(worn => worn.Item.Id == stack.Item.Id), string.Empty, stack.Count));
 		}
 
 		if (belt.Count == 0)
@@ -469,12 +477,13 @@ public partial class Main
 		return empty;
 	}
 
-	private Control WornTile(Creature creature, EquippedItem worn, string label)
+	private Control WornTile(Creature creature, EquippedItem worn, string label, int count = 1)
 	{
 		var lines = _content.DescribeItem(worn.Item, creature);
-		var tile = Tile(worn.Item, 1, label, verdict: 0, warn: Unfit(lines), picked: _picked?.Worn == worn, broken: worn.IsBroken);
-		tile.TooltipText = string.Join("\n", lines.Prepend(worn.ToString()));
-		var key = $"worn:{creature.Equipment.Worn.ToList().IndexOf(worn)}";
+		var picked = _picked?.Worn is { } was && ReferenceEquals(was, worn);
+		var tile = Tile(worn.Item, count, label, verdict: 0, warn: Unfit(lines), picked: picked, broken: worn.IsBroken);
+		tile.TooltipText = string.Join("\n", lines.Prepend(count > 1 ? $"{worn.Item.Name} ×{count}" : worn.ToString()));
+		var key = $"worn:{IndexOf(creature, worn)}";
 
 		tile.GuiInput += input =>
 		{
@@ -555,28 +564,45 @@ public partial class Main
 			.OrderBy(line => Order(line.Item))
 			.ThenBy(line => line.Item.Name, StringComparer.Ordinal)];
 
+	/// <summary>Where something is in a creature's list, by reference: three potions on a belt are equal records.</summary>
+	private static int IndexOf(Creature creature, EquippedItem worn)
+	{
+		var all = creature.Equipment.Worn;
+		for (var i = 0; i < all.Count; i++)
+		{
+			if (ReferenceEquals(all[i], worn))
+			{
+				return i;
+			}
+		}
+
+		return -1;
+	}
+
 	private static int Order(ItemDefinition item) => item.Kind switch
 	{
 		ItemKind.Weapon => 0,
 		ItemKind.Armour or ItemKind.Shield => 1,
-		ItemKind.Wondrous => 2,
-		ItemKind.Valuable => 3,
-		_ => 4,
+		ItemKind.Consumable => 2,
+		ItemKind.Wondrous => 3,
+		ItemKind.Valuable => 4,
+		_ => 5,
 	};
 
 	private static bool Passes(ItemDefinition item, BagFilter filter) => filter switch
 	{
 		BagFilter.Weapons => item.Kind == ItemKind.Weapon,
 		BagFilter.Armour => item.Kind is ItemKind.Armour or ItemKind.Shield,
+		BagFilter.Potions => item.Kind == ItemKind.Consumable,
 		BagFilter.Valuables => item.Kind == ItemKind.Valuable,
-		BagFilter.Other => item.Kind is not (ItemKind.Weapon or ItemKind.Armour or ItemKind.Shield or ItemKind.Valuable),
+		BagFilter.Other => item.Kind is not (ItemKind.Weapon or ItemKind.Armour or ItemKind.Shield or ItemKind.Valuable or ItemKind.Consumable),
 		_ => true,
 	};
 
 	/// <summary>Up, down or level against what the wearer has on now: Wrath's green and red arrows.</summary>
 	private int Verdict(Creature creature, ItemDefinition item, out GearComparison compared)
 	{
-		compared = item.Kind is ItemKind.Valuable or ItemKind.Natural ? null : Outfitter.Compare(_campaign, creature, item);
+		compared = item.Kind is ItemKind.Valuable or ItemKind.Natural or ItemKind.Consumable ? null : Outfitter.Compare(_campaign, creature, item);
 		return compared?.Verdict switch
 		{
 			GearVerdict.Upgrade => 1,
@@ -683,15 +709,26 @@ public partial class Main
 
 		if (line is not null)
 		{
-			if (item.Kind is not (ItemKind.Valuable or ItemKind.Natural))
+			if (item.Kind is not (ItemKind.Valuable or ItemKind.Natural or ItemKind.Consumable))
 			{
 				var give = Action($"Give to {creature.Name}", $"{creature.Name} puts it on, or takes it in hand.", () => PutOn(creature, line, null));
 				give.Disabled |= compared is { CanEquip: false };
 			}
 
-			if (item.Kind == ItemKind.Weapon)
+			// The belt is where things are to hand in a fight: a sword to draw, a potion to drink.
+			if (item.Kind is ItemKind.Weapon or ItemKind.Consumable)
 			{
-				Action("Hang on the belt", $"{creature.Name} carries it on the belt, to hand but not in hand.", () => Stow(creature, line));
+				Action("Hang on the belt", $"{creature.Name} carries it on the belt, to hand in a fight.", () => Stow(creature, line));
+			}
+
+			if (item.IsConsumable && line.Count > 1)
+			{
+				Action($"Hang all {line.Count}", $"All of them on {creature.Name}'s belt.", () => Did(creature, _campaign.Stow(creature, line, line.Count)));
+			}
+
+			if (item.Consumable is { IsPotion: true })
+			{
+				Action("Drink", $"{creature.Name} drinks it now, from the bag.", () => Did(creature, _campaign.Drink(creature, item)));
 			}
 
 			Action(line.Count > 1 ? "Drop one" : "Drop", "Leave it on the ground here. It can be picked up again.", () => DropOne(line));
@@ -699,7 +736,36 @@ public partial class Main
 		else
 		{
 			Action("Into the bag", $"{creature.Name} takes it off and puts it in the bag.", () => TakeOff(creature, worn));
+
+			var onBelt = item.IsConsumable ? Consumables.Count(creature, item) : 1;
+			if (onBelt > 1)
+			{
+				Action($"All {onBelt} into the bag", "Every one of them back in the party's bag.", () => AllIntoBag(creature, item));
+			}
+
+			if (item.Consumable is { IsPotion: true })
+			{
+				Action("Drink", $"{creature.Name} drinks one now.", () => Did(creature, _campaign.Drink(creature, item)));
+			}
 		}
+	}
+
+	/// <summary>Takes every one of something off a belt, one entry at a time, and says so once.</summary>
+	private void AllIntoBag(Creature creature, ItemDefinition item)
+	{
+		var moved = 0;
+		while (creature.Equipment.Worn.FirstOrDefault(worn => worn.Slot == EquipmentSlot.Carried && worn.Item.Id == item.Id) is { } one
+			&& _campaign.Unstow(creature, one))
+		{
+			moved++;
+		}
+
+		if (moved > 0)
+		{
+			LogText($"— {creature.Name} puts {moved} × {item.Name} back in the bag —\n");
+		}
+
+		Changed(creature);
 	}
 
 	private static string SlotWords(EquipmentSlot slot) => slot switch

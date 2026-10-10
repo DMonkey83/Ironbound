@@ -329,7 +329,7 @@ public class DomainTests
         var blessed = Casting.Resolve(healer, cure, SpellAim.At(patient), new SequenceRandom(4)).Targets.Single().Healed;
         var plain = Casting.Resolve(novice, cure, SpellAim.At(patient), new SequenceRandom(4)).Targets.Single().Healed;
 
-        Assert.Equal(9, plain);         // 1d8+5
+        Assert.Equal(9, plain);         // 1d8+5: a caster level a point, to five
         Assert.Equal(13, blessed);      // half as much again
         Assert.Contains(ClassFeatures.Describe(healer), line => line.Name == "Healer's Blessing");
     }

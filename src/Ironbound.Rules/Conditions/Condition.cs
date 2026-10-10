@@ -78,6 +78,16 @@ public enum Condition
     /// fatigue is this.
     /// </summary>
     Exhausted,
+
+    /// <summary>
+    /// Stuck fast where it stands — glued to the floor by a tanglefoot bag. No speed at all: no
+    /// walk, no five-foot step, no crawl. It can still swing at whatever is in reach.
+    /// </summary>
+    /// <remarks>
+    /// Never on its own: whatever sticks a creature fast has entangled it as well, and the
+    /// penalties are the entanglement's. Breaking free ends this and leaves that.
+    /// </remarks>
+    Anchored,
 }
 
 /// <summary>
@@ -280,6 +290,15 @@ public static class ConditionInfo
                 new ModifierGrant(ModifierTarget.Ability(Abilities.Ability.Dexterity), -6, BonusType.Untyped),
             ],
             SpeedPercent = 50,
+        };
+
+        table[Condition.Anchored] = new ConditionRules
+        {
+            // Nothing but the speed. The goo that holds it fast entangles it too, and the
+            // entanglement carries the penalties; MoveAction asks for this by name, because a
+            // crawl and a five-foot step are both five feet whatever the speed says.
+            Condition = Condition.Anchored,
+            SpeedPercent = 0,
         };
 
         return table;

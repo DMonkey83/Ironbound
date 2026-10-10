@@ -491,6 +491,8 @@ public sealed partial class ContentLibrary
                 _problems.Add(new ContentProblem(
                     $"item '{item.Id}'", "weapon", $"'{named}' is in the catalogue only and cannot be fought with."));
             }
+
+            ValidateConsumable(item);
         }
 
         foreach (var run in _campaigns.Values)
@@ -537,6 +539,133 @@ public sealed partial class ContentLibrary
                 _problems.Add(new ContentProblem(
                     $"encounter '{encounter.Id}'", "loot", $"no item called '{item.ItemId}'."));
             }
+        }
+    }
+
+    /// <summary>
+    /// A potion holds a spell it can hold, at a caster level that could brew it, and is priced
+    /// from them; something thrown has a range and dice that read; either hangs on the belt.
+    /// </summary>
+    private void ValidateConsumable(ItemDefinition item)
+    {
+        var source = $"item '{item.Id}'";
+        void Problem(string field, string message) => _problems.Add(new ContentProblem(source, field, message));
+
+        if (item.Consumable is not { } use)
+        {
+            if (item.Kind == ItemKind.Consumable)
+            {
+                Problem("use", "a consumable needs a 'use' saying what it does.");
+            }
+
+            return;
+        }
+
+        if (item.Kind != ItemKind.Consumable)
+        {
+            Problem("type", $"has a 'use', so it is a consumable, not {item.Kind.ToString().ToLowerInvariant()}.");
+        }
+
+        if (item.Slot != EquipmentSlot.Carried)
+        {
+            Problem("slot", "a consumable hangs on the belt: its slot is Carried.");
+        }
+
+        if (use.IsPotion)
+        {
+            ValidatePotion(use, item.BaseCost is not null, Problem);
+        }
+        else
+        {
+            if (use.RangeIncrement <= 0)
+            {
+                Problem("use.range", "must be above 0 for something thrown.");
+            }
+
+            if (use.Kind == ConsumableKind.Splash && use.Damage is null)
+            {
+                Problem("use.damage", "is required for a splash weapon.");
+            }
+
+            if (use.Kind == ConsumableKind.Tanglefoot && use.Rounds is null)
+            {
+                Problem("use.rounds", "is required for a tanglefoot bag.");
+            }
+
+            if (use.Kind is ConsumableKind.Tanglefoot or ConsumableKind.Thunderstone && use.SaveDc <= 0)
+            {
+                Problem("use.save", "needs a difficulty class above 0.");
+            }
+
+            if (use.Kind == ConsumableKind.Tanglefoot && use.EscapeDc <= 0)
+            {
+                Problem("use.escape", "needs a difficulty class above 0.");
+            }
+
+            if (use.Kind == ConsumableKind.Thunderstone && (use.RadiusFeet <= 0 || use.DeafenedHours <= 0))
+            {
+                Problem("use", "a thunderstone needs a radius and hours above 0.");
+            }
+        }
+
+        foreach (var (field, dice) in new[] { ("use.damage", use.Damage), ("use.burn", use.Burn), ("use.rounds", use.Rounds) })
+        {
+            if (dice is not null && !DiceExpression.TryParse(dice, out _))
+            {
+                Problem(field, $"'{dice}' is not dice.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The book's limits on a potion: a spell of 3rd level or lower that targets a creature —
+    /// nothing personal, nothing over an area — at a caster level that could make it. Its price is
+    /// worked out, so a file that writes one is wrong.
+    /// </summary>
+    private void ValidatePotion(ConsumableDefinition use, bool costWritten, Action<string, string> problem)
+    {
+        if (costWritten)
+        {
+            problem("cost", "a potion's price comes from its spell and caster level; leave it out.");
+        }
+
+        if (use.SpellId is not { Length: > 0 } id)
+        {
+            problem("use.spell", "is required for a potion or an oil.");
+            return;
+        }
+
+        if (!_spells.TryGetValue(id, out var spell))
+        {
+            problem("use.spell", $"no spell called '{id}'.");
+            return;
+        }
+
+        if (spell.Level > 3)
+        {
+            problem("use.spell", $"'{id}' is a level {spell.Level} spell; a potion holds 3rd level or lower.");
+        }
+
+        if (spell.Range.Kind == SpellRangeKind.Personal)
+        {
+            problem("use.spell", $"'{id}' has a range of personal, and a potion can only hold a spell cast on somebody.");
+        }
+        else if (spell.Target is not SingleTarget)
+        {
+            problem("use.spell", $"'{id}' is not cast on one creature, and a potion can only hold a spell that is.");
+        }
+
+        // The drinker is the target, and a spell written to touch only foes would pass her by.
+        if (spell.Affects == SpellAffects.Enemies)
+        {
+            problem("use.spell", $"'{id}' only touches enemies, so whoever drank it would feel nothing.");
+        }
+
+        if (use.CasterLevel < Pricing.MinimumCasterLevel(spell.Level))
+        {
+            problem(
+                "use.casterLevel",
+                $"{use.CasterLevel} is too low to brew a level {spell.Level} spell; the least is {Pricing.MinimumCasterLevel(spell.Level)}.");
         }
     }
 
@@ -1232,6 +1361,38 @@ public sealed partial class ContentLibrary
             Masterwork = reader.Bool("masterwork"),
             BaseCost = reader.Has("cost") ? (decimal)reader.Number("cost") : null,
             BaseWeight = reader.Has("weight") ? (decimal)reader.Number("weight") : null,
+            Consumable = reader.Has("use") ? ReadConsumable(reader.Object("use")) : null,
+        };
+    }
+
+    /// <summary>
+    /// A consumable's <c>"use"</c>: what kind it is and the numbers that kind needs. The spell a
+    /// potion holds is found later, once every file is in.
+    /// </summary>
+    private static ConsumableDefinition ReadConsumable(Reader use)
+    {
+        if (!use.Has("kind"))
+        {
+            use.Problem("use.kind", $"is required: one of {string.Join(", ", System.Enum.GetNames<ConsumableKind>())}.");
+        }
+
+        string? Text(string name) => use.Has(name) ? use.StringOr(name, string.Empty) : null;
+
+        return new ConsumableDefinition
+        {
+            Kind = use.Enum("kind", ConsumableKind.Potion),
+            SpellId = Text("spell"),
+            CasterLevel = use.Int("casterLevel", 1),
+            RangeIncrement = use.Int("range"),
+            Damage = Text("damage"),
+            DamageType = use.Enum("damageType", DamageType.Untyped),
+            Splash = use.Int("splash"),
+            Burn = Text("burn"),
+            SaveDc = use.Int("save"),
+            Rounds = Text("rounds"),
+            EscapeDc = use.Int("escape"),
+            RadiusFeet = use.Int("radius"),
+            DeafenedHours = use.Int("hours"),
         };
     }
 
@@ -1252,8 +1413,14 @@ public sealed partial class ContentLibrary
     {
         var weapon = item.Weapon is { } id ? _weapons.GetValueOrDefault(id) : null;
 
+        // The spell in a potion, found now that it may have been read.
+        var use = item.Consumable is { } written
+            ? written with { Spell = written.SpellId is { } spellId ? _spells.GetValueOrDefault(spellId) : null }
+            : null;
+
         var kind = item.WrittenKind ?? (
-            weapon is { Category: WeaponCategory.Natural } ? ItemKind.Natural
+            use is not null ? ItemKind.Consumable
+            : weapon is { Category: WeaponCategory.Natural } ? ItemKind.Natural
             : item.Weapon is not null ? ItemKind.Weapon
             : item.Armour == ArmourCategory.Shield ? ItemKind.Shield
             : item.IsBodyArmour ? ItemKind.Armour
@@ -1278,6 +1445,10 @@ public sealed partial class ContentLibrary
                 item.Enhancement,
                 masterwork),
             ItemKind.Armour or ItemKind.Shield => Pricing.Armour(item.BaseCost ?? 0m, item.Enhancement, masterwork),
+
+            // A potion's price is its spell's level times its caster level, never what a file says.
+            ItemKind.Consumable when use is { IsPotion: true, Spell: { Level: >= 0 } spell, CasterLevel: >= 1 } =>
+                Pricing.Potion(spell.Level, use.CasterLevel),
             _ => Pricing.Copper(item.BaseCost ?? 0m),
         };
 
@@ -1285,7 +1456,7 @@ public sealed partial class ContentLibrary
         // Anything enchanted, and anything worn for what it does, keeps a line of its own.
         var stackable = item.WrittenStackable ?? kind switch
         {
-            ItemKind.Valuable => true,
+            ItemKind.Valuable or ItemKind.Consumable => true,
             ItemKind.Weapon or ItemKind.Armour or ItemKind.Shield => item.Enhancement == 0,
             _ => false,
         };
@@ -1297,6 +1468,7 @@ public sealed partial class ContentLibrary
             Price = price,
             Stackable = stackable,
             Masterwork = masterwork,
+            Consumable = use,
         };
     }
 
@@ -2042,6 +2214,15 @@ public sealed partial class ContentLibrary
                 Locked = kind == FeatureKind.Container && feature.Has("lockDc"),
                 HiddenDc = feature.Has("hiddenDc") ? feature.Int("hiddenDc") : null,
                 Experience = feature.Int("xp", FeatureDefinition.DefaultExperience(kind)),
+                Stock = ReadLoot(feature, "stock"),
+                OpensAfter = feature.Has("opensAfter") ? feature.StringOr("opensAfter", string.Empty) : null,
+                Closed = feature.StringOr("closed", string.Empty),
+                PurchaseLimit = feature.Int("purchaseLimit", Trade.DefaultPurchaseLimitGold),
+                Model = feature.StringOr("model", string.Empty),
+                StandsAt = feature.Has("standsAt")
+                    ? new GridSquare(feature.Object("standsAt").Int("x"), feature.Object("standsAt").Int("y"))
+                    : null,
+                Stall = feature.StringOr("stall", string.Empty),
             });
         }
 
@@ -2233,6 +2414,10 @@ public sealed partial class ContentLibrary
                     FeatureKind.Door => cell == LevelCell.Door,
                     FeatureKind.Bridge => cell == LevelCell.Chasm,
 
+                    // The stall and the figure by it stand on furniture squares, so nobody walks
+                    // through the merchant, and somebody has to be able to stand beside them.
+                    FeatureKind.Merchant => cell == LevelCell.Crate && Beside(level, square),
+
                     // Furniture is the obvious place, but a container in a niche in the wall is
                     // fine too, as long as somebody can stand beside it, and so is a sack on the
                     // open floor. Not in a doorway or over the chasm.
@@ -2265,13 +2450,72 @@ public sealed partial class ContentLibrary
 
             if (feature.Kind != FeatureKind.Container && (feature.Loot.Count > 0 || !feature.Coins.IsEmpty))
             {
-                Problem($"{field}.loot", $"a {feature.Kind.ToString().ToLowerInvariant()} cannot hold anything.");
+                Problem($"{field}.loot", feature.Kind == FeatureKind.Merchant
+                    ? "a merchant sells from 'stock' and has no loot or coins to be taken."
+                    : $"a {feature.Kind.ToString().ToLowerInvariant()} cannot hold anything.");
             }
+
+            ValidateMerchant(level, feature, field, Problem);
 
             if (feature.Coins.Platinum < 0 || feature.Coins.Gold < 0 || feature.Coins.Silver < 0 || feature.Coins.Copper < 0)
             {
                 Problem($"{field}.coins", "cannot be fewer than none.");
             }
+        }
+    }
+
+    /// <summary>
+    /// A merchant stands on one of their own squares, sells things that exist and can be carried,
+    /// and opens after a room that has somebody in it to beat. Nothing but a merchant has stock.
+    /// </summary>
+    private void ValidateMerchant(
+        LevelDefinition level, FeatureDefinition feature, string field, Action<string, string> problem)
+    {
+        if (feature.Kind != FeatureKind.Merchant)
+        {
+            if (feature.Stock.Count > 0 || feature.OpensAfter is not null || feature.StandsAt is not null)
+            {
+                problem($"{field}.stock", $"a {feature.Kind.ToString().ToLowerInvariant()} does not trade: "
+                    + "stock, opensAfter and standsAt are for a merchant.");
+            }
+
+            return;
+        }
+
+        if (feature.StandsAt is not { } stands)
+        {
+            problem($"{field}.standsAt", "is required: the square the merchant's figure is on.");
+        }
+        else if (!feature.Squares.Contains(stands))
+        {
+            problem($"{field}.standsAt", $"{stands} is not one of the merchant's squares.");
+        }
+
+        foreach (var item in feature.Stock.Where(found => !_items.ContainsKey(found.ItemId)))
+        {
+            problem($"{field}.stock", $"no item called '{item.ItemId}'.");
+        }
+
+        foreach (var item in feature.Stock.Where(found => _items.GetValueOrDefault(found.ItemId) is { IsNatural: true }))
+        {
+            problem($"{field}.stock", $"'{item.ItemId}' is a natural weapon, which nobody can sell.");
+        }
+
+        if (feature.OpensAfter is { } after)
+        {
+            if (level.GetArea(after) is not { } area)
+            {
+                problem($"{field}.opensAfter", $"no area called '{after}'.");
+            }
+            else if (area.Foes.Count == 0)
+            {
+                problem($"{field}.opensAfter", $"'{after}' has nobody in it to beat, so it is clear from the start.");
+            }
+        }
+
+        if (feature.PurchaseLimit < 1)
+        {
+            problem($"{field}.purchaseLimit", "must be at least 1 gp.");
         }
     }
 

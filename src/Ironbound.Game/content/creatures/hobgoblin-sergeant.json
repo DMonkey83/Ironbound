@@ -23,8 +23,9 @@
   // A fighter 6 trains in a weapon group at fifth level: the longsword's.
   "weaponTraining": ["heavy-blades"],
   // The silvered blade is on his belt, not in his hand — he has no use for it against
-  // three humans. Kill him and it is the answer to what is waiting in the clearing.
-  "items": ["chain-shirt", "heavy-shield", "longsword", "silvered-longsword"],
+  // three humans. Kill him and it is the answer to what is waiting in the clearing. The draught
+  // hangs beside it: he may drink it when the fight turns, and if he doesn't, it is on his body.
+  "items": ["chain-shirt", "heavy-shield", "longsword", "silvered-longsword", "potion-of-cure-light-wounds"],
 
   // NPC gear, by the Bestiary's hobgoblin, and a sergeant's pay in his purse.
   "treasure": "npc-gear",

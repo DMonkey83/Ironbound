@@ -5,6 +5,7 @@ using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Defense;
 using Ironbound.Rules.Dice;
 using Ironbound.Rules.Effects;
+using Ironbound.Rules.Items;
 using Ironbound.Rules.Maps;
 using Ironbound.Rules.Saves;
 using Ironbound.Rules.Conditions;
@@ -112,6 +113,13 @@ public sealed record Invocation
     /// <summary>Whoever a selective channel leaves out.</summary>
     public IReadOnlyCollection<Creature> Excluded { get; init; } = [];
 
+    /// <summary>
+    /// Whether the magic is the caster's own, so that her own powers shape it: a Healing
+    /// cleric's blessing on a cure, an evoker's intense spells. False for a potion, which was
+    /// made by somebody else and does what it was made to do whoever drinks it.
+    /// </summary>
+    public bool OwnMagic { get; init; } = true;
+
     /// <summary>How a power is let loose: its own level and DC, and "uses".</summary>
     public static Invocation Of(Power power)
     {
@@ -126,6 +134,27 @@ public sealed record Invocation
                 Verb = "uses",
                 IsSpell = false,
             };
+    }
+
+    /// <summary>
+    /// How a potion or an oil is let loose: at the level it was brewed at, with the save a potion
+    /// has, and none of the drinker's own powers. Still a spell, as far as anything that asks is
+    /// concerned.
+    /// </summary>
+    /// <param name="verb">"drinks", "applies": the word the log uses.</param>
+    public static Invocation FromItem(ConsumableDefinition use, string verb)
+    {
+        ArgumentNullException.ThrowIfNull(use);
+        ArgumentNullException.ThrowIfNull(verb);
+
+        return new Invocation
+        {
+            CasterLevel = use.CasterLevel,
+            DifficultyClass = use.DifficultyClass,
+            Verb = verb,
+            IsSpell = true,
+            OwnMagic = false,
+        };
     }
 }
 
@@ -241,7 +270,7 @@ public static class Casting
                 var rolled = Rolled(spell, hurt.Amount.At(level), random, spell.Empowered);
 
                 var first = spell.Does.Take(index).All(earlier => earlier is not DealDamage);
-                if (how.IsSpell && first && spell.School == SpellSchool.Evocation)
+                if (how.IsSpell && how.OwnMagic && first && spell.School == SpellSchool.Evocation)
                 {
                     rolled += ClassPowers.IntenseBonus(caster);
                 }
@@ -251,7 +280,8 @@ public static class Casting
 
             case Restore mend:
             {
-                var blessed = spell.Has("cure") && ClassPowers.HasDomainPower(caster, GrantedPowerEffect.HealersBlessing);
+                var blessed = how.OwnMagic && spell.Has("cure")
+                    && ClassPowers.HasDomainPower(caster, GrantedPowerEffect.HealersBlessing);
                 return Rolled(spell, mend.Amount.At(level), random, spell.Empowered || blessed);
             }
 
@@ -509,17 +539,35 @@ public static class Casting
         DealDamage hurt,
         int amount,
         IRandomSource random,
-        RuleOptions rules)
+        RuleOptions rules) =>
+        Hurt(target, amount, hurt.Type, random, rules);
+
+    /// <summary>
+    /// Deals an amount already rolled, of one type, through the target's defences, and returns
+    /// what it took: a spell's damage after its save, a flask's splash. Resistance and immunity
+    /// count; damage reduction is only ever against physical damage, so it does not.
+    /// </summary>
+    /// <remarks>
+    /// Halving happens first and resistance second, which is the order the rules give and the
+    /// reason this is rebuilt as a flat packet rather than mitigated straight off the roll.
+    /// </remarks>
+    public static int Hurt(
+        Creature target,
+        int amount,
+        DamageType type,
+        IRandomSource random,
+        RuleOptions? rules = null)
     {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(random);
+
         if (amount <= 0)
         {
             return 0;
         }
 
-        // Halving happens first and resistance second, which is the order the rules give and the
-        // reason this is rebuilt as a flat packet rather than mitigated straight off the roll.
-        var packet = DamagePacket.Weapon(amount.ToString(), hurt.Type);
-        var taken = target.Defenses.Apply(packet.Roll(random), DamageBypass.None, rules);
+        var packet = DamagePacket.Weapon(amount.ToString(System.Globalization.CultureInfo.InvariantCulture), type);
+        var taken = target.Defenses.Apply(packet.Roll(random), DamageBypass.None, rules ?? target.Rules);
         target.HitPoints.Take(taken.Total);
 
         return taken.Total;

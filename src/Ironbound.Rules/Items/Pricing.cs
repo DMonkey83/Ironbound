@@ -106,6 +106,35 @@ public static class Pricing
         return Copper(gold);
     }
 
+    /// <summary>What a potion costs for each level of its spell and each level it was brewed at: 50 gp.</summary>
+    public const int PotionGold = 50;
+
+    /// <summary>
+    /// A potion's price in copper: 50 gp times the spell's level times the caster level. A
+    /// 0-level spell counts as half a level, so 25 gp a caster level. An oil is priced the same.
+    /// </summary>
+    public static int Potion(int spellLevel, int casterLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(spellLevel);
+        ArgumentOutOfRangeException.ThrowIfLessThan(casterLevel, 1);
+
+        var gold = spellLevel == 0
+            ? PotionGold / 2m * casterLevel
+            : (decimal)PotionGold * spellLevel * casterLevel;
+
+        return Copper(gold);
+    }
+
+    /// <summary>
+    /// The lowest caster level that can make something of a spell level: one for a 0-level or a
+    /// 1st-level spell, and one less than twice the level after that: three for 2nd, five for 3rd.
+    /// </summary>
+    public static int MinimumCasterLevel(int spellLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(spellLevel);
+        return spellLevel == 0 ? 1 : (2 * spellLevel) - 1;
+    }
+
     /// <summary>
     /// A price written the way a shop would: "105 gp", "2 gp 5 sp", "4 cp", "nothing".
     /// Platinum is left as gold, as prices usually are.

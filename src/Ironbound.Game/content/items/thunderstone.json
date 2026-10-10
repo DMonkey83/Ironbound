@@ -1,0 +1,8 @@
+// Thrown at the ground, twenty-foot increments. Everybody within ten feet of where it cracks, friend
+// or foe, makes a DC 15 Fortitude save or is deafened for an hour.
+{
+  "kind": "item", "id": "thunderstone", "name": "thunderstone",
+  "type": "consumable", "cost": 30, "weight": 1,
+  "description": "A dull grey pebble, oddly heavy, that goes off like a thunderclap when it strikes something hard.",
+  "use": { "kind": "thunderstone", "range": 20, "radius": 10, "save": 15, "hours": 1 }
+}

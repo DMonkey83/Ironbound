@@ -1,4 +1,5 @@
 using Ironbound.Rules.Combat;
+using Ironbound.Rules.Conditions;
 using Ironbound.Rules.Creatures;
 using Ironbound.Rules.Maps;
 
@@ -79,6 +80,14 @@ public class MoveAction : GameAction
         }
 
         if (AlreadyMoved(context.Combatant))
+        {
+            return false;
+        }
+
+        // Stuck fast: no walk, no run, no withdrawal, no five-foot step and no crawl. Asked by
+        // name rather than left to the speed, because the crawl and the step are five feet
+        // whatever the speed is, and every kind of movement comes through here.
+        if (context.Actor.Has(Condition.Anchored))
         {
             return false;
         }

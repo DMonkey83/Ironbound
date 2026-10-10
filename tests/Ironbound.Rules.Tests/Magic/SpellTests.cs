@@ -388,6 +388,7 @@ public class SpellResolutionTests
         var cast = Casting.Resolve(
             wizard, Spells.CureLightWounds, SpellAim.At(friend), new SequenceRandom(6));
 
+        // A 6, and one for each of the wizard's five caster levels: five is as far as it goes.
         Assert.Equal(11, Assert.Single(cast.Targets).Healed);
     }
 

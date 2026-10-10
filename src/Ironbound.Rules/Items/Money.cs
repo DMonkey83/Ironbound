@@ -17,8 +17,10 @@ public enum Coin
 /// <remarks>
 /// Kept by kind rather than as one sum because coins weigh by the coin, fifty to the pound
 /// whatever they are made of. Four hundred silver and six hundred copper are worth forty-six
-/// gold and weigh twenty pounds; the same forty-six gold pieces weigh under one. Nobody changes
-/// money yet, so what was picked up is what is carried.
+/// gold and weigh twenty pounds; the same forty-six gold pieces weigh under one. What was picked
+/// up is what is carried until somebody trades: paying a merchant spends the small coins first
+/// and the change comes back in the largest, so a purse heavy with silver and copper is
+/// lightened by shopping.
 /// </remarks>
 public readonly record struct Money(int Platinum, int Gold, int Silver, int Copper)
 {
@@ -68,6 +70,61 @@ public readonly record struct Money(int Platinum, int Gold, int Silver, int Copp
     /// <summary>Whether there is at least this much of every kind of coin to take out.</summary>
     public bool Covers(Money other) =>
         Platinum >= other.Platinum && Gold >= other.Gold && Silver >= other.Silver && Copper >= other.Copper;
+
+    /// <summary>
+    /// A sum as the fewest coins a merchant would count it out in: gold, then silver, then copper.
+    /// Never platinum: prices are reckoned in gold, and nobody is handed change in platinum.
+    /// </summary>
+    public static Money FromCopper(int copper)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(copper);
+
+        return new Money(
+            0,
+            copper / Pricing.CopperPerGold,
+            copper % Pricing.CopperPerGold / Pricing.CopperPerSilver,
+            copper % Pricing.CopperPerSilver);
+    }
+
+    /// <summary>
+    /// The purse left after paying a price in copper, or null when it is not worth that much.
+    /// </summary>
+    /// <remarks>
+    /// The smallest coins go first — copper, then silver, then gold, then platinum — and only as
+    /// many of each as the price still wants, rounded up to the coin. Whatever that overpays comes
+    /// back as change in the largest coins (<see cref="FromCopper"/>). So paying fifty gold out of
+    /// six hundred copper, four hundred silver and twelve gold spends all the copper and silver and
+    /// four of the gold, and leaves eight gold: the same value as any other way of paying, and
+    /// twenty pounds lighter.
+    /// </remarks>
+    public Money? Pay(int copper)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(copper);
+
+        if (Value < copper)
+        {
+            return null;
+        }
+
+        var owed = copper;
+        var spent = None;
+
+        foreach (var coin in new[] { Coin.Copper, Coin.Silver, Coin.Gold, Coin.Platinum })
+        {
+            if (owed <= 0)
+            {
+                break;
+            }
+
+            var worth = Of(coin, 1).Value;
+            var count = Math.Min(this[coin], (owed + worth - 1) / worth);
+            spent += Of(coin, count);
+            owed -= count * worth;
+        }
+
+        // Owed is nought or less now: less is what was handed over beyond the price.
+        return this - spent + FromCopper(-owed);
+    }
 
     /// <summary>"12 gp, 30 sp, 4 cp" — the coins as they are, not changed into gold.</summary>
     public override string ToString()

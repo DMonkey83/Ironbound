@@ -42,6 +42,7 @@ FAMILIES = {
     "valuables": 0.86,
     "bag": 0.94,
     "containers": 0.95,
+    "consumables": 0.6,
 }
 
 
@@ -101,14 +102,16 @@ def metal(colour, rough=0.32, metallic=0.9, wear=0.6, name="Icon_Metal"):
     return m
 
 
-def icon_leather(colour, rub=0.22):
+def icon_leather(colour, rub=0.22, crease=90.0):
     """Leather for icons: fine grain, a mottle, small creases, edges a little rubbed. The
-    props' leather goes pale wherever the mesh is curved, and on a garment that is everywhere."""
+    props' leather goes pale wherever the mesh is curved, and on a garment that is everywhere.
+    `crease` is how close the creases are; a small thing wants them closer, or they read as
+    cracked mud."""
     m, nt, bsdf = surface._tree("Surface_IconLeather")
     co = surface._coords(nt)
     grain = ps._n(nt, co, 400.0, 4, 0.6)
     mottle = ps._n(nt, co, 14.0, 3, 0.6)
-    creases = ps._grey(nt, surface._ramp(nt, ps._v(nt, co, 90.0), [(0.0, 0.0), (0.04, 1.0)]))
+    creases = ps._grey(nt, surface._ramp(nt, ps._v(nt, co, crease), [(0.0, 0.0), (0.04, 1.0)]))
     tone = surface._shade(nt, colour, surface._span(nt, mottle, 0.72, 1.2))
     tone = surface._shade(nt, tone, surface._span(nt, grain, 0.85, 1.08))
     tone = surface._shade(nt, tone, surface._span(nt, creases, 0.7, 1.0))
@@ -1071,6 +1074,369 @@ def _resample(profile, rows):
     return gp._resample(profile, rows)
 
 
+# --- consumables: potions, oils, alchemy --------------------------------------------------------
+# Each bottle is its own shape, so the three potions are told apart by more than the colour of
+# what is in them: a round-bellied vial, a tall six-sided one, a squat jar. The glass is clear
+# and thin and carries the highlights; the liquid is a solid inside it, lit a little from within
+# so its colour survives being seen through glass at 48 pixels.
+
+def glass(tint, rough=0.02, name="Icon_Glass", rim=0.35):
+    """Clear glass. At icon size glass is its outline and its highlights, so where it turns
+    away from the eye it gives back a little light of its tint (`rim`); without that an empty
+    neck is not there at all."""
+    m, nt, bsdf = surface._tree(name)
+    surface._finish(nt, bsdf, tint, rough, None, 0.0)
+    bsdf.inputs["Transmission Weight"].default_value = 1.0
+    bsdf.inputs["IOR"].default_value = 1.47
+    lw = nt.nodes.new("ShaderNodeLayerWeight")
+    lw.inputs["Blend"].default_value = 0.35
+    edge = surface._math(nt, "POWER", lw.outputs["Facing"], 2.5)
+    nt.links.new(surface._mix(nt, (0, 0, 0), tint, edge), bsdf.inputs["Emission Color"])
+    bsdf.inputs["Emission Strength"].default_value = rim
+    return m
+
+
+def liquid(colour, name, glow=0.25, transmit=0.7, sparkle=0.0, core=None):
+    """What is in a bottle: coloured, glossy, lit a little from within. `sparkle` scatters
+    bright motes through it, for something magical; `core` is (colour, radius): a hotter colour
+    glowing at its heart, for something burning."""
+    m, nt, bsdf = surface._tree(name)
+    surface._finish(nt, bsdf, colour, 0.06, None, 0.0)
+    bsdf.inputs["Transmission Weight"].default_value = transmit
+    bsdf.inputs["IOR"].default_value = 1.34
+    emit = tuple(c * glow for c in colour)
+    if core:
+        hot, radius = core
+        obj = nt.nodes.new("ShaderNodeTexCoord").outputs["Object"]
+        heart = ps._vec(nt, "LENGTH", ps._vec(nt, "SUBTRACT", obj, (0.0, 0.0, radius * 1.1)))
+        fac = surface._math(nt, "SUBTRACT", 1.0, ps._smooth(nt, heart, 0.0, radius * 1.8))
+        nt.links.new(surface._mix(nt, emit, hot, fac), bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = 1.0
+        return m
+    if sparkle:
+        co = surface._coords(nt)
+        motes = ps._grey(nt, surface._ramp(nt, ps._v(nt, co, 220.0, "F1"), [(0.0, 1.0), (0.09, 0.0)]))
+        lit = surface._mix(nt, emit, (sparkle, sparkle, sparkle), motes)
+        nt.links.new(lit, bsdf.inputs["Emission Color"])
+    else:
+        bsdf.inputs["Emission Color"].default_value = (*emit, 1.0)
+    bsdf.inputs["Emission Strength"].default_value = 1.0
+    return m
+
+
+def wax(colour, name="Icon_Wax"):
+    m, nt, bsdf = surface._tree(name)
+    co = surface._coords(nt)
+    tone = surface._shade(nt, colour, surface._span(nt, ps._n(nt, co, 60.0, 3), 0.8, 1.1))
+    surface._finish(nt, bsdf, tone, 0.32, ps._bump(nt, ps._n(nt, co, 120.0, 2), 0.2, 0.0006))
+    return m
+
+
+def cork(name="Icon_Cork"):
+    """Cork: tan, speckled with dark pores."""
+    m, nt, bsdf = surface._tree(name)
+    co = surface._coords(nt)
+    pores = ps._grey(nt, surface._ramp(nt, ps._v(nt, co, 900.0, "F1"), [(0.0, 1.0), (0.18, 0.0)]))
+    tone = surface._shade(nt, (0.55, 0.38, 0.20), surface._span(nt, ps._n(nt, co, 200.0, 3), 0.8, 1.15))
+    tone = surface._shade(nt, tone, surface._span(nt, pores, 1.0, 0.45))
+    surface._finish(nt, bsdf, tone, 0.85, ps._bump(nt, pores, 0.5, 0.0006))
+    return m
+
+
+def bottle(name, material, profile, segments=32, sharp=40.0):
+    return assign(pp.lathe(name, material, profile, segments, (0, 0, 0), sharp_angle=sharp), material)
+
+
+def contents(name, material, profile, fill, segments=32, inset=0.0016):
+    """The liquid in a bottle: its inside (the profile drawn in by the wall) up to `fill`,
+    with a flat top."""
+    inner = [(max(0.0, r - inset), z) for r, z in profile if z <= fill]
+    k = next(i for i, (r, z) in enumerate(profile) if z > fill)
+    (r0, z0), (r1, z1) = profile[k - 1], profile[k]
+    r_at = r0 + (r1 - r0) * (fill - z0) / max(z1 - z0, 1e-9) - inset
+    inner = [(r, max(z, inset)) for r, z in inner] + [(r_at, fill), (0.0, fill)]
+    inner = [(0.0, inset)] + [p for p in inner if p[0] > 0.0] + [(0.0, fill)]
+    return bottle(name, material, inner, segments)
+
+
+def cord_round(name, material, centre, radius, turns=2, rise=0.0026, thick=0.0016):
+    """A cord wound a few times round a neck."""
+    path = []
+    n = 24 * turns
+    for k in range(n + 1):
+        a = k * math.tau / 24
+        path.append(Vector((centre[0] + radius * math.cos(a), centre[1] + radius * math.sin(a), centre[2] + rise * k / 24)))
+    return new_object(name, pp.sweep(path, pp.round_profile(thick, 6), None), material, 0)
+
+
+def hanging(name, material, start, points, thick=0.0015, sides=6):
+    return new_object(name, pp.sweep([Vector(start)] + [Vector(p) for p in points], pp.round_profile(thick, sides), None), material, 0)
+
+
+def scaled(builder, k):
+    """A builder whose parts come out `k` times the size: each item is modelled at a size that
+    is easy to work in and set to its size in the family here."""
+    def build(rng):
+        parts = builder(rng)
+        for o in parts:
+            o.matrix_world = Matrix.Scale(k, 4) @ o.matrix_world
+        return parts
+    return build
+
+
+def potion_clw(rng):
+    """A small round-bellied vial of red, corked, the cork sealed in dark wax run down the neck,
+    a cord round the neck with its ends hanging."""
+    g = mat("Icon_Glass_Clear", glass, (0.95, 0.92, 0.90), 0.02, "Icon_Glass_Clear")
+    red = mat("Icon_Liquid_Red", liquid, (0.75, 0.03, 0.03), "Icon_Liquid_Red", 0.35, 0.6)
+    seal = mat("Icon_Wax_Dark", wax, (0.20, 0.03, 0.025))
+    twine = mat("Icon_Twine", ps.rope, (0.55, 0.44, 0.28))
+    prof = [(0.0, 0.0), (0.017, 0.0), (0.024, 0.004), (0.0285, 0.013), (0.0295, 0.025), (0.027, 0.037), (0.020, 0.047),
+            (0.0105, 0.054), (0.0088, 0.058), (0.0088, 0.071), (0.011, 0.073), (0.011, 0.077), (0.0, 0.077)]
+    parts = [bottle("Vial", g, prof), contents("Red", red, prof, 0.043, inset=0.0018)]
+    parts.append(bottle("Cork", mat("Icon_Cork", cork), [(0.0, 0.066), (0.0078, 0.066), (0.0084, 0.078), (0.0088, 0.083), (0.0, 0.083)], 20))
+    # The seal: a cap of wax over the cork and the lip, with drips down the neck.
+    parts.append(bottle("Seal", seal, [(0.0, 0.0705), (0.0122, 0.0705), (0.0128, 0.074), (0.0125, 0.079), (0.0108, 0.0835), (0.006, 0.0862), (0.0, 0.0868)], 24))
+    for k, (a, length) in enumerate(((0.4, 0.008), (2.3, 0.012), (4.1, 0.006))):
+        c = Vector((0.0126 * math.cos(a), 0.0126 * math.sin(a), 0.0715 - length / 2))
+        drip = pp.heap(f"Drip_{k}", seal, c, (0.0022, 0.0022, length / 2), rng, res=8, bumps=0.1, freq=40)
+        parts.append(assign(drip, seal))
+    parts.append(cord_round("Cord", twine, (0, 0, 0.0605), 0.0098, 2))
+    knot = Vector((0.0, -0.0105, 0.064))
+    parts.append(assign(pp.heap("Knot", twine, knot, (0.0028, 0.0024, 0.0024), rng, res=8, bumps=0.2, freq=40), twine))
+    parts.append(hanging("Tail_A", twine, knot, [(-0.004, -0.017, 0.058), (-0.006, -0.024, 0.049), (-0.005, -0.029, 0.040)]))
+    parts.append(hanging("Tail_B", twine, knot, [(0.004, -0.016, 0.059), (0.008, -0.022, 0.052), (0.011, -0.027, 0.046)]))
+    return parts
+
+
+def potion_mage_armor(rng):
+    """A tall six-sided vial of pale blue that glimmers, with a faceted glass stopper and a
+    silver band at the neck."""
+    g = mat("Icon_Glass_Blue", glass, (0.88, 0.94, 1.0), 0.015, "Icon_Glass_Blue")
+    blue = mat("Icon_Liquid_Blue", liquid, (0.22, 0.52, 1.0), "Icon_Liquid_Blue", 0.45, 0.3, 9.0)
+    silver = mat("Icon_Silver", metal, (0.85, 0.86, 0.90), 0.22, 0.95, 0.5, name="Icon_Silver")
+    prof = [(0.0, 0.0), (0.0215, 0.0), (0.0228, 0.003), (0.0228, 0.066), (0.019, 0.075), (0.010, 0.084), (0.0076, 0.087),
+            (0.0076, 0.098), (0.0102, 0.1), (0.0102, 0.103), (0.0, 0.103)]
+    parts = [bottle("Vial", g, prof, 6, 30.0), contents("Blue", blue, prof, 0.072, 6, 0.002)]
+    parts.append(bottle("Stopper", g, [(0.0, 0.094), (0.0062, 0.094), (0.0062, 0.103), (0.0085, 0.1045), (0.012, 0.111), (0.0115, 0.117),
+                                         (0.006, 0.124), (0.0, 0.127)], 6, 20.0))
+    parts.append(assign(pp.torus("Band", silver, (0, 0, 0.0905), 0.0082, 0.0016, segs=24, minor_segs=6), silver))
+    parts.append(assign(pp.torus("Band_Low", silver, (0, 0, 0.004), 0.0229, 0.0012, segs=6, minor_segs=4), silver))
+    return parts
+
+
+def oil_magic_weapon(rng):
+    """A squat jar of amber glass full of golden oil, a fat cork in its short neck."""
+    g = mat("Icon_Glass_Amber", glass, (0.46, 0.24, 0.06), 0.03, "Icon_Glass_Amber")
+    oil = mat("Icon_Liquid_Oil", liquid, (0.55, 0.33, 0.05), "Icon_Liquid_Oil", 0.12, 0.55)
+    prof = [(0.0, 0.0), (0.028, 0.0), (0.0325, 0.003), (0.034, 0.010), (0.034, 0.024), (0.031, 0.031), (0.022, 0.037),
+            (0.0135, 0.040), (0.0125, 0.046), (0.0145, 0.048), (0.0145, 0.052), (0.0, 0.052)]
+    parts = [bottle("Jar", g, prof), contents("Oil", oil, prof, 0.036, inset=0.002)]
+    parts.append(bottle("Cork", mat("Icon_Cork", cork), [(0.0, 0.041), (0.0112, 0.041), (0.0122, 0.052), (0.0135, 0.058), (0.0128, 0.0615),
+                                                          (0.0, 0.0625)], 22))
+    return parts
+
+
+def frosted(name="Icon_Frost"):
+    m, nt, bsdf = surface._tree(name)
+    surface._finish(nt, bsdf, (0.82, 0.88, 0.80), 0.55)
+    bsdf.inputs["Transmission Weight"].default_value = 0.4
+    return m
+
+
+def acid_flask(rng):
+    """Thick green glass, a cone of it, with a ground-glass stopper and a warning scratched
+    into its face."""
+    g = mat("Icon_Glass_Green", glass, (0.55, 0.85, 0.50), 0.04, "Icon_Glass_Green")
+    acid = mat("Icon_Liquid_Acid", liquid, (0.55, 0.95, 0.12), "Icon_Liquid_Acid", 0.45, 0.6)
+    frost = mat("Icon_Frost", frosted)
+    prof = [(0.0, 0.0), (0.030, 0.0), (0.0335, 0.0035), (0.0335, 0.009), (0.0145, 0.056), (0.0125, 0.060), (0.0125, 0.069),
+            (0.0155, 0.071), (0.0155, 0.075), (0.0, 0.075)]
+    parts = [bottle("Flask", g, prof), contents("Acid", acid, prof, 0.040, inset=0.0045)]
+    parts.append(bottle("Stopper", frost, [(0.0, 0.058), (0.0098, 0.058), (0.0108, 0.075), (0.0115, 0.076), (0.0175, 0.077), (0.0182, 0.081),
+                                            (0.0165, 0.0845), (0.0, 0.0855)], 24))
+
+    # The warning: a skull's crossed bones scratched on the front of the cone, as frosted lines.
+    def on_cone(z, a):
+        r = 0.0335 + (0.0145 - 0.0335) * (z - 0.009) / (0.056 - 0.009) + 0.0004
+        return Vector((r * math.sin(a), -r * math.cos(a), z))
+    for k, (z0, a0, z1, a1) in enumerate(((0.012, -0.55, 0.036, 0.45), (0.012, 0.55, 0.036, -0.45))):
+        pts = [on_cone(z0 + (z1 - z0) * t / 10, a0 + (a1 - a0) * t / 10) for t in range(11)]
+        pts = [p + Vector((0, 0, 0.0004 * math.sin(i * 2.7))) for i, p in enumerate(pts)]
+        parts.append(new_object(f"Scratch_{k}", pp.sweep(pts, pp.round_profile(0.0009, 5), None), frost, 0))
+    for k, (z, a) in enumerate(((0.040, -0.12), (0.040, 0.12))):
+        ring = [on_cone(z + 0.0035 * math.sin(t * math.tau / 10), a + 0.09 * math.cos(t * math.tau / 10)) for t in range(11)]
+        parts.append(new_object(f"Eye_{k}", pp.sweep(ring, pp.round_profile(0.0008, 5), None), frost, 0))
+    return parts
+
+
+def alchemists_fire(rng):
+    """A round flask of something orange that glows, a rag stuffed in its neck for a wick and
+    tied there with twine, its ends hanging down the shoulder."""
+    g = mat("Icon_Glass_Smoke", glass, (0.90, 0.86, 0.80), 0.05, "Icon_Glass_Smoke")
+    fire = mat("Icon_Liquid_Fire", liquid, (0.45, 0.06, 0.0), "Icon_Liquid_Fire", 0.45, 0.1, 0.0, ((0.95, 0.36, 0.02), 0.024))
+    rag = mat("Icon_Rag", surface.cloth, (0.50, 0.43, 0.32))
+    twine = mat("Icon_Twine", ps.rope, (0.55, 0.44, 0.28))
+    prof = [(0.0, 0.0), (0.012, 0.0005), (0.022, 0.004), (0.029, 0.011), (0.0325, 0.021), (0.032, 0.031), (0.028, 0.040),
+            (0.020, 0.047), (0.0105, 0.051), (0.0095, 0.054), (0.0095, 0.062), (0.0115, 0.064), (0.0115, 0.067), (0.0, 0.067)]
+    parts = [bottle("Flask", g, prof), contents("Fire", fire, prof, 0.036, inset=0.002)]
+    # The rag: a crumpled wad out of the neck, two ends down the shoulder.
+    wad = pp.heap("Wad", rag, (0.0, 0.0, 0.070), (0.0135, 0.012, 0.014), rng, res=14, bumps=0.45, freq=24)
+    parts.append(assign(wad, rag))
+    parts.append(bottle("Plug", rag, [(0.0, 0.056), (0.0086, 0.056), (0.0088, 0.068), (0.0, 0.068)], 14))
+    # Its two ends, out from under the tie and down over the shoulder, lying on the glass.
+    for k, (a, length) in enumerate(((-0.35, 0.030), (0.55, 0.022))):
+        d = Vector((math.sin(a), -math.cos(a), 0.0))
+        path, nrm = [], []
+        for t in range(9):
+            z = 0.060 - length * t / 8
+            r = next(rr for rr, zz in reversed(prof) if zz <= max(z, 0.0)) if z > 0.047 else None
+            # Lie on the shoulder: the flask's radius at that height, plus the cloth.
+            if z > 0.054:
+                rad = 0.0115
+            else:
+                lo = [(rr, zz) for rr, zz in prof if zz <= z][-1]
+                hi = [(rr, zz) for rr, zz in prof if zz > z][0]
+                rad = lo[0] + (hi[0] - lo[0]) * (z - lo[1]) / (hi[1] - lo[1])
+            # A ripple across it and a little twist, so it is cloth and not tape.
+            side = Vector((0, 0, 1)).cross(d).normalized()
+            path.append(d * (rad + 0.0016 + 0.0012 * math.sin(t * 1.9 + k)) + side * 0.0015 * math.sin(t * 1.3 + 2 * k) + Vector((0, 0, z)))
+            nrm.append((d + side * 0.35 * math.sin(t * 0.8 + k)).normalized())
+        bm = pp.sweep(path, pp.band_profile(0.0125 - 0.002 * k, 0.0011), nrm)
+        # Frayed: the far end narrower and ragged.
+        for v in bm.verts:
+            u = (0.060 - v.co.z) / length
+            if u > 0.6:
+                c = d * (d.dot(v.co)) + Vector((0, 0, v.co.z))
+                v.co = c + (v.co - c) * (1.0 - 0.35 * (u - 0.6) / 0.4 * (0.6 + 0.4 * noise.noise(v.co * 900.0)))
+        flap = new_object(f"Flap_{k}", bm, rag, 30)
+        parts.append(flap)
+    parts.append(cord_round("Tie", twine, (0, 0, 0.0585), 0.0103, 2, 0.002, 0.0012))
+    return parts
+
+
+def tar(name="Icon_Tar"):
+    m, nt, bsdf = surface._tree(name)
+    surface._finish(nt, bsdf, (0.018, 0.012, 0.007), 0.12)
+    bsdf.inputs["Coat Weight"].default_value = 0.6
+    return m
+
+
+def tanglefoot_bag(rng):
+    """A leather pouch, drawn shut and tied, black tar bulging out of a split in its seam and
+    running down the side."""
+    leather = mat("Icon_Pouch", icon_leather, (0.24, 0.13, 0.06), 0.18, 320.0)
+    goo = mat("Icon_Tar", tar)
+    cordm = mat("Icon_Thong", icon_leather, (0.10, 0.05, 0.025))
+    profile = _resample([(0.0, 0.0), (0.030, 0.002), (0.042, 0.014), (0.045, 0.034), (0.040, 0.054), (0.022, 0.068), (0.013, 0.074),
+                         (0.020, 0.084), (0.026, 0.094), (0.0, 0.097)], 26)
+    bag = pc.sculpt_sack("Pouch", rng, profile, 40, neck=0.073, tie_spread=0.03, flop=(0.5, 2.2), pleats=8, lumps=0.006, creases=0.004)
+    assign(bag, leather)
+    for poly in bag.data.polygons:
+        poly.use_smooth = True
+    parts = [bag]
+    parts.append(cord_round("Drawstring", cordm, (0, 0, 0.0715), 0.0145, 2, 0.002, 0.0019))
+    knot = Vector((0.0, -0.016, 0.0735))
+    parts.append(assign(pp.heap("Knot", cordm, knot, (0.0038, 0.0032, 0.0032), rng, res=8, bumps=0.2, freq=30), cordm))
+    parts.append(hanging("Thong_A", cordm, knot, [(-0.006, -0.024, 0.066), (-0.008, -0.031, 0.054), (-0.006, -0.036, 0.044)], 0.0018))
+    parts.append(hanging("Thong_B", cordm, knot, [(0.005, -0.023, 0.067), (0.011, -0.030, 0.058), (0.015, -0.034, 0.050)], 0.0018))
+    # The tar: blobs along a split down the front-right seam, and drips from the lowest.
+    mb = bpy.data.metaballs.new("TarMeta")
+    mb.resolution = 0.0016
+    mb.threshold = 0.6
+    meta = bpy.data.objects.new("TarMeta", mb)
+    bpy.context.collection.objects.link(meta)
+    hits = []
+    for k in range(17):
+        z = 0.020 + 0.042 * k / 16
+        a = 0.25 + 0.10 * math.sin(k * 0.9)
+        origin = Vector((0.09 * math.sin(a), -0.09 * math.cos(a), z))
+        hit, loc, nor, _i = bag.ray_cast(origin, -origin + Vector((0, 0, z)), distance=0.2)
+        if hit:
+            hits.append((loc, nor))
+    for k, (loc, nor) in enumerate(hits):
+        # Fattest in the middle of the split, where it has pushed out most.
+        t = k / max(1, len(hits) - 1)
+        fat = 0.55 + 0.45 * math.sin(t * math.pi) + 0.15 * noise.noise(Vector((t * 9.0, 1.0, 2.0)))
+        e = mb.elements.new(type="ELLIPSOID")
+        e.co = loc + nor * 0.0028 * fat
+        e.radius = 0.0068 * fat
+        e.size_x, e.size_y, e.size_z = 1.0, 1.0, 1.3
+    for k, length in ((2, 0.016), (5, 0.024), (9, 0.012)):
+        if k >= len(hits):
+            continue
+        loc, nor = hits[k]
+        for t in range(1, 7):
+            hit, under, n2, _i = bag.ray_cast(loc + nor * 0.03 + Vector((0, 0, -length * t / 6)), -nor, distance=0.06)
+            at = (under + n2 * 0.0022) if hit else loc + Vector((0, 0, -length * t / 6))
+            e = mb.elements.new(type="BALL")
+            e.co = at
+            e.radius = 0.0042 * (1.0 - 0.08 * t) + (0.0016 if t == 6 else 0.0)
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = meta
+    meta.select_set(True)
+    bpy.ops.object.convert(target="MESH")
+    blob = bpy.context.view_layer.objects.active
+    blob.name = "Tar"
+    assign(blob, goo)
+    shade_smooth(blob, 0)
+    parts.append(blob)
+    return parts
+
+
+def stone_material():
+    """River-smooth grey stone, a little polished by handling; its carved grooves dark."""
+    m, nt, bsdf = surface._tree("Icon_Thunderstone")
+    co = surface._coords(nt)
+    groove = surface._attribute(nt, "groove")
+    tone = surface._shade(nt, (0.34, 0.345, 0.36), surface._span(nt, ps._n(nt, co, 40.0, 4, 0.6), 0.75, 1.2))
+    speck = ps._grey(nt, surface._ramp(nt, ps._n(nt, co, 400.0, 2), [(0.62, 0.0), (0.70, 1.0)]))
+    tone = surface._mix(nt, tone, (0.50, 0.50, 0.52), surface._math(nt, "MULTIPLY", speck, 0.5))
+    tone = surface._mix(nt, tone, (0.012, 0.012, 0.016), groove)
+    rough = surface._span(nt, groove, 0.26, 0.7)
+    surface._finish(nt, bsdf, tone, rough, ps._bump(nt, ps._n(nt, co, 150.0, 3), 0.15, 0.0005))
+    return m
+
+
+def thunderstone(rng):
+    """A fist-sized grey stone, smoothed by handling, carved with a spiral on its face and a ring
+    round its girth."""
+    stone = mat("Icon_Thunderstone", stone_material)
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=72, v_segments=40, radius=1.0)
+    layer = bm.verts.layers.float.new("groove")
+    R = Vector((0.036, 0.031, 0.029))
+    for v in bm.verts:
+        q = v.co.copy()
+        p = Vector((q.x * R.x, q.y * R.y, q.z * R.z))
+        p *= 1.0 + 0.05 * noise.noise(q * 1.6 + Vector((3.0, 0.0, 0.0))) + 0.015 * noise.noise(q * 5.0)
+        # The spiral, on the face toward -Y: arms a fixed distance apart, three turns.
+        g = 0.0
+        if q.y < 0.2:
+            u, w = q.x, q.z
+            r = math.hypot(u, w)
+            th = math.atan2(w, u)
+            arm = 0.20
+            turns = (r - arm * th / math.tau) / arm
+            d = abs(turns - round(turns)) * arm
+            if r < 0.66 and round(turns) >= 0:
+                g = max(0.0, 1.0 - d / 0.055) * min(1.0, (0.70 - r) / 0.08) * max(0.0, min(1.0, (0.2 - q.y) / 0.2))
+        # The ring round its girth, where the face ends.
+        ring = max(0.0, 1.0 - abs(q.y - 0.42) / 0.06)
+        g = max(g, ring)
+        v[layer] = g
+        p -= q.normalized() * 0.0036 * g
+        v.co = p
+    mesh = bpy.data.meshes.new("Thunderstone")
+    bm.to_mesh(mesh)
+    bm.free()
+    o = bpy.data.objects.new("Thunderstone", mesh)
+    bpy.context.collection.objects.link(o)
+    o.data.materials.append(stone)
+    shade_smooth(o, 0)
+    return [o]
+
+
 # --- containers -------------------------------------------------------------------------------
 
 def container(name):
@@ -1096,8 +1462,33 @@ def container(name):
         for o in objs:
             if o.type != "MESH":
                 bpy.data.objects.remove(o, do_unlink=True)
+        if name == "niche":
+            under_the_wall([o for o in bpy.data.objects if o.type == "MESH"])
         return [o for o in bpy.data.objects if o.type == "MESH"]
     return build
+
+
+def under_the_wall(objs):
+    """The part of a niche that is out of sight in the game, cut away for its icon. Its sides and
+    back are built to sink under the cave relief (between `generate_props.relief_low` and
+    `relief_high`), and drawn on their own they show as a skirt with flat ends; what is left is
+    what the game shows, a rock face with a hole in it and ragged edges where it runs into the
+    wall."""
+    import generate_props as gp
+    for o in objs:
+        if o.type != "MESH" or o.name.split(".")[0] != "niche":
+            continue
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        world = o.matrix_world
+        gone = []
+        for v in bm.verts:
+            p = world @ v.co
+            if p.y > -0.55 and p.z < 0.55 * gp.relief_low(p.y) + 0.45 * gp.relief_high(p.y) - 0.004:
+                gone.append(v)
+        bmesh.ops.delete(bm, geom=gone, context="VERTS")
+        bm.to_mesh(o.data)
+        bm.free()
 
 
 CONTAINERS = ["crate", "crate-b", "chest", "strongbox", "barrel", "sack", "sack-open", "cart", "cart-overturned", "weapon-rack", "pile", "niche"]
@@ -1125,9 +1516,18 @@ ITEMS = {
     "pewter-tankard": ("valuables", tankard, (-30, 12)),
     "gorrums-amber": ("valuables", amber, (-15, 10)),
     "party-bag": ("bag", backpack, (-25, 10)),
+    "potion-of-cure-light-wounds": ("consumables", scaled(potion_clw, 1.22), (-20, 14)),
+    "potion-of-mage-armor": ("consumables", scaled(potion_mage_armor, 0.86), (-15, 14)),
+    "oil-of-magic-weapon": ("consumables", scaled(oil_magic_weapon, 1.32), (-20, 18)),
+    "acid-flask": ("consumables", scaled(acid_flask, 1.2), (-8, 14)),
+    "alchemists-fire": ("consumables", scaled(alchemists_fire, 1.25), (-25, 16)),
+    "tanglefoot-bag": ("consumables", scaled(tanglefoot_bag, 0.92), (-20, 14)),
+    "thunderstone": ("consumables", scaled(thunderstone, 1.3), (-20, 22)),
 }
 for _c in CONTAINERS:
     ITEMS[f"container-{_c}"] = ("containers", container(_c), (-35, 30))
+# The niche is a hole in a wall: seen nearer face on, so the hole is the picture.
+ITEMS["container-niche"] = ("containers", container("niche"), (-18, 24))
 
 
 def posed(item):

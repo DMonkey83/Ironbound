@@ -99,7 +99,7 @@ public class BatchConditionTests
     {
         // Saves name conditions as words; nothing should ever find an old one moved.
         Assert.Equal(
-            [Condition.Fatigued, Condition.Staggered, Condition.Dazzled, Condition.Deafened, Condition.Exhausted],
+            [Condition.Fatigued, Condition.Staggered, Condition.Dazzled, Condition.Deafened, Condition.Exhausted, Condition.Anchored],
             ConditionInfo.All.SkipWhile(condition => condition != Condition.Fatigued));
     }
 }

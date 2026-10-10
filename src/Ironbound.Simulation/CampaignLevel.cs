@@ -220,6 +220,11 @@ public sealed partial class Campaign
             _containers.Add(Build(feature));
         }
 
+        foreach (var feature in level.Features.Where(feature => feature.Kind == FeatureKind.Merchant))
+        {
+            _merchants.Add(BuildMerchant(feature));
+        }
+
         Battle = Peace(party, field);
     }
 
@@ -458,6 +463,7 @@ public sealed partial class Campaign
         {
             FeatureKind.Door => OpenDoor(feature, who),
             FeatureKind.Bridge => Cross(feature, who),
+            FeatureKind.Merchant => Greet(GetMerchant(feature.Id)!),
             _ => OpenContainer(GetContainer(feature.Id)!, who),
         };
     }
@@ -467,6 +473,13 @@ public sealed partial class Campaign
         if (feature is null)
         {
             return "There is nothing like that here.";
+        }
+
+        // A merchant is gone to as often as anybody likes, and never used up; whether they will
+        // trade is the merchant's own question.
+        if (feature.Kind == FeatureKind.Merchant)
+        {
+            return MerchantRefusal(GetMerchant(feature.Id), who);
         }
 
         // A container is opened however often anybody likes, and only once somebody has
@@ -647,7 +660,7 @@ public sealed partial class Campaign
     /// Puts a level back around a restored battle: what the party has done to the place, and
     /// everyone still waiting in a room they have not walked into.
     /// </summary>
-    private void Resume(SavedLevel saved, SavedContainer[]? containers)
+    private void Resume(SavedLevel saved, SavedContainer[]? containers, SavedMerchant[]? merchants)
     {
         var level = _library.GetLevel(saved.Id) ?? throw new InvalidDataException(
             $"The save is of a level '{saved.Id}', which no content file defines.");
@@ -682,6 +695,7 @@ public sealed partial class Campaign
         }
 
         RestoreContainers(containers, level);
+        RestoreMerchants(merchants, level);
 
         foreach (var area in level.Areas)
         {

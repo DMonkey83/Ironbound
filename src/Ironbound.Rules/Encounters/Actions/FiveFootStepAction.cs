@@ -70,6 +70,7 @@ public sealed class FiveFootStepAction(IReadOnlyList<GridSquare> path) : MoveAct
                 || !follower.IsEnemyOf(context.Actor)
                 || !combatant.CanAct
                 || follower.IsProne
+                || follower.Has(Conditions.Condition.Anchored)
                 || combatant.SteppedUp
                 || follower.MeleeAttack is null
                 || field.SquareOf(follower) is not { } standing

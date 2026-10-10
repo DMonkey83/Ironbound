@@ -47,6 +47,38 @@ layers -> strips -> channelbags in 4.4 and was removed in 5.x; and `bpy.ops.obje
 inherits whatever is selected, so deselect before converting a curve or the conversion is
 refused and the object reaches the exporter unweighted.
 
+## `villager.py` — people
+
+```sh
+blender -b --factory-startup --python tools/generate_goblin.py -- tobin <out.glb>
+blender -b --factory-startup --python tools/generate_goblin.py -- pedlar <out.glb>
+```
+
+The merchants: Tobin the carter and a pedlar. Run through `generate_goblin.py`, which hands
+these two variants to `villager.py`; everything that is not specifically a person (skeleton,
+bone names and roll, skinning, export, the GLB self-check) is the goblins'. Build into a scratch
+directory and copy the `.glb`: the build saves a `.blend` beside its output.
+
+- **Body.** Metaballs on a table of landmarks (`frame`) in the goblins' names, at the party's
+  proportions; `tobin` is stooped, `pedlar` narrower in the shoulder and wider at the hip. Chains
+  are spaced at under half their radius, or limbs come out as strings of beads.
+- **Face.** Kept small and plain: an egg of a skull, a brow, a nose, a mouth line, and dark eyes
+  set back in the sockets. White eyeballs and big features made the first heads caricatures.
+- **Clothes.** Fitted pieces (coat, bodice, sleeves, trousers, boots) are the body's own skin
+  where the right bones are nearest (`piece`), relaxed so the muscles under them do not show,
+  pushed out and thickened (`shell`). What hangs free is lofted round the body's outline:
+  `skirt` (the outline of torso and legs, never the hanging arms, or it takes in the hands) and
+  `drape` (each ring at least as wide as the one above, so a cloak falls from the shoulders).
+  The pedlar's hood is lofted from arches; cut from the head it fitted like a swimming cap.
+  The skin the clothes cover for good is deleted before the bake (`strip_hidden`).
+- **Surfaces.** `wool` for cloth: `surface.cloth`'s weave is finer than a 1024 atlas can hold
+  over a whole coat and bakes to moire. Skin is `skin_recipe`, the goblins' hide without warts.
+- **Clip.** One, `<variant>_idle`: breathing, weight shift, a turn of the head. The game finds it
+  by name (`Breathe`, `Stage.Idle`).
+
+`validate_glb` takes the clips to expect (`clips=("idle",)` here); the goblins' default is
+unchanged.
+
 ## `generate_werewolf.py` — the chapter-two boss
 
 ```sh
@@ -325,6 +357,21 @@ one material and not four sets of textures.
 `IRONBOUND_FAST=1` skips the bake, as for the creatures. `IRONBOUND_KEEP=<dir>` keeps the atlases
 as files there for looking at.
 
+**The niche is part of a wall.** `Loot.cs` puts it at the middle of a wall square, turned to face
+the open floor (its -Y, Godot's +Z). In a face-on wall the relief (`LevelLook.BuildGround`) is 0
+on the edge beside the floor and 0.50–0.75 at the middle of the square and beyond: a ramp of up
+to 1.5 in 1, then a ridge. So the model is a loft across the square between two sections, `FACE`
+(a near-vertical face at the square's edge, its brow at about 0.63, the top running back at ridge
+height) and `UNDER` (just below the lowest the relief can lie, `relief_low`), blended by how near
+the side each column is, so the sides and the back sink into the relief along a ragged line. The
+face is broken into tilted beds with undercut lips, vertical joints and chips; the top and the
+gentle flanks stay nearly as smooth as the relief they run into, which is what keeps it from
+reading as a boulder. The hole is wedge-shaped, deep under its roof and shallow at its floor,
+because its floor is kept above the steepest the relief can climb (`relief_high`): a hole cut
+straight back would have the game's ramp showing, lit, through its back half (the cave's lights
+cast no shadows). Its rock is `niche_rock`, painted as `level_ground.gdshader` paints the relief:
+banded with height, darker the higher it climbs, the tops faster than the faces.
+
 ## `props_sheet.py` — the props as the game will show them
 
 ```sh
@@ -346,7 +393,12 @@ blender -b --factory-startup --python tools/render_item_icons.py -- src/Ironboun
 Armour, rings, coins, valuables, the party's bag (`party-bag`, the HUD's inventory button), and
 `container-<name>` for each prop above, drawn with its lid open for the loot window's title.
 Drawn exactly as `render_icons.py` draws the weapons — its lights, sky, camera, size and margin
-are imported from it, not copied. Most of these things have no model in the game, so each is
+are imported from it, not copied. The `consumables` family (potions, oil, alchemy) fills 0.6 of
+the slot at its largest and is modelled to read at 48 pixels: each bottle its own shape, clear
+glass that gives back a little light at its rim (`glass`), and the liquid a solid inside it lit
+a little from within (`liquid`; `core` for a glow at the heart, `sparkle` for motes). AgX bleaches
+bright saturated emission toward pastel, so keep glows modest. `container-niche` is drawn without
+the parts of the niche the relief hides (`under_the_wall`). Most of these things have no model in the game, so each is
 modelled here: armour is hung on a man's trunk (`TRUNK`) as panels wrapped round it, mail is a
 ring pattern on the garment's own UVs so it follows the drape, scale mail is several hundred
 overlapping leaves, coins are struck with a rim and a device. Every icon in a family is drawn at
@@ -434,6 +486,32 @@ arrows say whether a thing in the bag is better or worse for the picked characte
 they have on (`Outfitter.Compare`). The Sheet tab is the old character sheet. `--character`
 opens the window at start, for looking at it under `xvfb-run`.
 
+**Using things in a fight** (`Items.cs`). Only what is on a character's belt can be reached
+mid-fight — hang potions and flasks there in the character window before it starts ("Hang on
+the belt", "Hang all"; the belt shows stacks as ×N). The Items button (9) lists the actor's belt:
+with a potion picked, click the actor to drink it (standard action, provokes) or a fallen friend
+beside them to give it (full round); with a flask, click somebody or, for acid, fire and
+thunderstones, an empty square. Throws are ranged touch attacks; a miss lands astray, and the
+board shows the arc, the hop and a burst in the flask's colour. "Break free" and "Put out the
+flames" appear when a tanglefoot bag or alchemist's fire has left something to get out of.
+Between fights a potion can be drunk from the window at no cost.
+
+**Merchants** (`Merchants.cs`). Tobin by his overturned cart at the cave mouth (once the orcs
+there are dead) and Wenna's cart where the Long Road starts. Click one like a chest: the leader
+walks over and the trade window opens — what they sell on the left, the party's bag on the
+right, the price or the offer under each thing. Click buys or sells one, Shift-click all of it.
+They sell at the book price and buy at half, gems and art at their full worth, and pay at most
+500 gp for any one thing (a thorp's purchase limit). Worn and belt things go back in the bag
+before they can be sold. Autoplay never trades; `--show-trade` keeps the window up on such a run.
+
+**Hover.** Between fights, whatever a click would use — a container still shut or not yet empty,
+a body with something on it, a shut door, a merchant — glows gold with a lit outline and its name over it,
+and shows as a faint silhouette through anything in front of it (`Highlight.cs`).
+
+**Walking** between fights goes through friends where it has to (the one-square rope bridge):
+the figure passes, the rules move it on the next free square, and nobody stops on a square
+somebody else is standing on.
+
 **Saves** (`Saves.cs`). Every save is its own file in `user://saves`, with a small `.card`
 beside it saying what and where it is: a quicksave (F5), three rotating autosaves (as a fight
 opens, once it is won, at the start of an adventure and when the window is closed) and saves
@@ -463,7 +541,7 @@ block bottom-left; the campaign and the turn order top-right.
 
 | Key | Does |
 | --- | --- |
-| 1 – 8 | Move, Attack, Full attack, Trip, Shove, Demoralize, Help, Cast |
+| 1 – 9 | Move, Attack, Full attack, Trip, Shove, Demoralize, Help, Cast, Items |
 | Z / X / C / M | Power Attack, Combat Expertise, Fight defensively, Deadly Aim |
 | R | Rage, or let it go (barbarians only; greyed while fatigued or out of rounds) |
 | V / B / N | Rage powers declared before a blow: powerful blow, surprise accuracy, strength surge |

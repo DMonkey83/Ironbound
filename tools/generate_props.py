@@ -36,7 +36,7 @@ import struct
 import sys
 
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Vector, noise
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import surface  # noqa: E402
@@ -1496,31 +1496,235 @@ def rock_block(name, size, rng, res=0.03, amp=0.025, centre=(0, 0, 0), flat_back
     return bm
 
 
+# Where the game's cave relief lies across a wall square (`LevelLook.BuildGround`), in the
+# niche's own frame: origin at the middle of the wall square, the open floor toward -Y. The
+# relief is 0 on the edge beside the floor and 0.50-0.75 (by a jitter per point) at the middle
+# and on the far edge, a plane between, so the lowest and highest it can be at depth y are:
+
+def relief_low(y):
+    return 0.0 if y <= -0.5 else min(0.5, y + 0.5)
+
+
+def relief_high(y):
+    return 0.0 if y <= -0.5 else min(0.75, (y + 0.5) * 1.5)
+
+
+NICHE_ROCK = (0.21, 0.19, 0.175)
+
+
+def niche_rock(colour, hollow=False):
+    """The wall's own rock, painted the way `level_ground.gdshader` paints the relief round it:
+    grey-brown in bands along its height, cracked, and falling away toward black the higher it
+    climbs, the tops faster than the faces. Where the model goes into the relief there is then
+    no line of colour to give the join away. `hollow` is the inside of the cavity: the same rock
+    with no light in it."""
+    m, nt, bsdf = surface._tree("Surface_NicheRock_Hollow" if hollow else "Surface_NicheRock")
+    world = surface._coords(nt)
+    x, y, z = ps._xyz(nt, world)
+    big = ps._n(nt, world, 4.0, 4, 0.55)
+    # Cracks that wander: Voronoi edges through coordinates pushed about by noise, faint in the
+    # colour and mostly in the bump. Straight edges at one scale read as a crackle glaze.
+    warp = nt.nodes.new("ShaderNodeTexNoise")
+    nt.links.new(world, warp.inputs[0])
+    warp.inputs["Scale"].default_value = 6.0
+    warp.inputs["Detail"].default_value = 3.0
+    shift = ps._vec(nt, "SCALE", ps._vec(nt, "SUBTRACT", warp.outputs[1], (0.5, 0.5, 0.5)), scale=0.12)
+    bent = ps._vec(nt, "ADD", world, shift)
+    cracks = ps._grey(nt, surface._ramp(nt, ps._v(nt, bent, 7.0), [(0.0, 0.0), (0.02, 1.0)]))
+    grit = ps._n(nt, world, 90.0, 3, 0.6)
+    strata = ps._n(nt, ps._combine(nt, surface._math(nt, "ADD", x, y), surface._math(nt, "MULTIPLY", z, 6.0), 0.0), 1.5, 4, 0.5)
+    tone = surface._ramp(nt, strata, [(0.32, (0.17, 0.155, 0.15)), (0.68, (0.32, 0.29, 0.26))])
+    tone = surface._shade(nt, tone, surface._span(nt, big, 0.75, 1.2))
+    tone = surface._shade(nt, tone, surface._span(nt, grit, 0.86, 1.10))
+    tone = surface._shade(nt, tone, surface._span(nt, cracks, 0.88, 1.0))
+    # Darker the higher it climbs, as the relief is: tops by up to 70%, faces by less.
+    up = ps._xyz(nt, nt.nodes.new("ShaderNodeNewGeometry").outputs["Normal"])[2]
+    flat = surface._math(nt, "SUBTRACT", 1.0, surface._math(nt, "MULTIPLY", surface._math(nt, "SUBTRACT", 1.0, up, clamp=True), 0.6))
+    fall = surface._math(nt, "MULTIPLY", surface._math(nt, "MULTIPLY", ps._smooth(nt, z, 0.35, 1.0), flat), 0.7)
+    tone = surface._shade(nt, tone, surface._math(nt, "SUBTRACT", 1.0, fall))
+    if hollow:
+        tone = surface._shade(nt, tone, 0.3)
+    n = ps._bump(nt, big, 0.6, 0.04)
+    n = ps._bump(nt, cracks, 0.25, 0.006, n)
+    n = ps._bump(nt, grit, 0.35, 0.002, n)
+    surface._finish(nt, bsdf, tone, surface._span(nt, grit, 0.80, 0.95), n)
+    return m
+
+
+surface.RECIPES["Prop_Rock_Niche"] = lambda c, m, r: ps._ours(niche_rock, c)
+surface.RECIPES["Prop_Rock_Hollow"] = lambda c, m, r: ps._ours(niche_rock, c, True)
+
+
+def _spline(points, count):
+    """`count` points along a Catmull-Rom curve through `points` (2D), evenly in parameter."""
+    pts = [Vector(p) for p in points]
+    ext = [pts[0] * 2 - pts[1]] + pts + [pts[-1] * 2 - pts[-2]]
+    out = []
+    for k in range(count):
+        u = k / (count - 1) * (len(pts) - 1)
+        i = min(int(u), len(pts) - 2)
+        t = u - i
+        p0, p1, p2, p3 = ext[i], ext[i + 1], ext[i + 2], ext[i + 3]
+        out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3))
+    return out
+
+
+def _smoothstep(a, b, x):
+    t = max(0.0, min(1.0, (x - a) / (b - a)))
+    return t * t * (3 - 2 * t)
+
+
+# The wall's section, front to back, where it stands proud (`FACE`) and where it has gone under
+# the relief (`UNDER`); every column of the wall is a blend of the two, by how near the side it
+# is. The face stands at the edge of the square, a little out over the floor where the hole is;
+# the top runs back over the relief's rise and dives into it before the far edge.
+FACE = [(-0.495, 0.0), (-0.505, 0.08), (-0.515, 0.20), (-0.522, 0.35), (-0.518, 0.47), (-0.505, 0.57), (-0.48, 0.63),
+        (-0.43, 0.655), (-0.34, 0.66), (-0.22, 0.645), (-0.10, 0.62), (0.02, 0.58), (0.14, 0.53), (0.28, 0.47), (0.45, 0.38)]
+UNDER = [(-0.49, 0.0), (-0.46, 0.0), (-0.40, 0.04), (-0.32, 0.10), (-0.24, 0.18), (-0.17, 0.25), (-0.11, 0.31),
+         (-0.05, 0.37), (0.02, 0.43), (0.10, 0.44), (0.18, 0.44), (0.26, 0.44), (0.34, 0.43), (0.40, 0.40), (0.45, 0.36)]
+BACK = [(0.47, 0.22), (0.47, 0.0)]
+
+
+def _rock_offset(p, n, seed):
+    """How far to push the rock out along its normal at p. Where it faces the floor: beds of
+    rock a hand or two deep, tilted a little as beds are, each standing a little in or out of
+    the one below with an undercut lip, split by a few vertical joints. Elsewhere chips and
+    lumps; on the top only broad lumps, where the game's relief is smooth, so the two read as
+    one surface."""
+    steep = _smoothstep(0.35, 0.85, 1.0 - abs(n.z))
+    front = steep * _smoothstep(0.55, 0.92, -n.y)
+    # Beds: tilted, their boundaries wandering, each set in or out by its own amount.
+    u = (p.z + 0.18 * p.x) * 9.0 + 0.8 * noise.noise(p * 2.0 + Vector((0.0, seed, 0.0)))
+    band = math.floor(u)
+    f = u - band
+    here = noise.cell(Vector((band + 0.5, seed, 0.5))) - 0.5
+    below = noise.cell(Vector((band - 0.5, seed, 0.5))) - 0.5
+    beds = 0.036 * (below + (here - below) * _smoothstep(0.0, 0.08, f))
+    beds -= 0.012 * (1.0 - _smoothstep(0.0, 0.12, f))
+    # Joints: a few vertical cracks, wandering with height.
+    jx = p.x * 5.0 + 0.6 * noise.noise(Vector((p.z * 3.0, seed, 1.0)))
+    joint = -0.024 * max(0.0, 1.0 - abs(jx - round(jx)) / 0.07) * (0.5 + 0.5 * noise.noise(Vector((round(jx), seed, 2.0))))
+    # Chips: flat-bottomed scoops where a Voronoi cell is near its edge.
+    dist, pts = noise.voronoi(p * 8.0 + Vector((seed, 0.0, 0.0)), distance_metric="DISTANCE")
+    chip = -0.014 * (1.0 - _smoothstep(0.0, 0.45, dist[1] - dist[0])) * (noise.cell(pts[0]) > 0.4)
+    rough = 0.012 * noise.noise(p * 7.0 + Vector((seed, 0.0, 3.0)))
+    lumps = 0.030 * noise.noise(p * 2.4 + Vector((seed, seed, 0.0))) + 0.014 * noise.noise(p * 6.0 + Vector((0.0, seed, seed)))
+    fine = 0.004 * noise.noise(p * 26.0 + Vector((0.0, 0.0, seed)))
+    # The top and the gentle flanks stay nearly as smooth as the relief they run into: broad
+    # swells only. Rough rock everywhere is what made the mass read as a boulder on the slope.
+    broad = 0.014 * noise.noise(p * 1.6 + Vector((seed, 0.0, seed)))
+    return front * (beds + joint) + steep * (chip + rough + lumps + fine) + (1.0 - steep) * broad
+
+
+def _niche_wall(rng):
+    """The wall itself: one closed mass lofted across the square from section to section,
+    standing proud in the middle and sinking under the relief at both sides and at the back."""
+    import bmesh
+    seed = rng.uniform(0, 50)
+    rows = 96
+    face = _spline(FACE, rows)
+    under = _spline(UNDER, rows)
+    cols = 74
+    half = 0.58
+    sections, blend = [], []
+    for c in range(cols):
+        x = -half + 2 * half * c / (cols - 1)
+        # Each column its own: the face a little in or out, the top a little higher or lower.
+        out = 0.018 * noise.noise(Vector((x * 3.1, seed, 0.0)))
+        # The brow is broken: higher and lower along its length, as a face that has shed rock is.
+        tall = 1.0 + 0.06 * noise.noise(Vector((x * 2.3, seed + 5.0, 0.0))) + 0.06 * noise.noise(Vector((x * 7.0, seed + 6.0, 0.0)))
+        ring, ks = [], []
+        for k in range(rows):
+            # Ragged where it goes under: the blend is pushed about by noise along the section.
+            e = abs(x - 0.02) + 0.07 * noise.noise(Vector((x * 4.0, k / rows * 5.0, seed + 9.0)))
+            s = 1.0 if c in (0, 1, cols - 2, cols - 1) else _smoothstep(0.08, 0.57, e)
+            fy, fz = face[k].x - out * (1.0 - k / rows), face[k].y * tall
+            y = fy + (under[k].x - fy) * s
+            z = fz + (under[k].y - fz) * s
+            ring.append(Vector((x, y, max(0.0, z))))
+            ks.append(s)
+        for by, bz in BACK:
+            ring.append(Vector((x, by, bz)))
+            ks.append(1.0)
+        sections.append(ring)
+        blend.append(ks)
+    bm = pp.loft_mesh(sections, closed=True, cap=True)
+    if len(bm.verts) != cols * (rows + len(BACK)):
+        raise RuntimeError("niche: the loft merged vertices, so they no longer line up with their sections")
+    # The loft's vertices come out in section order; map each to its blend and whether it is
+    # on the visible run of the section (not the back or the bottom).
+    bm.verts.ensure_lookup_table()
+    per = rows + len(BACK)
+    bm.normal_update()
+    moved = []
+    for v in bm.verts:
+        c, k = divmod(v.index, per)
+        if c >= cols or k >= rows:
+            continue
+        s = blend[c][k]
+        d = _rock_offset(v.co, v.normal, seed) * (1.0 - 0.55 * s)
+        moved.append((v, v.co + v.normal * d))
+    for v, co in moved:
+        v.co = co
+        v.co.z = max(v.co.z, 0.0)
+    return bm
+
+
+def _cavity_cutter(rng, mouth_y, x0):
+    """The hole: lofted back from in front of the face. Its floor stays above the steepest the
+    relief can climb inside the square (`relief_high`), so the game's rock never shows through
+    the back of the hole, which is why the hole is wedge-shaped: deep under its roof, shallow
+    at its floor."""
+    import bmesh
+    seed = rng.uniform(0, 50)
+    floor0, roof0 = 0.19, 0.50
+    end = mouth_y + 0.26
+    sections = []
+    ys = [mouth_y - 0.16, mouth_y - 0.06] + [mouth_y + 0.26 * k / 13 for k in range(14)]
+    for y in ys:
+        t = max(0.0, (y - mouth_y) / (end - mouth_y))
+        w = 0.165 * math.sqrt(max(0.0, 1.0 - t ** 2.2)) + 0.012
+        bottom = max(floor0, relief_high(y) + 0.05)
+        top = roof0 - 0.13 * t * t
+        if bottom > top - 0.025:
+            bottom = top - 0.025
+        ring = []
+        for k in range(24):
+            a = k * math.tau / 24
+            # Flatter at the floor than at the roof, as a hole that things are put into is.
+            sz = math.sin(a)
+            sz = sz if sz > 0 else -(-sz) ** 0.55
+            px = x0 + w * math.cos(a)
+            pz = (bottom + top) / 2 + (top - bottom) / 2 * sz
+            jit = 0.018 * noise.noise(Vector((px * 9.0, y * 9.0, pz * 9.0 + seed)))
+            ring.append(Vector((px + jit * math.cos(a), y, pz + jit * max(0.0, sz))))
+        sections.append(ring)
+    return pp.loft_mesh(sections, closed=True, cap=True)
+
+
 def niche(rng):
-    """Loose stones in a cave wall pulled out to show a cavity: the hidden cache. The face of
-    the wall is a slab of rock; the `Lid` is the stone that stopped the hole, pivoting out on
-    its bottom front edge; two more stones lie where they were dropped."""
+    """A hiding place in the cave wall: loose stones pulled out of the rock face to show a hole.
+
+    The model is the piece of wall the hole is in, not a slab standing in front of it. Its
+    origin is the middle of the wall square and its front (-Y, Godot's +Z) faces the open floor,
+    which is how `Loot.cs` places it. The face stands at the edge of the square; the rock runs
+    back over the relief's rise, and its sides and back taper down and sink under the relief
+    (`relief_low`), so where it joins the game's rock is a ragged line of rock meeting rock. The
+    `Lid` is the stone that stopped the hole, pivoting out on its bottom front edge; the stones
+    already pulled out lie on the floor in front."""
     import bmesh
     b = Build("niche")
     rock = M("Prop_Rock")
-    W, D, H = 0.90, 0.30, 0.95
-    wall_bm = rock_block("Wall", (W, D, H + 0.06), rng, 0.03, 0.06, (0, 0, H / 2 - 0.03), flat_back=True, strata=0.008)
-    for v in wall_bm.verts:
-        v.co.z = max(v.co.z, 0.0)
-    wall = pp.to_object("Wall", wall_bm, rock, wood=False, sharp_angle=22)
-    # Cut the cavity with a boolean against a lumpy egg.
-    hole_c = Vector((0.02, -D / 2 + 0.02, 0.44))
-    cav_bm = bmesh.new()
-    bmesh.ops.create_uvsphere(cav_bm, u_segments=20, v_segments=12, radius=1.0)
-    seed = rng.uniform(0, 50)
-    for v in cav_bm.verts:
-        p = v.co.copy()
-        k = 1.0 + 0.12 * pp.noise.noise(p * 2.5 + Vector((seed, 0, 0)))
-        v.co = Vector((p.x * 0.17 * k, p.y * 0.17 * k, p.z * 0.14 * k)) + hole_c
-    cutter = pp.to_object("Cutter", cav_bm, rock, wood=False)
+    wall_rock = ps.material("Prop_Rock_Niche", NICHE_ROCK)
+    hollow = ps.material("Prop_Rock_Hollow", tuple(c * 0.3 for c in NICHE_ROCK))
+    wall = pp.to_object("Wall", _niche_wall(rng), wall_rock, wood=False, sharp_angle=42)
+    x0, mouth = 0.02, -0.505
+    cutter = pp.to_object("Cutter", _cavity_cutter(rng, mouth, x0), hollow, wood=False)
     mod = wall.modifiers.new("Cavity", "BOOLEAN")
     mod.operation = "DIFFERENCE"
     mod.solver = "EXACT"
+    mod.use_hole_tolerant = True
+    mod.material_mode = "TRANSFER"
     mod.object = cutter
     bpy.context.view_layer.update()
     bpy.ops.object.select_all(action="DESELECT")
@@ -1530,48 +1734,60 @@ def niche(rng):
     bpy.data.objects.remove(cutter, do_unlink=True)
     _flag(wall, False)
     b.add("body", wall)
-    # The plug: a stone that fills the mouth of the hole, its face part of the wall's face.
-    plug_bm = rock_block("Plug", (0.26, 0.12, 0.22), rng, 0.025, 0.02, (0, 0, 0), power=3.0)
-    front = -D / 2 - 0.01
-    pp.place(plug_bm, Matrix.Translation((hole_c.x, front + 0.05, hole_c.z)))
-    plug = pp.to_object("Plug", plug_bm, rock, wood=False, sharp_angle=22)
+
+    def floor_at(x, y, above=0.45):
+        hit, loc, _n, _i = wall.ray_cast(Vector((x, y, above)), Vector((0, 0, -1)), distance=above)
+        return loc.z if hit else 0.19
+
+    # The plug: a flat stone jammed in the mouth of the hole, its face a little proud of the
+    # wall's. It turns out and down about its bottom front edge.
+    plug_bm = rock_block("Plug", (0.30, 0.075, 0.31), rng, 0.02, 0.02, (0, 0, 0), strata=0.005, power=3.2)
+    pp.place(plug_bm, Matrix.Translation((x0, mouth - 0.022, 0.345)))
+    plug = pp.to_object("Plug", plug_bm, wall_rock, wood=False, sharp_angle=30)
     b.add("Lid", plug)
     lo_z = min(v.co.z for v in plug.data.vertices)
     lo_y = min(v.co.y for v in plug.data.vertices)
-    b.pivots["Lid"] = (hole_c.x, lo_y, lo_z)
+    b.pivots["Lid"] = (x0, lo_y, lo_z)
     b.extras["Lid"] = {"hinge": "x", "open": 80}
-    # Stones already pulled out, lying at the foot.
-    stones = ((-0.27, -0.30, (0.15, 0.11, 0.09)), (0.30, -0.34, (0.12, 0.10, 0.08)), (0.12, -0.27, (0.06, 0.05, 0.045)),
-              (-0.08, -0.36, (0.05, 0.04, 0.035)), (0.40, -0.22, (0.05, 0.05, 0.04)))
+
+    # Stones already pulled out, lying on the floor in front of the face.
+    stones = ((-0.24, -0.66, (0.15, 0.11, 0.09)), (0.33, -0.72, (0.12, 0.10, 0.08)), (0.16, -0.60, (0.06, 0.05, 0.045)),
+              (-0.06, -0.78, (0.05, 0.04, 0.035)), (0.42, -0.58, (0.05, 0.05, 0.04)), (-0.38, -0.57, (0.04, 0.035, 0.03)))
     for k, (x, y, sz) in enumerate(stones):
-        st = rock_block(f"Stone_{k}", sz, rng, 0.02, min(sz) * 0.25, (0, 0, 0), power=2.4)
-        pp.place(st, Matrix.Translation((x, y, sz[2] / 2 - 0.006)) @ Matrix.Rotation(rng.uniform(0, 3), 4, "Z") @ Matrix.Rotation(rng.uniform(-0.3, 0.3), 4, "X"))
+        # Broken out of the beds of the face: blocky, flat-sided, chipped.
+        st = rock_block(f"Stone_{k}", sz, rng, 0.016, min(sz) * 0.16, (0, 0, 0), strata=min(sz) * 0.03, power=3.6)
+        pp.place(st, Matrix.Translation((x, y, sz[2] / 2 - 0.008)) @ Matrix.Rotation(rng.uniform(0, 3), 4, "Z") @ Matrix.Rotation(rng.uniform(-0.25, 0.25), 4, "X"))
         for v in st.verts:
             v.co.z = max(v.co.z, 0.0)
-        b.add("body", pp.to_object(f"Stone_{k}", st, rock, wood=False, sharp_angle=22))
-    # In the hole: a leather purse, a scroll case, a few coins.
+        b.add("body", pp.to_object(f"Stone_{k}", st, wall_rock, wood=False, sharp_angle=40))
+
+    # In the hole, behind the plug: a leather purse, a scroll case, a few coins, each sat on
+    # the floor of the hole where it is.
     import props_cloth as pc
-    floor_z = hole_c.z - 0.11
-    purse_profile = _resample([(0.0, 0.0), (0.045, 0.002), (0.06, 0.02), (0.055, 0.05), (0.028, 0.065), (0.02, 0.074), (0.03, 0.088), (0.0, 0.092)], 16)
-    purse = pc.sculpt_sack("Purse", rng, purse_profile, 24, neck=0.072, tie_spread=0.03, flop=(0.9, 1.0), pleats=6, lumps=0.006, creases=0.004)
+    behind = mouth + 0.06
+    purse_profile = _resample([(0.0, 0.0), (0.038, 0.002), (0.05, 0.017), (0.046, 0.042), (0.024, 0.055), (0.017, 0.063), (0.025, 0.075), (0.0, 0.078)], 16)
+    purse = pc.sculpt_sack("Purse", rng, purse_profile, 24, neck=0.061, tie_spread=0.026, flop=(0.9, 1.0), pleats=6, lumps=0.005, creases=0.004)
     purse.data.materials.append(M("Prop_Leather"))
     for poly in purse.data.polygons:
         poly.use_smooth = True
-    purse.location = (hole_c.x - 0.06, hole_c.y + 0.05, floor_z - 0.01)
+    px, py = x0 - 0.075, behind + 0.025
+    purse.location = (px, py, floor_at(px, py) - 0.006)
     _flag(purse, False)
     b.add("Contents", purse)
-    case = pp.lathe("ScrollCase", M("Prop_Leather"), [(0.0, -0.09), (0.022, -0.09), (0.022, 0.09), (0.0, 0.09)], 10,
-                    (hole_c.x + 0.06, hole_c.y + 0.07, floor_z + 0.025), Matrix.Rotation(math.radians(90), 3, "Y") @ Matrix.Rotation(0.4, 3, "X"))
+    cx, cy = x0 + 0.055, behind - 0.005
+    cz = floor_at(cx, cy) + 0.02
+    tilt = Matrix.Rotation(math.radians(90), 3, "Y") @ Matrix.Rotation(0.25, 3, "X")
+    case = pp.lathe("ScrollCase", M("Prop_Leather"), [(0.0, -0.075), (0.019, -0.075), (0.019, 0.075), (0.0, 0.075)], 10, (cx, cy, cz),
+                    Matrix.Rotation(-0.35, 3, "Z") @ tilt)
     b.add("Contents", case)
     for e in (-1, 1):
-        cap = pp.lathe(f"CaseCap_{e}", M("Prop_Brass"), [(0.0, 0.0), (0.025, 0.0), (0.025, 0.02), (0.0, 0.022)], 10,
-                       (hole_c.x + 0.06 + e * 0.085, hole_c.y + 0.07 + e * 0.035, floor_z + 0.025),
-                       Matrix.Rotation(math.radians(90 * e), 3, "Y") @ Matrix.Rotation(0.4, 3, "X"))
+        along = Matrix.Rotation(-0.35, 3, "Z") @ Vector((0.072 * e, 0.0, 0.0))
+        cap = pp.lathe(f"CaseCap_{e}", M("Prop_Brass"), [(0.0, 0.0), (0.022, 0.0), (0.022, 0.017), (0.0, 0.019)], 10,
+                       Vector((cx, cy, cz)) + along, Matrix.Rotation(-0.35, 3, "Z") @ Matrix.Rotation(math.radians(90 * e), 3, "Y"))
         b.add("Contents", cap)
-    b.add("Contents", pp.coin_pile("Coins", M("Prop_Gold"), rng, (hole_c.x + 0.01, hole_c.y + 0.0, floor_z - 0.025), 0.05, 0.015, 22, 0.011, base=False))
-    b.glint = (0.0, 0.0, H + 0.06)
-    # The footprint runs from the stones on the floor to the back of the wall: centre it.
-    shift(b, (0.0, 0.10, 0.0))
+    gx, gy = x0 + 0.005, behind - 0.035
+    b.add("Contents", pp.coin_pile("Coins", M("Prop_Gold"), rng, (gx, gy, floor_at(gx, gy) - 0.004), 0.045, 0.012, 18, 0.010, base=False))
+    b.glint = (x0, -0.45, 0.90)
     return b
 
 

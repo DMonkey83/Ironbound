@@ -1,0 +1,8 @@
+// A splash weapon: 1d6 fire on a direct hit, 1 fire to everybody else within five feet, and the
+// target burns for another 1d6 a round later unless it puts the flames out first.
+{
+  "kind": "item", "id": "alchemists-fire", "name": "alchemist's fire",
+  "type": "consumable", "cost": 20, "weight": 1,
+  "description": "A glass flask of sticky orange liquid that bursts into flame the moment the air gets at it.",
+  "use": { "kind": "splash", "range": 10, "damage": "1d6", "damageType": "fire", "splash": 1, "burn": "1d6" }
+}

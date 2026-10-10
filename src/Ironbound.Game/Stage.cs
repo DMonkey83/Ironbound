@@ -158,6 +158,24 @@ public partial class Main
 
 				break;
 
+			case ThrowResult thrown:
+				if (thrown.Thrown)
+				{
+					StageThrow(thrown);
+				}
+
+				Append(null, lines);
+				break;
+
+			case PotionResult potion:
+				if (potion.Used)
+				{
+					StagePotion(potion);
+				}
+
+				Append(null, lines);
+				break;
+
 			default:
 				Append(null, lines);
 				break;

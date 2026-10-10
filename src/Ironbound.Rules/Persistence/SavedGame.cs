@@ -32,7 +32,7 @@ public sealed record SavedGame(
     SavedCombatant[] Order,
     SavedCampaign? Campaign = null)
 {
-    public const int CurrentVersion = 16;
+    public const int CurrentVersion = 17;
 
     /// <summary>
     /// The oldest version still read. Twelve only added a field that eleven did without, so an
@@ -45,7 +45,9 @@ public sealed record SavedGame(
     /// older file has nothing on either, which is what it had. Sixteen replaced the sack with the
     /// party's bag and the level's containers: an older file's sack is poured into the bag, its
     /// searched caches come back open and empty, and the bodies of rooms already won do not
-    /// exist — whatever they carried was in the sack already.
+    /// exist — whatever they carried was in the sack already. Seventeen added the merchants'
+    /// stock: an older file's merchants have what their level file gives them, as though nobody
+    /// had traded with them yet — which nobody could have.
     /// </summary>
     public const int OldestReadable = 11;
 }
@@ -57,6 +59,7 @@ public sealed record SavedGame(
 /// <param name="Purse">The party's coins. Null before sixteen.</param>
 /// <param name="Containers">Every container the party knows of or has yet to find, bodies and
 /// piles included. Null before sixteen.</param>
+/// <param name="Merchants">What each merchant on the level has left to sell. Null before seventeen.</param>
 public sealed record SavedCampaign(
     string Id,
     int Chapter,
@@ -68,7 +71,14 @@ public sealed record SavedCampaign(
     SavedLevel? Level = null,
     SavedBagEntry[]? Bag = null,
     SavedMoney? Purse = null,
-    SavedContainer[]? Containers = null);
+    SavedContainer[]? Containers = null,
+    SavedMerchant[]? Merchants = null);
+
+/// <summary>
+/// A merchant as the party has left them: what is on the stall now, the party's sales included.
+/// Whether they are open is not saved: it follows from the rooms cleared.
+/// </summary>
+public sealed record SavedMerchant(string Id, SavedBagEntry[] Stock);
 
 /// <summary>So many of one item in a bag or a container, broken or not.</summary>
 public sealed record SavedBagEntry(string Id, int Count, bool Broken = false);

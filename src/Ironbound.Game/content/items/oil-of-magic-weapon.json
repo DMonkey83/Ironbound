@@ -1,0 +1,8 @@
+// Magic weapon in a flask, rubbed on a blade: +1 to hit and to damage for a minute. The spell's own
+// simplification carries over: the bonus lands on whoever applies it, for whatever they swing.
+{
+  "kind": "item", "id": "oil-of-magic-weapon", "name": "oil of magic weapon",
+  "type": "consumable",
+  "description": "A small flask of oil that smells of hot iron. Wiped along an edge, it leaves the metal with a faint glimmer that fades within the minute.",
+  "use": { "kind": "oil", "spell": "magic-weapon", "casterLevel": 1 }
+}

@@ -13,9 +13,7 @@
   // cleric's blessing empowers.
   "descriptors": ["cure"],
   "does": [
-    // Simplified: the rules scale the flat part with caster level to a maximum of
-    // five, and this simply uses the maximum. Scaling a flat bonus needs another
-    // dial on SpellDice that nothing else wants yet.
-    { "heal": { "fixed": "1d8+5" } }
+    // One d8, and one a caster level to a maximum of five: a first-level cleric's cure is 1d8+1.
+    { "heal": { "fixed": "1d8", "plusPerLevel": 1, "plusMaximum": 5 } }
   ]
 }

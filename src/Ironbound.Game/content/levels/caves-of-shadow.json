@@ -41,8 +41,8 @@
   "#####..#############################",
   ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
   ",T,,,,,,,,,,,,,,,,,,,,,,,T,,,,,T,,,,",
-  ",,,,,,,,,,,,,,,,,,,,T,,,,,,,,,,,,,,,",
-  ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",,,,,,,,,c,,,,,,,,,,T,,,,,,,,,,,,,,,",
+  ",,,,,,,,,cc,,,,,,,,,,,,,,,,,,,,,,,,,",
   ",,,,,,,,,,,,T,,,,,,,,,,,,,,,,,,,,,T,",
   ",,,,,,,,,,,,,,,,,,,,,,,,,,,T,,,,,,,,",
   ",,T,,,,,,,,,,,,,,T,,,,,,,,,,,,,,,,,,",
@@ -84,7 +84,7 @@
    "width": 15,
    "height": 7,
    "intro": "The raiders' trail ends at a dark opening in the hillside, its lintel carved with faces the weather has nearly worn away. Beside an overturned cart two orcs have an old man backed against a wheel and are taking turns prodding him with their spears, laughing at every yelp. They are too pleased with themselves to have heard you coming.",
-   "outro": "The old man is Tobin, a carter from the village across the woods. The orcs took everything he carried \u2014 a crate of healing draughts, and a greatsword promised to a lord \u2014 and dragged it into the caves to their master, an ogre called Gorrum who keeps the best of everything for himself. Tobin will not set foot inside. Take whatever of his you can find, he says, and rid the woods of them.",
+   "outro": "The old man is Tobin, a carter from the village across the woods. The orcs took everything worth taking \u2014 a crate of healing draughts, and a greatsword promised to a lord \u2014 and dragged it into the caves to their master, an ogre called Gorrum who keeps the best of everything for himself. They never thought to turn out his coat, though, and its lining clinks with a few draughts and flasks he had put by. Tobin will not set foot inside. He will wait here by the overturned cart, he says, and sell you what he kept back \u2014 or buy whatever you bring out that you have no use for.",
    "foes": [
     {
      "creature": "orc",
@@ -159,7 +159,7 @@
    "y": 1,
    "width": 6,
    "height": 3,
-   "intro": "A storeroom, black until your torch finds it: crates of rope and torches and stale bread, a barrel of water, a heavy sack, and in the far corner Tobin's own cart, its wheels caked with the mud of the trail."
+   "intro": "A storeroom, black until your torch finds it: crates of rope and torches and stale bread, a barrel of water, a heavy sack, and in the far corner the crate the orcs hauled off Tobin's cart, its slats still caked with the mud of the trail."
   },
   {
    "id": "guard-post",
@@ -272,7 +272,7 @@
    "id": "tobins-cart",
    "xp": 6,
    "kind": "container",
-   "name": "Tobin's cart",
+   "name": "Tobin's crate",
    "squares": [
     {
      "x": 28,
@@ -280,10 +280,11 @@
     }
    ],
    "loot": [
-    "greatsword-plus-one"
+    "greatsword-plus-one",
+    "potion-of-cure-light-wounds"
    ],
-   "text": "Strapped to the underside of the cart and wrapped in sacking is the greatsword Tobin spoke of, its edge faintly bright. Of the healing draughts there is nothing left but broken glass and a sticky floor.",
-   "look": "cart"
+   "text": "Wrapped in sacking along the bottom of the crate is the greatsword Tobin spoke of, its edge faintly bright. Of the healing draughts packed round it there is little left but broken glass and sticky straw \u2014 and, wedged in a corner, one vial that came through whole.",
+   "look": "crate"
   },
   {
    "id": "storeroom-crates",
@@ -297,9 +298,13 @@
     }
    ],
    "loot": [
-    "light-crossbow"
+    "light-crossbow",
+    {
+     "item": "alchemists-fire",
+     "count": 2
+    }
    ],
-   "text": "Among the rope and the torches is a light crossbow with a case of bolts. The sack of coin by the door is far too heavy to carry into a fight; it will keep.",
+   "text": "Among the rope and the torches are a light crossbow with a case of bolts and two clay flasks stoppered with wax, which slosh and reek of lamp oil: alchemist's fire. The sack of coin by the door is far too heavy to carry into a fight; it will keep.",
    "look": "crate"
   },
   {
@@ -368,6 +373,50 @@
     "cp": 150
    },
    "text": "An iron-bound box chained to the rock, and the best of the raiders' plunder inside it."
+  },
+  {
+   "id": "tobin",
+   "kind": "merchant",
+   "name": "Tobin",
+   "squares": [
+    {
+     "x": 9,
+     "y": 36
+    },
+    {
+     "x": 9,
+     "y": 37
+    },
+    {
+     "x": 10,
+     "y": 37
+    }
+   ],
+   "standsAt": {
+    "x": 9,
+    "y": 36
+   },
+   "stall": "cart-overturned",
+   "model": "res://art/tobin.glb",
+   "opensAfter": "cave-mouth",
+   "closed": "Tobin is in no state to trade with orcs about.",
+   "text": "Tobin props himself against the overturned cart as though it were a shop counter. \"Not much left, but what there is works. And anything you haul out of there that you can't use, I'll give you a fair price for \u2014 fair for a man who's just been robbed, mind.\"",
+   "stock": [
+    {
+     "item": "potion-of-cure-light-wounds",
+     "count": 3
+    },
+    {
+     "item": "alchemists-fire",
+     "count": 3
+    },
+    {
+     "item": "acid-flask",
+     "count": 3
+    },
+    "tanglefoot-bag",
+    "thunderstone"
+   ]
   }
  ]
 }

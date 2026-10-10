@@ -511,8 +511,9 @@ public partial class Main
 
 		var next = new GridSquare(x, y);
 
-		// A door or a crossing is tried until it gives; anything else is walked to once.
-		if (_campaign.FeatureAt(next) is not { } feature || _campaign.IsUsed(feature.Id))
+		// A door or a crossing is tried until it gives; anything else — a chest, a merchant — is
+		// gone to once.
+		if (_campaign.FeatureAt(next) is not { Kind: FeatureKind.Door or FeatureKind.Bridge } feature || _campaign.IsUsed(feature.Id))
 		{
 			_route.Dequeue();
 		}
