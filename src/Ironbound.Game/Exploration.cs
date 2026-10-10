@@ -635,7 +635,13 @@ public partial class Main
 	private void AfterLevelFight(AreaDefinition finished)
 	{
 		Begin(_campaign.Battle);
-		Autosave();
+
+		// Only after a fight that was fought: walking into a level runs this once with none,
+		// and saved a second copy of the start beside the new adventure's own.
+		if (finished is not null)
+		{
+			Autosave();
+		}
 		RebuildFrames();
 		RefreshContainers();
 		Prompt(Spoils().Count > 0 ? "The fallen can be searched: click a body, or press Loot." : Verdict());
@@ -652,6 +658,15 @@ public partial class Main
 			_campaign.Rest();
 			LogText("— the party rests —\n");
 			RefreshFigures();
+		}
+
+		// With the rest spent, the wounded drink what they found instead, as a player would.
+		if (_autoplay)
+		{
+			foreach (var line in Outfitter.PatchUp(_campaign))
+			{
+				LogText($"— {line} —\n");
+			}
 		}
 		RefreshFigures();
 		RefreshControls();

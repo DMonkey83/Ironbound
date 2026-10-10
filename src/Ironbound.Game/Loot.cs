@@ -455,12 +455,15 @@ public partial class Main
 		}
 	}
 
-	/// <summary>Autoplay's half of the character window: everybody puts on whatever suits them better.</summary>
+	/// <summary>
+	/// Autoplay's half of the character window: everybody puts on whatever suits them better, and
+	/// hangs a healing potion and whatever flasks they would throw on the belt for the next fight.
+	/// </summary>
 	private void Outfit()
 	{
 		foreach (var member in _campaign.Party)
 		{
-			foreach (var line in Outfitter.EquipBest(_campaign, member))
+			foreach (var line in Outfitter.EquipBest(_campaign, member).Concat(Outfitter.HangConsumables(_campaign, member)))
 			{
 				LogText($"— {line} —\n");
 			}

@@ -173,6 +173,14 @@ public partial class Main : Node3D
 			return;
 		}
 
+		// -- --load <file>: straight into a saved game, for looking at one somebody sent.
+		var load = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--load");
+		if (load >= 0 && OS.GetCmdlineUserArgs().ElementAtOrDefault(load + 1) is { } file)
+		{
+			LoadSave(new SaveCard(file, SaveKind.Manual, string.Empty, string.Empty, string.Empty, 0));
+			return;
+		}
+
 		ShowTitle();
 	}
 
@@ -2244,14 +2252,20 @@ public partial class Main : Node3D
 		RefreshReach();
 	}
 
-	private void SelectSpellsFor(Creature actor)
+	/// <param name="now">From the queue itself: the board has got here, so do it, busy or not.</param>
+	private void SelectSpellsFor(Creature actor, bool now = false)
 	{
 		// Whose spells are listed is part of whose turn it is, and the board may not have got
 		// there yet: refilling it at once blanked the wizard's list while the goblins were
 		// still being shown taking the turns in between.
-		if (StageBusy)
+		//
+		// Queued once, and run when its turn in the queue comes, not asked again then. Asking
+		// again re-queued it behind whatever else was waiting, and the items list doing the
+		// same made the two take turns behind each other for ever — in one frame, which is the
+		// freeze the owner hit the moment a fight opened.
+		if (StageBusy && !now)
 		{
-			Enqueue(0.0, () => SelectSpellsFor(actor));
+			Enqueue(0.0, () => SelectSpellsFor(actor, now: true));
 			return;
 		}
 
@@ -2394,11 +2408,12 @@ public partial class Main : Node3D
 	/// The Items list: whatever is on the actor's belt that can be used in a fight, one line a
 	/// stack, "alchemist's fire ×3". Weapons on the belt are drawn by attacking, not from here.
 	/// </summary>
-	private void SelectItemsFor(Creature actor)
+	private void SelectItemsFor(Creature actor, bool now = false)
 	{
-		if (StageBusy)
+		// As the spell list: queued once, done when the queue gets there.
+		if (StageBusy && !now)
 		{
-			Enqueue(0.0, () => SelectItemsFor(actor));
+			Enqueue(0.0, () => SelectItemsFor(actor, now: true));
 			return;
 		}
 

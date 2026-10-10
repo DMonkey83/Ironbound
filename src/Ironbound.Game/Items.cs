@@ -105,6 +105,12 @@ public partial class Main
 	/// <summary>The belt list again if what is on the belt has changed since it was filled.</summary>
 	private void RefreshItems(Creature actor)
 	{
+		// Only once the board has caught up; RefreshControls runs again when it has.
+		if (StageBusy)
+		{
+			return;
+		}
+
 		var now = Consumables.OnBelt(actor);
 		if (now.Count != _usables.Count || now.Where((stack, i) => stack.Item.Id != _usables[i].Item.Id || stack.Count != _usables[i].Count).Any())
 		{
