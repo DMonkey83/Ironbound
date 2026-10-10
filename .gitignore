@@ -6,3 +6,6 @@ obj/
 
 # Rules reference pasted from the Archives of Nethys (Paizo content); local only, not for the public repo.
 reference/
+
+# Python bytecode from the Blender art scripts.
+__pycache__/
